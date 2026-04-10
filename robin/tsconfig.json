@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
@@ -9,9 +9,9 @@
     "noImplicitAny": false,
     "skipLibCheck": true,
     "paths": {
-      "@robin/shared": ["../../packages/shared/dist/index.d.ts"],
-      "@robin/queue": ["../../packages/queue/dist/index.d.ts"],
-      "@robin/agent": ["../../packages/agent/dist/index.d.ts"]
+      "@robin/shared": ["../packages/shared/dist/index.d.ts"],
+      "@robin/queue": ["../packages/queue/dist/index.d.ts"],
+      "@robin/agent": ["../packages/agent/dist/index.d.ts"]
     }
   },
   "include": ["src/**/*"],
