@@ -62,32 +62,32 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| WORK-01 | - | Pending |
-| WORK-02 | - | Pending |
-| WORK-03 | - | Pending |
-| WORK-04 | - | Pending |
-| WORK-05 | - | Pending |
-| SERV-01 | - | Pending |
-| SERV-02 | - | Pending |
-| SERV-03 | - | Pending |
-| SERV-04 | - | Pending |
-| SERV-05 | - | Pending |
-| PACK-01 | - | Pending |
-| PACK-02 | - | Pending |
-| PACK-03 | - | Pending |
-| PACK-04 | - | Pending |
-| GATE-01 | - | Pending |
-| GATE-02 | - | Pending |
-| GATE-03 | - | Pending |
-| VERI-01 | - | Pending |
-| VERI-02 | - | Pending |
-| VERI-03 | - | Pending |
+| WORK-01 | Phase 1 | Pending |
+| WORK-02 | Phase 1 | Pending |
+| WORK-03 | Phase 1 | Pending |
+| WORK-04 | Phase 1 | Pending |
+| WORK-05 | Phase 1 | Pending |
+| PACK-01 | Phase 2 | Pending |
+| PACK-02 | Phase 2 | Pending |
+| PACK-03 | Phase 2 | Pending |
+| PACK-04 | Phase 2 | Pending |
+| SERV-01 | Phase 3 | Pending |
+| SERV-02 | Phase 3 | Pending |
+| SERV-03 | Phase 3 | Pending |
+| SERV-04 | Phase 3 | Pending |
+| SERV-05 | Phase 3 | Pending |
+| GATE-01 | Phase 3 | Pending |
+| GATE-02 | Phase 3 | Pending |
+| GATE-03 | Phase 3 | Pending |
+| VERI-01 | Phase 4 | Pending |
+| VERI-02 | Phase 4 | Pending |
+| VERI-03 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 20 total
-- Mapped to phases: 0
-- Unmapped: 20
+- Mapped to phases: 20
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-10*
-*Last updated: 2026-04-10 after initial definition*
+*Last updated: 2026-04-10 after roadmap creation*
