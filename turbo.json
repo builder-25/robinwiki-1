@@ -1,0 +1,33 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["**/.env.*local"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "@robin/server#build": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "build:gateway": {
+      "cache": true,
+      "outputs": ["bin/**"],
+      "inputs": ["**/*.go", "go.mod", "go.sum"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "lint": {
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    }
+  }
+}
