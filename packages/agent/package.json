@@ -1,0 +1,38 @@
+{
+  "name": "@robin/agent",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "types": "./dist/index.d.mts"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "eval": "tsx src/eval/run.ts",
+    "eval:scored": "tsx src/eval/run-scored.ts",
+    "lint": "biome lint ./src"
+  },
+  "dependencies": {
+    "@mastra/core": "^1.8.0",
+    "@openrouter/ai-sdk-provider": "^2.2.3",
+    "@robin/shared": "workspace:*",
+    "fuzzball": "^2.2.3",
+    "gray-matter": "^4.0.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "dotenv": "^16.4.0",
+    "tsdown": "^0.21.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
+  }
+}
