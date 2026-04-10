@@ -14,7 +14,8 @@ Users can capture raw thoughts and have them automatically structured into searc
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Set up pnpm workspace with `robin` and `packages/*` as workspace entries — Validated in Phase 1: Workspace Setup
+- [x] Retain existing TypeScript config, Biome linting, and build setup — Validated in Phase 1: Workspace Setup
 
 ### Active
 
@@ -22,11 +23,11 @@ Users can capture raw thoughts and have them automatically structured into searc
 - [ ] Migrate `packages/agent`, `packages/queue`, `packages/shared` as workspace packages under `packages/`
 - [ ] Stub gateway client with facade that returns expected empty/default objects for all gateway calls
 - [ ] Remove Go gateway and gitolite infrastructure entirely
-- [ ] Set up pnpm workspace with `robin` and `packages/*` as workspace entries
+- [x] ~~Set up pnpm workspace with `robin` and `packages/*` as workspace entries~~ (Phase 1)
 - [ ] Preserve all existing server functionality: auth, REST API, MCP, AI pipeline, BullMQ workers
 - [ ] Database schema and Drizzle migrations live inside `robin/drizzle/`
 - [ ] Server boots and all routes respond (gateway-dependent routes return stub data)
-- [ ] Retain existing TypeScript config, Biome linting, and build setup
+- [x] ~~Retain existing TypeScript config, Biome linting, and build setup~~ (Phase 1)
 
 ### Out of Scope
 
