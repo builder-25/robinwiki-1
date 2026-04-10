@@ -62,7 +62,7 @@ Plans:
 
 Plans:
 - [x] 03-01-PLAN.md — Copy server source, configs, and migrations; fix config paths; replace gateway client with no-op facade
-- [ ] 03-02-PLAN.md — Install dependencies, verify TypeScript compilation, and confirm server boots with /health
+- [x] 03-02-PLAN.md — Install dependencies, verify TypeScript compilation, and confirm server boots with /health
 
 ### Phase 4: Verification
 **Goal**: The full workspace installs, compiles, and builds cleanly with no errors
@@ -75,7 +75,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 04-01-PLAN.md — Run pnpm install, fix TypeScript errors, and verify all workspace packages build successfully
+- [x] 04-01-PLAN.md — Run pnpm install, fix TypeScript errors, and verify all workspace packages build successfully
 
 ## Progress
 
