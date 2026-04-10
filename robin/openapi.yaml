@@ -1,0 +1,2129 @@
+openapi: "3.1.0"
+info:
+  title: Robin API
+  version: "0.3.0"
+  description: REST API for Robin.OS — a personal knowledge management system.
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+
+security:
+  - cookieAuth: []
+
+tags:
+  - name: System
+    description: Health and metadata endpoints
+  - name: Entries
+    description: Raw user captures (thoughts, notes, bookmarks)
+  - name: Fragments
+    description: AI-processed knowledge fragments
+  - name: Threads
+    description: Topic threads that group related fragments
+  - name: Vaults
+    description: Top-level knowledge containers
+  - name: People
+    description: Extracted person entities
+  - name: Search
+    description: Hybrid BM25 + vector search
+  - name: Graph
+    description: Knowledge graph visualization
+  - name: Relationships
+    description: Object relationship lookups
+  - name: Content
+    description: Raw/structured content read/write
+  - name: Robin
+    description: System config notes
+  - name: Users
+    description: User profile, stats, and account management
+  - name: Admin
+    description: Administrative operations
+  - name: Internal
+    description: Service-to-service endpoints
+  - name: MCP
+    description: Model Context Protocol transport
+
+# ─────────────────────────────────────────────────────────────────────
+# Paths
+# ─────────────────────────────────────────────────────────────────────
+
+paths:
+
+  # ── System ─────────────────────────────────────────────────────────
+
+  /health:
+    get:
+      operationId: getHealth
+      summary: Health check
+      tags: [System]
+      security: []
+      responses:
+        "200":
+          description: Server is running
+
+  /openapi.json:
+    get:
+      operationId: getOpenApiSpec
+      summary: OpenAPI specification
+      tags: [System]
+      security: []
+      responses:
+        "200":
+          description: The OpenAPI spec
+
+  # ── Entries ────────────────────────────────────────────────────────
+
+  /entries:
+    post:
+      operationId: createEntry
+      summary: Create a new entry (queues async processing)
+      tags: [Entries]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/createEntryBodySchema"
+      responses:
+        "202":
+          description: Entry created and queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/entryCreatedResponseSchema"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+    get:
+      operationId: listEntries
+      summary: List recent entries
+      tags: [Entries]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        "200":
+          description: List of entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/entryListResponseSchema"
+
+  /entries/{id}:
+    get:
+      operationId: getEntry
+      summary: Get an entry by ID
+      tags: [Entries]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/entryResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /entries/{id}/fragments:
+    get:
+      operationId: listEntryFragments
+      summary: Get all fragments derived from an entry
+      tags: [Entries]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Fragments for this entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/fragmentListResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  # ── Fragments ──────────────────────────────────────────────────────
+
+  /fragments:
+    get:
+      operationId: listFragments
+      summary: List fragments
+      tags: [Fragments]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        "200":
+          description: List of fragments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/fragmentListResponseSchema"
+    post:
+      operationId: createFragment
+      summary: Create a new fragment
+      tags: [Fragments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/createFragmentBodySchema"
+      responses:
+        "201":
+          description: Created fragment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/fragmentWithContentResponseSchema"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /fragments/{id}:
+    get:
+      operationId: getFragment
+      summary: Get a fragment by ID (includes content)
+      tags: [Fragments]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Fragment with content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/fragmentWithContentResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+    put:
+      operationId: updateFragment
+      summary: Update a fragment
+      tags: [Fragments]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/updateFragmentBodySchema"
+      responses:
+        "200":
+          description: Updated fragment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/fragmentResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /fragments/{id}/thread:
+    put:
+      operationId: setFragmentThread
+      summary: Move fragment to thread (not implemented)
+      tags: [Fragments]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "501":
+          description: Not implemented
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /fragments/{id}/links:
+    get:
+      operationId: getFragmentLinks
+      summary: Get outgoing connections (stub)
+      tags: [Fragments]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Outgoing links (empty)
+
+  /fragments/{id}/backlinks:
+    get:
+      operationId: getFragmentBacklinks
+      summary: Get incoming connections (stub)
+      tags: [Fragments]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Incoming backlinks (empty)
+
+  # ── Threads ────────────────────────────────────────────────────────
+
+  /threads/{id}:
+    get:
+      operationId: getThread
+      summary: Get a thread by ID (includes wiki content)
+      tags: [Threads]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Thread with wiki content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/threadWithWikiResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+    put:
+      operationId: updateThread
+      summary: Update a thread
+      tags: [Threads]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/updateThreadBodySchema"
+      responses:
+        "200":
+          description: Updated thread
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/threadResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /threads/{id}/regenerate:
+    post:
+      operationId: regenerateThread
+      summary: Trigger thread wiki regeneration
+      tags: [Threads]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "202":
+          description: Job queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/queuedResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /threads/{targetId}/merge:
+    post:
+      operationId: mergeThreads
+      summary: Merge threads (not implemented)
+      tags: [Threads]
+      parameters:
+        - name: targetId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "501":
+          description: Not implemented
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  # ── Vaults ─────────────────────────────────────────────────────────
+
+  /vaults:
+    get:
+      operationId: listVaults
+      summary: List all vaults
+      tags: [Vaults]
+      responses:
+        "200":
+          description: List of vaults
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/vaultListResponseSchema"
+    post:
+      operationId: createVault
+      summary: Create a new vault
+      tags: [Vaults]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/createVaultBodySchema"
+      responses:
+        "201":
+          description: Created vault
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/vaultResponseSchema"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /vaults/{id}:
+    get:
+      operationId: getVault
+      summary: Get a vault by ID
+      tags: [Vaults]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: The vault
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/vaultResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+    put:
+      operationId: updateVault
+      summary: Update a vault
+      tags: [Vaults]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/updateVaultBodySchema"
+      responses:
+        "200":
+          description: Updated vault
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/vaultResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /vaults/{id}/profile:
+    put:
+      operationId: updateVaultProfile
+      summary: Update vault profile text
+      tags: [Vaults]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Updated vault
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/vaultResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /vaults/{vaultId}/threads:
+    get:
+      operationId: listVaultThreads
+      summary: List threads in a vault
+      tags: [Vaults]
+      parameters:
+        - $ref: "#/components/parameters/VaultId"
+      responses:
+        "200":
+          description: List of threads
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/threadListResponseSchema"
+    post:
+      operationId: createVaultThread
+      summary: Create a thread in a vault
+      tags: [Vaults]
+      parameters:
+        - $ref: "#/components/parameters/VaultId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/createThreadBodySchema"
+      responses:
+        "201":
+          description: Created thread
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/threadResponseSchema"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+        "404":
+          description: Vault not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  # ── People ─────────────────────────────────────────────────────────
+
+  /people:
+    get:
+      operationId: listPeople
+      summary: List all people
+      tags: [People]
+      responses:
+        "200":
+          description: List of people
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/personListResponseSchema"
+
+  /people/{id}:
+    get:
+      operationId: getPerson
+      summary: Get a person by ID (includes backlinks)
+      tags: [People]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Person with backlinks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/personWithBacklinksResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /people/{id}/regenerate:
+    post:
+      operationId: regeneratePerson
+      summary: Trigger person body regeneration
+      tags: [People]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "202":
+          description: Job queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/queuedResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  # ── Search ─────────────────────────────────────────────────────────
+
+  /search:
+    get:
+      operationId: search
+      summary: Search fragments (BM25 + vector)
+      tags: [Search]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: minScore
+          in: query
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/searchResponseSchema"
+        "400":
+          description: Missing query
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  # ── Graph ──────────────────────────────────────────────────────────
+
+  /graph:
+    get:
+      operationId: getGraph
+      summary: Get the knowledge graph
+      tags: [Graph]
+      responses:
+        "200":
+          description: Graph nodes and edges
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/graphResponseSchema"
+
+  # ── Relationships ──────────────────────────────────────────────────
+
+  /relationships/{type}/{id}:
+    get:
+      operationId: getRelationships
+      summary: Get all relationships for an object
+      tags: [Relationships]
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [entry, fragment, thread, vault, person]
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Relationships grouped by edge type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/relationshipsResponseSchema"
+        "400":
+          description: Invalid type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  # ── Content ────────────────────────────────────────────────────────
+
+  /api/content/{type}/{key}:
+    get:
+      operationId: getContent
+      summary: Read raw or structured content
+      tags: [Content]
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [fragment, entry, thread, person]
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Content (raw or structured)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/contentRawResponseSchema"
+        "400":
+          description: Invalid type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+    put:
+      operationId: updateContent
+      summary: Write structured content
+      tags: [Content]
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [fragment, entry, thread, person]
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Content updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/okResponseSchema"
+        "400":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  # ── Robin (Config) ─────────────────────────────────────────────────
+
+  /robin/config:
+    get:
+      operationId: listConfigNotes
+      summary: List all config notes
+      tags: [Robin]
+      responses:
+        "200":
+          description: List of config notes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/configNoteListResponseSchema"
+
+  /robin/config/{key}:
+    get:
+      operationId: getConfigNote
+      summary: Get config note by key
+      tags: [Robin]
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The config note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/configNoteResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+    put:
+      operationId: updateConfigNote
+      summary: Update config note
+      tags: [Robin]
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/updateConfigNoteBodySchema"
+      responses:
+        "200":
+          description: Updated config note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/configNoteResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  # ── Users ──────────────────────────────────────────────────────────
+
+  /users/profile:
+    get:
+      operationId: getUserProfile
+      summary: Get current user's profile
+      tags: [Users]
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/userProfileResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /users/onboard:
+    patch:
+      operationId: markOnboarded
+      summary: Mark onboarding complete
+      tags: [Users]
+      responses:
+        "200":
+          description: Onboarding marked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/okResponseSchema"
+
+  /users/keypair:
+    get:
+      operationId: getUserKeypair
+      summary: Get user's Ed25519 keypair
+      tags: [Users]
+      responses:
+        "200":
+          description: Keypair details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/keypairResponseSchema"
+        "404":
+          description: No keypair
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /users/stats:
+    get:
+      operationId: getUserStats
+      summary: Get user's stats
+      tags: [Users]
+      responses:
+        "200":
+          description: User stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/userStatsResponseSchema"
+
+  /users/activity:
+    get:
+      operationId: getUserActivity
+      summary: Get user's recent activity
+      tags: [Users]
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/userActivityResponseSchema"
+
+  /users/export:
+    post:
+      operationId: exportUserData
+      summary: Export all user data
+      tags: [Users]
+      responses:
+        "200":
+          description: Full data export
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/exportDataResponseSchema"
+
+  /users/regenerate-mcp:
+    post:
+      operationId: regenerateMcpEndpoint
+      summary: Regenerate MCP endpoint URL
+      tags: [Users]
+      responses:
+        "200":
+          description: New MCP endpoint
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/mcpEndpointResponseSchema"
+        "400":
+          description: No keypair
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /users/data:
+    delete:
+      operationId: deleteUserData
+      summary: Delete all user data (keeps account)
+      tags: [Users]
+      responses:
+        "200":
+          description: Data deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/okResponseSchema"
+
+  /users/account:
+    delete:
+      operationId: deleteUserAccount
+      summary: Delete user account entirely
+      tags: [Users]
+      responses:
+        "200":
+          description: Account deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/okResponseSchema"
+
+  # ── Admin ──────────────────────────────────────────────────────────
+
+  /admin/retry-stuck:
+    post:
+      operationId: retryStuckFragments
+      summary: Re-enqueue stuck PENDING fragments
+      tags: [Admin]
+      security: []
+      responses:
+        "200":
+          description: Re-enqueue results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/retryStuckResponseSchema"
+
+  # ── Internal ───────────────────────────────────────────────────────
+
+  /internal/sync-notify:
+    post:
+      operationId: syncNotify
+      summary: Gateway sync notification (HMAC)
+      tags: [Internal]
+      security:
+        - hmacAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/syncNotifyPayloadSchema"
+      responses:
+        "202":
+          description: Sync job accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/syncAcceptedResponseSchema"
+        "400":
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+        "401":
+          description: Invalid HMAC
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  # ── MCP ────────────────────────────────────────────────────────────
+
+  /mcp:
+    post:
+      operationId: mcpTransport
+      summary: MCP Streamable HTTP transport (JWT)
+      tags: [MCP]
+      security:
+        - mcpToken: []
+      responses:
+        "200":
+          description: MCP protocol response
+        "401":
+          description: Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+# ─────────────────────────────────────────────────────────────────────
+# Components
+# ─────────────────────────────────────────────────────────────────────
+
+components:
+
+  # ── Security Schemes ───────────────────────────────────────────────
+
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: better-auth.session_token
+      description: Session cookie set by better-auth after sign-in
+    hmacAuth:
+      type: apiKey
+      in: header
+      name: X-Signature
+      description: HMAC-SHA256 signature of request body
+    mcpToken:
+      type: apiKey
+      in: query
+      name: token
+      description: JWT token for MCP access
+
+  # ── Shared Parameters ──────────────────────────────────────────────
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      description: Resource ID or lookup key
+      schema:
+        type: string
+    VaultId:
+      name: vaultId
+      in: path
+      required: true
+      description: Vault ID
+      schema:
+        type: string
+
+  # ── Standard Responses ─────────────────────────────────────────────
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/errorResponseSchema"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/errorResponseSchema"
+
+  # ── Schemas ────────────────────────────────────────────────────────
+
+  schemas:
+
+    # ── Base ───────────────────────────────────────────────────────
+
+    errorResponseSchema:
+      type: object
+      properties:
+        error:
+          type: string
+        fields: {}
+      required: [error]
+      additionalProperties: false
+
+    okResponseSchema:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+      required: [ok]
+      additionalProperties: false
+
+    queuedResponseSchema:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [queued]
+        jobId:
+          type: string
+      required: [status, jobId]
+      additionalProperties: false
+
+    # ── Entries ─────────────────────────────────────────────────────
+
+    createEntryBodySchema:
+      type: object
+      properties:
+        content:
+          type: string
+          minLength: 1
+        title:
+          type: string
+        source:
+          type: string
+          default: api
+        type:
+          type: string
+          default: thought
+        vaultId:
+          type: string
+      required: [content]
+      additionalProperties: false
+
+    entryListQuerySchema:
+      type: object
+      properties:
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 50
+      additionalProperties: false
+
+    entryResponseSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        lookupKey:
+          type: string
+          minLength: 1
+        userId:
+          type: string
+        slug:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        type:
+          type: string
+        source:
+          type: string
+        vaultId:
+          type: string
+          nullable: true
+        state:
+          type: string
+          enum: [PENDING, RESOLVED, LINKING, DIRTY]
+        repoPath:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, lookupKey, userId, slug, title, content, type, source, vaultId, state, repoPath, createdAt, updatedAt]
+      additionalProperties: false
+
+    entryCreatedResponseSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        lookupKey:
+          type: string
+          minLength: 1
+        userId:
+          type: string
+        slug:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        type:
+          type: string
+        source:
+          type: string
+        vaultId:
+          type: string
+          nullable: true
+        state:
+          type: string
+          enum: [PENDING, RESOLVED, LINKING, DIRTY]
+        repoPath:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        jobId:
+          type: string
+        status:
+          type: string
+          enum: [queued]
+      required: [id, lookupKey, userId, slug, title, content, type, source, vaultId, state, repoPath, createdAt, updatedAt, jobId, status]
+      additionalProperties: false
+
+    entryListResponseSchema:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/entryResponseSchema"
+      required: [entries]
+      additionalProperties: false
+
+    # ── Fragments ──────────────────────────────────────────────────
+
+    createFragmentBodySchema:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        content:
+          type: string
+        entryId:
+          type: string
+          minLength: 1
+        tags:
+          type: array
+          items:
+            type: string
+          default: []
+      required: [title, entryId]
+      additionalProperties: false
+
+    updateFragmentBodySchema:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+      additionalProperties: false
+
+    fragmentListQuerySchema:
+      type: object
+      properties:
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 50
+      additionalProperties: false
+
+    fragmentResponseSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        lookupKey:
+          type: string
+          minLength: 1
+        userId:
+          type: string
+        slug:
+          type: string
+        title:
+          type: string
+        type:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        entryId:
+          type: string
+          nullable: true
+        state:
+          type: string
+          enum: [PENDING, RESOLVED, LINKING, DIRTY]
+        repoPath:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, lookupKey, userId, slug, title, type, tags, entryId, state, repoPath, createdAt, updatedAt]
+      additionalProperties: false
+
+    fragmentWithContentResponseSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        lookupKey:
+          type: string
+          minLength: 1
+        userId:
+          type: string
+        slug:
+          type: string
+        title:
+          type: string
+        type:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        entryId:
+          type: string
+          nullable: true
+        state:
+          type: string
+          enum: [PENDING, RESOLVED, LINKING, DIRTY]
+        repoPath:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        content:
+          type: string
+      required: [id, lookupKey, userId, slug, title, type, tags, entryId, state, repoPath, createdAt, updatedAt, content]
+      additionalProperties: false
+
+    fragmentListResponseSchema:
+      type: object
+      properties:
+        fragments:
+          type: array
+          items:
+            $ref: "#/components/schemas/fragmentResponseSchema"
+      required: [fragments]
+      additionalProperties: false
+
+    # ── Threads ────────────────────────────────────────────────────
+
+    createThreadBodySchema:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          default: log
+        prompt:
+          type: string
+      required: [name]
+      additionalProperties: false
+
+    updateThreadBodySchema:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        prompt:
+          type: string
+      additionalProperties: false
+
+    threadResponseSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        lookupKey:
+          type: string
+          minLength: 1
+        userId:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        prompt:
+          type: string
+        state:
+          type: string
+          enum: [PENDING, RESOLVED, LINKING, DIRTY]
+        repoPath:
+          type: string
+        vaultId:
+          type: string
+          nullable: true
+        lastRebuiltAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        noteCount:
+          type: number
+          default: 0
+        lastUpdated:
+          type: string
+      required: [id, lookupKey, userId, slug, name, type, prompt, state, repoPath, vaultId, lastRebuiltAt, createdAt, updatedAt, lastUpdated]
+      additionalProperties: false
+
+    threadWithWikiResponseSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        lookupKey:
+          type: string
+          minLength: 1
+        userId:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        prompt:
+          type: string
+        state:
+          type: string
+          enum: [PENDING, RESOLVED, LINKING, DIRTY]
+        repoPath:
+          type: string
+        vaultId:
+          type: string
+          nullable: true
+        lastRebuiltAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        noteCount:
+          type: number
+          default: 0
+        lastUpdated:
+          type: string
+        wikiContent:
+          type: string
+      required: [id, lookupKey, userId, slug, name, type, prompt, state, repoPath, vaultId, lastRebuiltAt, createdAt, updatedAt, lastUpdated, wikiContent]
+      additionalProperties: false
+
+    threadListResponseSchema:
+      type: object
+      properties:
+        threads:
+          type: array
+          items:
+            $ref: "#/components/schemas/threadResponseSchema"
+      required: [threads]
+      additionalProperties: false
+
+    # ── People ─────────────────────────────────────────────────────
+
+    personResponseSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        lookupKey:
+          type: string
+          minLength: 1
+        userId:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+        relationship:
+          type: string
+        sections: {}
+        state:
+          type: string
+          enum: [PENDING, RESOLVED, LINKING, DIRTY]
+        repoPath:
+          type: string
+        lastRebuiltAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, lookupKey, userId, slug, name, relationship, state, repoPath, lastRebuiltAt, createdAt, updatedAt]
+      additionalProperties: false
+
+    personWithBacklinksResponseSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        lookupKey:
+          type: string
+          minLength: 1
+        userId:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+        relationship:
+          type: string
+        sections: {}
+        state:
+          type: string
+          enum: [PENDING, RESOLVED, LINKING, DIRTY]
+        repoPath:
+          type: string
+        lastRebuiltAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        backlinkFragmentIds:
+          type: array
+          items:
+            type: string
+        backlinkThreadIds:
+          type: array
+          items:
+            type: string
+      required: [id, lookupKey, userId, slug, name, relationship, state, repoPath, lastRebuiltAt, createdAt, updatedAt, backlinkFragmentIds, backlinkThreadIds]
+      additionalProperties: false
+
+    personListResponseSchema:
+      type: object
+      properties:
+        people:
+          type: array
+          items:
+            $ref: "#/components/schemas/personResponseSchema"
+      required: [people]
+      additionalProperties: false
+
+    # ── Vaults ─────────────────────────────────────────────────────
+
+    createVaultBodySchema:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        icon:
+          type: string
+        description:
+          type: string
+        color:
+          type: string
+      required: [name]
+      additionalProperties: false
+
+    updateVaultBodySchema:
+      type: object
+      properties:
+        name:
+          type: string
+        icon:
+          type: string
+        description:
+          type: string
+        profile:
+          type: string
+        color:
+          type: string
+      additionalProperties: false
+
+    vaultResponseSchema:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        icon:
+          type: string
+        description:
+          type: string
+        profile:
+          type: string
+          nullable: true
+        color:
+          type: string
+        type:
+          type: string
+          enum: [user, system, inbox]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        threadCount:
+          type: number
+          default: 0
+        noteCount:
+          type: number
+          default: 0
+      required: [id, userId, name, slug, icon, description, profile, color, type, createdAt, updatedAt]
+      additionalProperties: false
+
+    vaultListResponseSchema:
+      type: object
+      properties:
+        vaults:
+          type: array
+          items:
+            $ref: "#/components/schemas/vaultResponseSchema"
+      required: [vaults]
+      additionalProperties: false
+
+    # ── Search ─────────────────────────────────────────────────────
+
+    searchQuerySchema:
+      type: object
+      properties:
+        q:
+          type: string
+          minLength: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+        minScore:
+          type: number
+      required: [q]
+      additionalProperties: false
+
+    searchResponseSchema:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              score:
+                type: number
+              fragmentId:
+                type: string
+              title:
+                type: string
+              fragment:
+                type: string
+              tags:
+                type: array
+                items:
+                  type: string
+              vaultId:
+                type: string
+                nullable: true
+              threadId:
+                type: string
+                nullable: true
+            required: [score, fragmentId, title, fragment, tags]
+            additionalProperties: false
+      required: [results]
+      additionalProperties: false
+
+    # ── Users ──────────────────────────────────────────────────────
+
+    userProfileResponseSchema:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+          nullable: true
+        mcpEndpointUrl:
+          type: string
+        apiKeyHint:
+          type: string
+        onboardedAt:
+          type: string
+          nullable: true
+      required: [id, email, name, mcpEndpointUrl, apiKeyHint, onboardedAt]
+      additionalProperties: false
+
+    userStatsResponseSchema:
+      type: object
+      properties:
+        totalNotes:
+          type: number
+        totalThreads:
+          type: number
+        peopleCount:
+          type: number
+        unthreadedCount:
+          type: number
+        lastSync:
+          type: string
+      required: [totalNotes, totalThreads, peopleCount, unthreadedCount, lastSync]
+      additionalProperties: false
+
+    userActivityResponseSchema:
+      type: object
+      properties:
+        activity:
+          type: array
+          items:
+            type: object
+            properties:
+              action:
+                type: string
+              time:
+                type: string
+            required: [action, time]
+            additionalProperties: false
+      required: [activity]
+      additionalProperties: false
+
+    keypairResponseSchema:
+      type: object
+      properties:
+        algorithm:
+          type: string
+        publicKey:
+          type: string
+        privateKey:
+          type: string
+      required: [algorithm, publicKey, privateKey]
+      additionalProperties: false
+
+    mcpEndpointResponseSchema:
+      type: object
+      properties:
+        mcpEndpointUrl:
+          type: string
+      required: [mcpEndpointUrl]
+      additionalProperties: false
+
+    exportDataResponseSchema:
+      type: object
+      properties:
+        exportedAt:
+          type: string
+        vaults:
+          type: array
+        threads:
+          type: array
+        fragments:
+          type: array
+        people:
+          type: array
+      required: [exportedAt, vaults, threads, fragments, people]
+      additionalProperties: false
+
+    # ── Graph ──────────────────────────────────────────────────────
+
+    graphResponseSchema:
+      type: object
+      properties:
+        nodes:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              label:
+                type: string
+              type:
+                type: string
+                enum: [thread, fragment, person, entry, vault]
+              vaultId:
+                type: string
+              size:
+                type: number
+            required: [id, label, type, vaultId, size]
+            additionalProperties: false
+        edges:
+          type: array
+          items:
+            type: object
+            properties:
+              source:
+                type: string
+              target:
+                type: string
+              edgeType:
+                type: string
+                enum: [filing, wikilink, mention]
+            required: [source, target, edgeType]
+            additionalProperties: false
+      required: [nodes, edges]
+      additionalProperties: false
+
+    # ── Relationships ──────────────────────────────────────────────
+
+    relationshipsResponseSchema:
+      type: object
+      properties:
+        relationships:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                type:
+                  type: string
+                label:
+                  type: string
+                edgeType:
+                  type: string
+              required: [id, type, label, edgeType]
+              additionalProperties: false
+      required: [relationships]
+      additionalProperties: false
+
+    # ── Robin (Config) ─────────────────────────────────────────────
+
+    configNoteResponseSchema:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        key:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        frontmatter: {}
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, userId, key, title, content, createdAt, updatedAt]
+      additionalProperties: false
+
+    configNoteListResponseSchema:
+      type: object
+      properties:
+        configNotes:
+          type: array
+          items:
+            $ref: "#/components/schemas/configNoteResponseSchema"
+      required: [configNotes]
+      additionalProperties: false
+
+    updateConfigNoteBodySchema:
+      type: object
+      properties:
+        content:
+          type: string
+        frontmatter:
+          type: object
+          additionalProperties: {}
+      additionalProperties: false
+
+    # ── Admin ──────────────────────────────────────────────────────
+
+    retryStuckDryRunResponseSchema:
+      type: object
+      properties:
+        dryRun:
+          type: boolean
+          enum: [true]
+        count:
+          type: number
+        fragments:
+          type: array
+          items:
+            type: object
+            properties:
+              fragmentKey:
+                type: string
+              userId:
+                type: string
+              entryKey:
+                type: string
+            required: [fragmentKey, userId, entryKey]
+            additionalProperties: false
+      required: [dryRun, count, fragments]
+      additionalProperties: false
+
+    retryStuckResponseSchema:
+      type: object
+      properties:
+        enqueued:
+          type: number
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              fragmentKey:
+                type: string
+              error:
+                type: string
+            required: [fragmentKey, error]
+            additionalProperties: false
+        minutes:
+          type: number
+      required: [enqueued, errors, minutes]
+      additionalProperties: false
+
+    # ── Internal ───────────────────────────────────────────────────
+
+    syncNotifyPayloadSchema:
+      type: object
+      properties:
+        userId:
+          type: string
+          minLength: 1
+        commitHash:
+          type: string
+        files:
+          type: array
+          items:
+            type: object
+            properties:
+              path:
+                type: string
+              operation:
+                type: string
+                enum: [add, modify, delete]
+              content:
+                type: string
+              frontmatterHash:
+                type: string
+              bodyHash:
+                type: string
+              contentHash:
+                type: string
+            required: [path, operation, content]
+            additionalProperties: false
+      required: [userId, commitHash, files]
+      additionalProperties: false
+
+    syncAcceptedResponseSchema:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [accepted]
+      required: [status]
+      additionalProperties: false
+
+    # ── Content ────────────────────────────────────────────────────
+
+    contentRawResponseSchema:
+      type: object
+      properties:
+        content:
+          type: string
+      required: [content]
+      additionalProperties: false
+
+    contentStructuredResponseSchema:
+      type: object
+      properties:
+        frontmatter:
+          type: object
+          additionalProperties: {}
+        body:
+          type: string
+        raw:
+          type: string
+      required: [frontmatter, body, raw]
+      additionalProperties: false
+
+    fragmentWriteSchema:
+      type: object
+      properties:
+        frontmatter:
+          type: object
+          properties:
+            title:
+              type: string
+              minLength: 1
+            tags:
+              type: array
+              items:
+                type: string
+              default: []
+            threadKeys:
+              type: array
+              items:
+                type: string
+              default: []
+            personKeys:
+              type: array
+              items:
+                type: string
+              default: []
+            relatedFragmentKeys:
+              type: array
+              items:
+                type: string
+              default: []
+          required: [title]
+          additionalProperties: false
+        body:
+          type: string
+      required: [frontmatter, body]
+      additionalProperties: false
+
+    entryWriteSchema:
+      type: object
+      properties:
+        frontmatter:
+          type: object
+          properties:
+            title:
+              type: string
+              minLength: 1
+            tags:
+              type: array
+              items:
+                type: string
+              default: []
+          required: [title]
+          additionalProperties: false
+      required: [frontmatter]
+      additionalProperties: false
+
+    threadWriteSchema:
+      type: object
+      properties:
+        frontmatter:
+          type: object
+          properties:
+            name:
+              type: string
+              minLength: 1
+            type:
+              type: string
+            prompt:
+              type: string
+          required: [name]
+          additionalProperties: false
+        body:
+          type: string
+      required: [frontmatter, body]
+      additionalProperties: false
+
+    personWriteSchema:
+      type: object
+      properties:
+        frontmatter:
+          type: object
+          properties:
+            name:
+              type: string
+              minLength: 1
+            relationship:
+              type: string
+            aliases:
+              type: array
+              items:
+                type: string
+              default: []
+          required: [name]
+          additionalProperties: false
+        body:
+          type: string
+      required: [frontmatter, body]
+      additionalProperties: false
