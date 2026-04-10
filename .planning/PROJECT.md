@@ -19,14 +19,14 @@ Users can capture raw thoughts and have them automatically structured into searc
 
 ### Active
 
-- [ ] Migrate server app from `stateful-robin-impl` into `robin/` workspace directory with `src/` source layout
+- [x] ~~Migrate server app from `stateful-robin-impl` into `robin/` workspace directory with `src/` source layout~~ — Validated in Phase 3: Server Migration
 - [x] ~~Migrate `packages/agent`, `packages/queue`, `packages/shared` as workspace packages under `packages/`~~ — Validated in Phase 2: Package Migration
-- [ ] Stub gateway client with facade that returns expected empty/default objects for all gateway calls
-- [ ] Remove Go gateway and gitolite infrastructure entirely
+- [x] ~~Stub gateway client with facade that returns expected empty/default objects for all gateway calls~~ — Validated in Phase 3: Server Migration
+- [x] ~~Remove Go gateway and gitolite infrastructure entirely~~ — Validated in Phase 3: Server Migration
 - [x] ~~Set up pnpm workspace with `robin` and `packages/*` as workspace entries~~ (Phase 1)
-- [ ] Preserve all existing server functionality: auth, REST API, MCP, AI pipeline, BullMQ workers
-- [ ] Database schema and Drizzle migrations live inside `robin/drizzle/`
-- [ ] Server boots and all routes respond (gateway-dependent routes return stub data)
+- [x] ~~Preserve all existing server functionality: auth, REST API, MCP, AI pipeline, BullMQ workers~~ — Validated in Phase 3: Server Migration
+- [x] ~~Database schema and Drizzle migrations live inside `robin/drizzle/`~~ — Validated in Phase 3: Server Migration
+- [x] ~~Server boots and all routes respond (gateway-dependent routes return stub data)~~ — Validated in Phase 3: Server Migration
 - [x] ~~Retain existing TypeScript config, Biome linting, and build setup~~ (Phase 1)
 
 ### Out of Scope
