@@ -29,7 +29,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Turbo config is present and recognizes the workspace topology
   4. Biome config is present at root and applies to all workspace members
   5. `tsconfig.base.json` exists at root and is extendable by workspace packages
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 01-01-PLAN.md — Create pnpm-workspace.yaml, root package.json, turbo.json, biome.json, and tsconfig.base.json; run pnpm install to verify
 
 ### Phase 2: Package Migration
 **Goal**: All three workspace packages are in place under `packages/` with correct identities and cross-references
@@ -72,7 +75,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Workspace Setup | 0/TBD | Not started | - |
+| 1. Workspace Setup | 0/1 | Not started | - |
 | 2. Package Migration | 0/TBD | Not started | - |
 | 3. Server Migration | 0/TBD | Not started | - |
 | 4. Verification | 0/TBD | Not started | - |
