@@ -118,7 +118,6 @@ export function resolvePerson(
 
 interface EntityExtractInput {
   content: string
-  userId: string
   entryKey: string
   jobId: string
 }
@@ -137,7 +136,7 @@ export async function entityExtract(
   })
 
   // 1. Load known people
-  const knownPeople = await deps.loadUserPeople(input.userId)
+  const knownPeople = await deps.loadAllPeople()
 
   // 2. Build known people JSON for prompt
   const knownPeopleJson =

@@ -8,11 +8,10 @@ import type { StageResult, VaultClassifyDeps, VaultClassifyResult } from './type
  */
 export async function vaultClassify(
   deps: VaultClassifyDeps,
-  input: { userId: string; content: string; userSelectedVaultId: string | null }
+  input: { content: string; userSelectedVaultId: string | null }
 ): Promise<StageResult<VaultClassifyResult>> {
   const start = performance.now()
 
-  // Fast path: user already picked a vault
   if (input.userSelectedVaultId) {
     return {
       data: {
@@ -25,13 +24,11 @@ export async function vaultClassify(
     }
   }
 
-  // Fetch user vaults and ask the LLM
-  const vaults = await deps.listUserVaults(input.userId)
+  const vaults = await deps.listVaults()
   const vaultsJson = JSON.stringify(vaults)
   const spec = loadVaultClassificationSpec({ content: input.content, vaults: vaultsJson })
   const result = await deps.llmCall(spec.system, spec.user)
 
-  // Below threshold -> fall back to default vault
   const vaultId =
     result.confidence < deps.confidenceThreshold ? deps.fallbackVaultId : result.vaultKey
   const vaultName = result.confidence < deps.confidenceThreshold ? '' : result.vaultName

@@ -2,17 +2,26 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { persist, matchMentionsToFragments } from '../stages/persist'
 import type { PersistDeps, FragmentResult } from '../stages/types'
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
 function makeMockDeps(overrides: Partial<PersistDeps> = {}): PersistDeps {
   return {
-    batchWrite: vi.fn().mockResolvedValue({ commitHash: 'abc123' }),
     insertEntry: vi.fn().mockResolvedValue(undefined),
     insertFragment: vi.fn().mockResolvedValue(undefined),
     insertEdge: vi.fn().mockResolvedValue(undefined),
     insertPerson: vi.fn().mockResolvedValue(undefined),
-    loadPersonByKey: vi.fn().mockResolvedValue(null),
+    updateFragmentEmbedding: vi.fn().mockResolvedValue(undefined),
+    upsertPerson: vi
+      .fn()
+      .mockImplementation(async ({ personKey }: { personKey: string }) => ({
+        personKey,
+        isNew: true,
+      })),
+    mergePersonAliases: vi.fn().mockResolvedValue(undefined),
     emitEvent: vi.fn().mockResolvedValue(undefined),
+    openRouterConfig: {
+      apiKey: 'test-key',
+      chatModel: 'anthropic/claude-3-5-sonnet',
+      embeddingModel: 'openai/text-embedding-3-small',
+    },
     ...overrides,
   }
 }
@@ -32,7 +41,6 @@ function makeFragment(overrides: Partial<FragmentResult> = {}): FragmentResult {
 }
 
 const baseInput = {
-  userId: 'user1',
   entryKey: 'entry01HTEST1234567890ABCDEF',
   entryContent: 'Had coffee with Sarah at the park. Bob said hello.',
   vaultId: 'vault1',
@@ -40,6 +48,18 @@ const baseInput = {
   primaryTopic: 'Coffee meetup',
   jobId: 'job1',
 }
+
+// Block network calls to OpenRouter in embedText — return null gracefully.
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({}),
+    })
+  )
+})
 
 // ── matchMentionsToFragments ────────────────────────────────────────────────
 
@@ -123,45 +143,44 @@ describe('matchMentionsToFragments', () => {
 
     const result = matchMentionsToFragments(extractions, fragments, peopleMap)
 
-    // Fragment 0 should NOT contain personAAA since neither mention nor sourceSpan appear
     expect(result.has(0)).toBe(false)
   })
 })
 
-// ── persist with people integration ─────────────────────────────────────────
+// ── persist — Postgres inserts ──────────────────────────────────────────────
 
-describe('persist with people', () => {
-  it('creates person markdown files in people/ directory in batchWrite', async () => {
+describe('persist — Postgres inserts', () => {
+  it('inserts entry with vaultId and basic fields', async () => {
     const deps = makeMockDeps()
-    const fragments = [makeFragment()]
+    await persist(deps, { ...baseInput, fragments: [makeFragment()] })
 
-    await persist(deps, {
-      ...baseInput,
-      fragments,
-      newPeople: [
-        {
-          personKey: 'person01HAAAABBBBCCCCDDDDEEEE',
-          canonicalName: 'Sarah Ouma',
-          verified: false,
-        },
-      ],
-      peopleMap: new Map([['Sarah', 'person01HAAAABBBBCCCCDDDDEEEE']]),
-      extractions: [{ mention: 'Sarah', sourceSpan: 'with Sarah' }],
-      entityExtractionStatus: 'completed' as const,
-    })
-
-    const batchCall = (deps.batchWrite as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    const personFile = batchCall.files.find((f: { path: string }) => f.path.startsWith('people/'))
-
-    expect(personFile).toBeDefined()
-    expect(personFile.content).toContain('type: person')
-    expect(personFile.content).toContain('state: RESOLVED')
-    expect(personFile.content).toContain('verified: false')
-    expect(personFile.content).toContain('canonicalName: Sarah Ouma')
-    expect(personFile.content).toContain('aliases: []')
+    expect(deps.insertEntry).toHaveBeenCalledTimes(1)
+    const entryRow = (deps.insertEntry as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(entryRow.lookupKey).toBe(baseInput.entryKey)
+    expect(entryRow.vaultId).toBe('vault1')
+    expect(entryRow.state).toBe('PENDING')
+    expect(entryRow.slug).toBeTruthy()
+    expect(entryRow.title).toBe(baseInput.primaryTopic)
   })
 
-  it('includes person files in same batchWrite as entry + fragment files', async () => {
+  it('inserts each fragment with vaultId, entryId, state=PENDING', async () => {
+    const deps = makeMockDeps()
+    const fragments = [
+      makeFragment({ title: 'Alpha', suggestedSlug: 'alpha' }),
+      makeFragment({ title: 'Beta', suggestedSlug: 'beta' }),
+    ]
+    await persist(deps, { ...baseInput, fragments })
+
+    expect(deps.insertFragment).toHaveBeenCalledTimes(2)
+    const calls = (deps.insertFragment as ReturnType<typeof vi.fn>).mock.calls
+    for (const [row] of calls) {
+      expect(row.vaultId).toBe('vault1')
+      expect(row.entryId).toBe(baseInput.entryKey)
+      expect(row.state).toBe('PENDING')
+    }
+  })
+
+  it('calls upsertPerson for each new person', async () => {
     const deps = makeMockDeps()
     const fragments = [makeFragment()]
 
@@ -180,14 +199,10 @@ describe('persist with people', () => {
       entityExtractionStatus: 'completed' as const,
     })
 
-    // Single batchWrite call with entry + fragment + person
-    expect(deps.batchWrite).toHaveBeenCalledTimes(1)
-    const batchCall = (deps.batchWrite as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    const paths = batchCall.files.map((f: { path: string }) => f.path)
-
-    expect(paths.some((p: string) => p.startsWith('entries/'))).toBe(true)
-    expect(paths.some((p: string) => p.startsWith('fragments/'))).toBe(true)
-    expect(paths.some((p: string) => p.startsWith('people/'))).toBe(true)
+    expect(deps.upsertPerson).toHaveBeenCalledTimes(1)
+    const upsertArgs = (deps.upsertPerson as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(upsertArgs.canonicalName).toBe('Sarah Ouma')
+    expect(upsertArgs.verified).toBe(false)
   })
 
   it('creates FRAGMENT_MENTIONS_PERSON edges', async () => {
@@ -219,91 +234,8 @@ describe('persist with people', () => {
     })
   })
 
-  it('populates fragment frontmatter with personKeys and entityExtractionStatus', async () => {
+  it('calls mergePersonAliases for each newAliases entry', async () => {
     const deps = makeMockDeps()
-    const fragments = [makeFragment({ content: 'Had coffee with Sarah', sourceSpan: 'with Sarah' })]
-
-    await persist(deps, {
-      ...baseInput,
-      fragments,
-      newPeople: [
-        { personKey: 'person01HAAAABBBBCCCCDDDDEEEE', canonicalName: 'Sarah', verified: false },
-      ],
-      peopleMap: new Map([['Sarah', 'person01HAAAABBBBCCCCDDDDEEEE']]),
-      extractions: [{ mention: 'Sarah', sourceSpan: 'with Sarah' }],
-      entityExtractionStatus: 'completed' as const,
-    })
-
-    const batchCall = (deps.batchWrite as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    const fragFile = batchCall.files.find((f: { path: string }) => f.path.startsWith('fragments/'))
-
-    expect(fragFile.content).toContain('entityExtractionStatus: completed')
-    expect(fragFile.content).toContain('person01HAAAABBBBCCCCDDDDEEEE')
-  })
-
-  it('sets entityExtractionStatus failed and empty personKeys when extraction failed', async () => {
-    const deps = makeMockDeps()
-    const fragments = [makeFragment()]
-
-    await persist(deps, {
-      ...baseInput,
-      fragments,
-      peopleMap: new Map(),
-      extractions: [],
-      newPeople: [],
-      entityExtractionStatus: 'failed' as const,
-    })
-
-    const batchCall = (deps.batchWrite as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    const fragFile = batchCall.files.find((f: { path: string }) => f.path.startsWith('fragments/'))
-
-    expect(fragFile.content).toContain('entityExtractionStatus: failed')
-    expect(fragFile.content).toContain('personKeys: []')
-  })
-
-  it('inserts person DB rows for new people', async () => {
-    const deps = makeMockDeps()
-    const fragments = [makeFragment()]
-
-    await persist(deps, {
-      ...baseInput,
-      fragments,
-      newPeople: [
-        {
-          personKey: 'person01HAAAABBBBCCCCDDDDEEEE',
-          canonicalName: 'Sarah Ouma',
-          verified: false,
-        },
-      ],
-      peopleMap: new Map([['Sarah', 'person01HAAAABBBBCCCCDDDDEEEE']]),
-      extractions: [{ mention: 'Sarah', sourceSpan: 'with Sarah' }],
-      entityExtractionStatus: 'completed' as const,
-    })
-
-    expect(deps.insertPerson).toHaveBeenCalledTimes(1)
-    const personRow = (deps.insertPerson as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(personRow.lookupKey).toBe('person01HAAAABBBBCCCCDDDDEEEE')
-    expect(personRow.name).toBe('Sarah Ouma')
-    expect(personRow.state).toBe('RESOLVED')
-    expect(personRow.sections.canonicalName).toBe('Sarah Ouma')
-    expect(personRow.sections.verified).toBe(false)
-  })
-
-  it('merges and deduplicates aliases case-insensitively', async () => {
-    const deps = makeMockDeps({
-      loadPersonByKey: vi.fn().mockResolvedValue({
-        lookupKey: 'personEXIST',
-        slug: 'sarah-ouma',
-        repoPath: 'people/20260307-sarah-ouma.person01HEXIST.md',
-        name: 'Sarah Ouma',
-        sections: {
-          canonicalName: 'Sarah Ouma',
-          aliases: ['Sarah'],
-          verified: true,
-          fragmentKeys: [],
-        },
-      }),
-    })
     const fragments = [makeFragment()]
 
     await persist(deps, {
@@ -316,35 +248,34 @@ describe('persist with people', () => {
       entityExtractionStatus: 'completed' as const,
     })
 
-    // Should have been called for alias update
-    expect(deps.loadPersonByKey).toHaveBeenCalledWith('personEXIST')
-
-    // batchWrite should include the updated person file
-    const batchCall = (deps.batchWrite as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    const personFile = batchCall.files.find(
-      (f: { path: string }) => f.path.includes('personEXIST') || f.path.includes('sarah-ouma')
-    )
-
-    // The merged aliases should contain "Sarah" (existing) and "S. Ouma" (new), but NOT duplicate "sarah"
-    if (personFile) {
-      expect(personFile.content).toContain('S. Ouma')
-      // Should not have duplicate sarah/Sarah
-      const aliasMatches = personFile.content.match(/aliases:/)?.[0]
-      expect(aliasMatches).toBeDefined()
-    }
+    expect(deps.mergePersonAliases).toHaveBeenCalledWith('personEXIST', ['sarah', 'S. Ouma'])
   })
 
   it('works without people fields (backwards compatible)', async () => {
     const deps = makeMockDeps()
     const fragments = [makeFragment()]
 
-    const result = await persist(deps, {
-      ...baseInput,
-      fragments,
-    })
+    const result = await persist(deps, { ...baseInput, fragments })
 
     expect(result.data.entryKey).toBe(baseInput.entryKey)
-    expect(result.data.commitHash).toBe('abc123')
-    expect(deps.batchWrite).toHaveBeenCalledTimes(1)
+    expect(result.data.fragmentKeys).toHaveLength(1)
+  })
+
+  it('creates ENTRY_IN_VAULT and ENTRY_HAS_FRAGMENT edges', async () => {
+    const deps = makeMockDeps()
+    const fragments = [makeFragment(), makeFragment({ title: 'Second' })]
+
+    await persist(deps, { ...baseInput, fragments })
+
+    const edgeCalls = (deps.insertEdge as ReturnType<typeof vi.fn>).mock.calls.map(
+      (c) => c[0] as Record<string, unknown>
+    )
+    const entryInVault = edgeCalls.filter((e) => e.edgeType === 'ENTRY_IN_VAULT')
+    const entryHasFragment = edgeCalls.filter((e) => e.edgeType === 'ENTRY_HAS_FRAGMENT')
+    const fragmentInVault = edgeCalls.filter((e) => e.edgeType === 'FRAGMENT_IN_VAULT')
+
+    expect(entryInVault).toHaveLength(1)
+    expect(entryHasFragment).toHaveLength(2)
+    expect(fragmentInVault).toHaveLength(2)
   })
 })

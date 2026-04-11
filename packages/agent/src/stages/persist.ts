@@ -1,19 +1,6 @@
-import {
-  makeLookupKey,
-  parseLookupKey,
-  composeFilename,
-  generateSlug,
-  parseWikiLinks,
-  resolveWikiLinks,
-} from '@robin/shared'
+import { makeLookupKey, generateSlug } from '@robin/shared'
 import type { StageResult, PersistDeps, PersistResult, FragmentResult } from './types.js'
-import {
-  assembleEntryFrontmatter,
-  assembleFragmentFrontmatter,
-  assemblePersonFrontmatter,
-} from '../frontmatter.js'
-
-// ── SourceSpan Matching ─────────────────────────────────────────────────────
+import { embedText } from '../embeddings.js'
 
 /**
  * Match mention extractions to fragments by checking if the extraction's
@@ -51,17 +38,14 @@ export function matchMentionsToFragments(
   return result
 }
 
-// ── Persist Stage ───────────────────────────────────────────────────────────
-
 /**
- * Persist stage.
- * Assembles entry + fragment + person markdown files with mechanical frontmatter (no LLM),
- * commits via batch write, then inserts DB rows and edges.
+ * Persist stage — pure Postgres.
+ * Inserts entry, fragments (with embeddings), people (upserted by canonical_name),
+ * and all edges. No markdown assembly, no git writes.
  */
 export async function persist(
   deps: PersistDeps,
   input: {
-    userId: string
     entryKey: string
     entryContent: string
     vaultId: string
@@ -69,7 +53,6 @@ export async function persist(
     fragments: FragmentResult[]
     primaryTopic: string
     jobId: string
-    // Entity extraction results (optional for backwards compat)
     peopleMap?: Map<string, string>
     newAliases?: Map<string, string[]>
     extractions?: Array<{ mention: string; sourceSpan: string }>
@@ -79,240 +62,30 @@ export async function persist(
 ): Promise<StageResult<PersistResult>> {
   const start = performance.now()
 
-  const { ulid: entryUlid } = parseLookupKey(input.entryKey)
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-  const entrySlug = generateSlug(input.primaryTopic)
-
-  // -- Match mentions to fragments for personKeys population --
+  // Resolve per-fragment person matches
   const fragmentPersonKeys =
     input.extractions && input.peopleMap && input.peopleMap.size > 0
       ? matchMentionsToFragments(input.extractions, input.fragments, input.peopleMap)
       : new Map<number, string[]>()
 
-  // -- Entry markdown --
-  const entryFilename = composeFilename({
-    date: today,
-    slug: entrySlug,
-    type: 'entry',
-    ulid: entryUlid,
-  })
-
-  // Collect all fragment keys first (needed for entry frontmatter)
-  // Fragment keys will be populated in the loop below
-  const allFragmentKeys: string[] = []
-
-  // Collect all person keys associated with any fragment for entry-level personKeys
-  const allPersonKeysSet = new Set<string>()
-  for (const pKeys of fragmentPersonKeys.values()) {
-    for (const pk of pKeys) allPersonKeysSet.add(pk)
-  }
-
-  // Resolve wiki-links for entry body
-  const entryBodyParsed = parseWikiLinks(input.entryContent)
-  const entryWikiResult = deps.lookupFn
-    ? await resolveWikiLinks(entryBodyParsed, deps.lookupFn)
-    : { resolved: [], broken: [] }
-
-  const entryFrontmatter = assembleEntryFrontmatter({
-    title: input.primaryTopic,
-    date: today,
-    vaultId: input.vaultId,
-    source: input.source,
-    status: 'PENDING',
-    fragmentKeys: [], // Will be updated after fragment keys are generated
-    personKeys: [...allPersonKeysSet],
-    wikiLinks: entryWikiResult.resolved,
-    brokenLinks: entryWikiResult.broken,
-  })
-
-  const entryMarkdown = `${entryFrontmatter}\n${input.entryContent}`
-
-  // -- Fragment markdown --
-  const fragmentFiles: Array<{ path: string; content: string }> = []
-  const fragmentKeys: string[] = []
-
-  for (let i = 0; i < input.fragments.length; i++) {
-    const frag = input.fragments[i]
-    const fragKey = makeLookupKey('frag')
-    const { ulid: fragUlid } = parseLookupKey(fragKey)
-    fragmentKeys.push(fragKey)
-
-    const fragSlug = frag.suggestedSlug || generateSlug(frag.title)
-    const fragFilename = composeFilename({
-      date: today,
-      slug: fragSlug,
-      type: 'frag',
-      ulid: fragUlid,
-    })
-
-    // Build personKeys for this fragment
-    const matchedPersonKeys = fragmentPersonKeys.get(i) ?? []
-    const extractionStatus = input.entityExtractionStatus ?? 'completed'
-
-    const fragBody = `${frag.content}\n\n> Source: [[${entrySlug}]]`
-
-    // Parse and resolve wiki-links from body text for frontmatter
-    const bodyWikiLinks = parseWikiLinks(fragBody)
-    const fragWikiResult = deps.lookupFn
-      ? await resolveWikiLinks(bodyWikiLinks, deps.lookupFn)
-      : { resolved: [], broken: [] }
-
-    const fragFrontmatter = assembleFragmentFrontmatter({
-      title: frag.title,
-      type: frag.type,
-      date: today,
-      tags: frag.tags,
-      entryKey: input.entryKey,
-      vaultId: input.vaultId,
-      wikiKeys: [],
-      personKeys: matchedPersonKeys,
-      relatedFragmentKeys: [],
-      status: 'PENDING',
-      confidence: frag.confidence,
-      sourceSpan: frag.sourceSpan,
-      suggestedSlug: fragSlug,
-      wikiLinks: fragWikiResult.resolved,
-      brokenLinks: fragWikiResult.broken,
-      entityExtractionStatus: extractionStatus,
-    })
-
-    fragmentFiles.push({
-      path: `fragments/${fragFilename}`,
-      content: `${fragFrontmatter}\n${fragBody}`,
-    })
-  }
-
-  // -- Person markdown files for new people --
-  const personFiles: Array<{ path: string; content: string }> = []
-
-  if (input.newPeople && input.newPeople.length > 0) {
-    for (const person of input.newPeople) {
-      const { ulid: personUlid } = parseLookupKey(person.personKey)
-      const personSlug = generateSlug(person.canonicalName)
-      const personFilename = composeFilename({
-        date: today,
-        slug: personSlug,
-        type: 'person',
-        ulid: personUlid,
-      })
-
-      // Find fragment keys associated with this person
-      const associatedFragKeys: string[] = []
-      for (const [fragIdx, pKeys] of fragmentPersonKeys.entries()) {
-        if (pKeys.includes(person.personKey)) {
-          associatedFragKeys.push(fragmentKeys[fragIdx])
-        }
-      }
-
-      const personFm = assemblePersonFrontmatter({
-        type: 'person',
-        state: 'RESOLVED',
-        verified: person.verified,
-        canonicalName: person.canonicalName,
-        aliases: [],
-        fragmentKeys: associatedFragKeys,
-        lastRebuiltAt: null,
-        wikiLinks: [], // New people have no body text to resolve
-        brokenLinks: [],
-      })
-
-      personFiles.push({
-        path: `people/${personFilename}`,
-        content: personFm,
-      })
-    }
-  }
-
-  // -- Handle alias updates for existing people --
-  const aliasUpdateFiles: Array<{ path: string; content: string }> = []
-
-  if (input.newAliases && input.newAliases.size > 0) {
-    for (const [personKey, newAliases] of input.newAliases.entries()) {
-      const existingPerson = await deps.loadPersonByKey(personKey)
-      if (!existingPerson) continue
-
-      const existingSections = existingPerson.sections as {
-        canonicalName?: string
-        aliases?: string[]
-        verified?: boolean
-        fragmentKeys?: string[]
-      }
-
-      const existingAliases = existingSections.aliases ?? []
-
-      // Case-insensitive dedup: merge existing + new, keep original casing
-      const seenLower = new Set(existingAliases.map((a) => a.toLowerCase()))
-      const mergedAliases = [...existingAliases]
-      for (const alias of newAliases) {
-        const lower = alias.toLowerCase()
-        if (!seenLower.has(lower)) {
-          seenLower.add(lower)
-          mergedAliases.push(alias)
-        }
-      }
-
-      // Find fragment keys associated with this person
-      const associatedFragKeys: string[] = []
-      for (const [fragIdx, pKeys] of fragmentPersonKeys.entries()) {
-        if (pKeys.includes(personKey)) {
-          associatedFragKeys.push(fragmentKeys[fragIdx])
-        }
-      }
-      const allFragKeys = [...(existingSections.fragmentKeys ?? []), ...associatedFragKeys]
-
-      const updatedPersonFm = assemblePersonFrontmatter({
-        type: 'person',
-        state: 'RESOLVED',
-        verified: existingSections.verified ?? false,
-        canonicalName: existingSections.canonicalName ?? existingPerson.name,
-        aliases: mergedAliases,
-        fragmentKeys: allFragKeys,
-        lastRebuiltAt: null,
-        wikiLinks: [],
-        brokenLinks: [],
-      })
-
-      aliasUpdateFiles.push({
-        path: existingPerson.repoPath,
-        content: updatedPersonFm,
-      })
-    }
-  }
-
-  // -- Batch write all files atomically --
-  const allFiles = [
-    { path: `entries/${entryFilename}`, content: entryMarkdown },
-    ...fragmentFiles,
-    ...personFiles,
-    ...aliasUpdateFiles,
-  ]
-
-  const { commitHash } = await deps.batchWrite({
-    userId: input.userId,
-    files: allFiles,
-    message: `ingest: ${input.primaryTopic}`,
-    branch: 'main',
-  })
-
-  // -- DB inserts --
+  // -- Entry insert --
+  const entrySlug = generateSlug(input.primaryTopic)
   await deps.insertEntry({
     lookupKey: input.entryKey,
-    userId: input.userId,
     slug: entrySlug,
     title: input.primaryTopic,
     content: input.entryContent,
     source: input.source,
     vaultId: input.vaultId,
     state: 'PENDING',
-    repoPath: `entries/${entryFilename}`,
   })
 
+  // -- Fragment inserts --
+  const fragmentKeys: string[] = input.fragments.map(() => makeLookupKey('frag'))
   for (let i = 0; i < input.fragments.length; i++) {
     const frag = input.fragments[i]
-    const fragKey = fragmentKeys[i]
     await deps.insertFragment({
-      lookupKey: fragKey,
-      userId: input.userId,
+      lookupKey: fragmentKeys[i],
       slug: frag.suggestedSlug || generateSlug(frag.title),
       title: frag.title,
       content: frag.content,
@@ -321,40 +94,47 @@ export async function persist(
       vaultId: input.vaultId,
       tags: frag.tags,
       state: 'PENDING',
-      repoPath: fragmentFiles[i].path,
     })
   }
 
-  // -- Person DB inserts for new people --
-  if (input.newPeople && input.newPeople.length > 0) {
-    for (let pi = 0; pi < input.newPeople.length; pi++) {
-      const person = input.newPeople[pi]
-      const personSlug = generateSlug(person.canonicalName)
-      const associatedFragKeys: string[] = []
-      for (const [fragIdx, pKeys] of fragmentPersonKeys.entries()) {
-        if (pKeys.includes(person.personKey)) {
-          associatedFragKeys.push(fragmentKeys[fragIdx])
-        }
-      }
+  // -- Fragment embeddings (best-effort, parallel) --
+  const embedConfig = {
+    apiKey: deps.openRouterConfig.apiKey,
+    model: deps.openRouterConfig.embeddingModel,
+  }
+  const vectors = await Promise.all(
+    input.fragments.map((frag) => embedText(frag.content, embedConfig))
+  )
+  await Promise.all(
+    vectors.map((vec, i) =>
+      vec ? deps.updateFragmentEmbedding(fragmentKeys[i], vec) : Promise.resolve()
+    )
+  )
 
-      await deps.insertPerson({
-        lookupKey: person.personKey,
-        userId: input.userId,
-        slug: personSlug,
-        name: person.canonicalName,
-        state: 'RESOLVED',
-        repoPath: personFiles[pi].path,
-        sections: {
-          canonicalName: person.canonicalName,
-          aliases: [],
-          verified: person.verified,
-          fragmentKeys: associatedFragKeys,
-        },
+  // -- Person upserts for new people --
+  const personKeyRemap = new Map<string, string>()
+  if (input.newPeople && input.newPeople.length > 0) {
+    for (const person of input.newPeople) {
+      const { personKey } = await deps.upsertPerson({
+        personKey: person.personKey,
+        canonicalName: person.canonicalName,
+        verified: person.verified,
       })
+      if (personKey !== person.personKey) {
+        personKeyRemap.set(person.personKey, personKey)
+      }
     }
   }
 
-  // -- Edges: ENTRY_IN_VAULT and ENTRY_HAS_FRAGMENT --
+  // -- Merge aliases into existing people --
+  if (input.newAliases && input.newAliases.size > 0) {
+    for (const [personKey, aliases] of input.newAliases.entries()) {
+      const resolved = personKeyRemap.get(personKey) ?? personKey
+      await deps.mergePersonAliases(resolved, aliases)
+    }
+  }
+
+  // -- Edges: ENTRY_IN_VAULT --
   await deps.insertEdge({
     srcType: 'entry',
     srcId: input.entryKey,
@@ -363,6 +143,7 @@ export async function persist(
     edgeType: 'ENTRY_IN_VAULT',
   })
 
+  // -- Edges: ENTRY_HAS_FRAGMENT, FRAGMENT_IN_VAULT --
   for (const fragKey of fragmentKeys) {
     await deps.insertEdge({
       srcType: 'entry',
@@ -384,11 +165,12 @@ export async function persist(
   for (const [fragIdx, personKeys] of fragmentPersonKeys.entries()) {
     const fragKey = fragmentKeys[fragIdx]
     for (const personKey of personKeys) {
+      const resolved = personKeyRemap.get(personKey) ?? personKey
       await deps.insertEdge({
         srcType: 'fragment',
         srcId: fragKey,
         dstType: 'person',
-        dstId: personKey,
+        dstId: resolved,
         edgeType: 'FRAGMENT_MENTIONS_PERSON',
       })
     }
@@ -401,13 +183,12 @@ export async function persist(
     status: 'completed',
     metadata: {
       fragmentCount: fragmentKeys.length,
-      commitHash,
       personCount: input.newPeople?.length ?? 0,
     },
   })
 
   return {
-    data: { entryKey: input.entryKey, fragmentKeys, commitHash },
+    data: { entryKey: input.entryKey, fragmentKeys },
     durationMs: performance.now() - start,
   }
 }

@@ -5,6 +5,7 @@ import type {
   WikiClassificationOutput,
   FragmentRelevanceOutput,
 } from '@robin/shared'
+import type { OpenRouterConfig } from '../openrouter-config.js'
 
 // ── Stage Result ─────────────────────────────────────────────────────────────
 
@@ -16,7 +17,6 @@ export interface StageResult<T> {
 // ── Stage Inputs ─────────────────────────────────────────────────────────────
 
 export interface ExtractionInput {
-  userId: string
   content: string
   entryKey: string
   userSelectedVaultId: string | null
@@ -25,7 +25,6 @@ export interface ExtractionInput {
 }
 
 export interface LinkingInput {
-  userId: string
   fragmentKey: string
   fragmentContent: string
   entryKey: string
@@ -47,7 +46,7 @@ export type EmitEvent = (event: {
 // ── Per-Stage Dependencies ───────────────────────────────────────────────────
 
 export interface VaultClassifyDeps {
-  listUserVaults: (userId: string) => Promise<Array<{ id: string; name: string; slug: string }>>
+  listVaults: () => Promise<Array<{ id: string; name: string; slug: string }>>
   llmCall: (system: string, user: string) => Promise<VaultClassificationOutput>
   confidenceThreshold: number
   fallbackVaultId: string
@@ -87,7 +86,6 @@ export interface ThreadInfo {
 
 export interface WikiClassifyDeps {
   searchCandidates: (
-    userId: string,
     content: string,
     limit: number
   ) => Promise<Array<{ wikiKey: string; score: number }>>
@@ -102,7 +100,6 @@ export interface WikiClassifyResult {
 
 export interface FragRelateDeps {
   vectorSearch: (
-    userId: string,
     content: string,
     limit: number
   ) => Promise<Array<{ fragmentKey: string; score: number }>>
@@ -116,32 +113,27 @@ export interface FragRelateResult {
 }
 
 export interface PersistDeps {
-  batchWrite: (req: {
-    userId: string
-    files: Array<{ path: string; content: string }>
-    message: string
-    branch: string
-  }) => Promise<{ commitHash: string }>
   insertEntry: (entry: Record<string, unknown>) => Promise<void>
   insertFragment: (fragment: Record<string, unknown>) => Promise<void>
   insertEdge: (edge: Record<string, unknown>) => Promise<void>
   insertPerson: (person: Record<string, unknown>) => Promise<void>
-  loadPersonByKey: (key: string) => Promise<{
-    lookupKey: string
-    slug: string
-    repoPath: string
-    name: string
-    sections: Record<string, unknown>
-  } | null>
+  /** Update fragment embedding by lookupKey. No-op if embedding is null. */
+  updateFragmentEmbedding: (fragmentKey: string, embedding: number[]) => Promise<void>
+  /** Upsert a person: match by canonical_name (ILIKE), merge aliases, or insert. */
+  upsertPerson: (input: {
+    personKey: string
+    canonicalName: string
+    verified: boolean
+  }) => Promise<{ personKey: string; isNew: boolean }>
+  /** Merge new aliases into an existing person row. Case-insensitive dedup. */
+  mergePersonAliases: (personKey: string, newAliases: string[]) => Promise<void>
   emitEvent: EmitEvent
-  /** DB-backed wiki-link lookup function. If not provided, falls back to empty arrays. */
-  lookupFn?: (slug: string, type?: string) => Promise<{ type: string; key: string } | null>
+  openRouterConfig: OpenRouterConfig
 }
 
 export interface PersistResult {
   entryKey: string
   fragmentKeys: string[]
-  commitHash: string
 }
 
 // ── Entity Extraction ───────────────────────────────────────────────────────
@@ -167,7 +159,7 @@ export interface KnownPerson {
 }
 
 export interface EntityExtractDeps {
-  loadUserPeople: (userId: string) => Promise<KnownPerson[]>
+  loadAllPeople: () => Promise<KnownPerson[]>
   llmCall: (system: string, user: string) => Promise<PeopleExtractionOutput>
   emitEvent: EmitEvent
   config: ResolutionConfig

@@ -4,15 +4,14 @@ import type { StageResult, WikiClassifyDeps, WikiClassifyResult } from './types.
 const THRESHOLD = Number(process.env.THREAD_CLASSIFY_THRESHOLD) || 0.7
 
 /**
- * Thread classification stage.
+ * Wiki classification stage.
  * Finds top-10 candidate wikis via hybrid search, loads their metadata,
- * then sends all candidates in a single batch LLM call. Marcel sees all
- * wikis at once and returns assignments with confidence scores.
+ * then sends all candidates in a single batch LLM call. In greenfield (no
+ * existing wikis) this returns an empty wikiEdges array without failing.
  */
 export async function wikiClassify(
   deps: WikiClassifyDeps,
   input: {
-    userId: string
     fragmentContent: string
     fragmentKey: string
     vaultId: string
@@ -22,8 +21,7 @@ export async function wikiClassify(
 ): Promise<StageResult<WikiClassifyResult>> {
   const start = performance.now()
 
-  // Search for top 10 candidate wikis
-  const candidates = await deps.searchCandidates(input.userId, input.fragmentContent, 10)
+  const candidates = await deps.searchCandidates(input.fragmentContent, 10)
 
   if (candidates.length === 0) {
     await deps.emitEvent({
@@ -37,11 +35,9 @@ export async function wikiClassify(
     return { data: { wikiEdges: [] }, durationMs: performance.now() - start }
   }
 
-  // Load thread metadata for all candidates
   const wikiKeys = candidates.map((c) => c.wikiKey)
   const wikis = await deps.loadThreads(wikiKeys)
 
-  // Build wikis JSON for the prompt
   const wikisJson = JSON.stringify(
     wikis.map((t) => ({
       key: t.lookupKey,
@@ -51,14 +47,12 @@ export async function wikiClassify(
     }))
   )
 
-  // Single batch LLM call — Marcel sees all candidates at once
   const spec = loadWikiClassificationSpec({
     content: input.fragmentContent,
     wikis: wikisJson,
   })
   const result = await deps.llmCall(spec.system, spec.user)
 
-  // Filter assignments by confidence threshold
   const wikiEdges = result.assignments
     .filter((a) => a.confidence >= THRESHOLD)
     .map((a) => ({ wikiKey: a.wikiKey, score: a.confidence }))

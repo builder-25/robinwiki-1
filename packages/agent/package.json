@@ -15,16 +15,15 @@
     "dev": "tsdown --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "eval": "tsx src/eval/run.ts",
-    "eval:scored": "tsx src/eval/run-scored.ts",
     "lint": "biome lint ./src"
   },
   "dependencies": {
     "@mastra/core": "^1.8.0",
     "@openrouter/ai-sdk-provider": "^2.2.3",
+    "@robin/caslock": "workspace:*",
     "@robin/shared": "workspace:*",
+    "drizzle-orm": "^0.45.1",
     "fuzzball": "^2.2.3",
-    "gray-matter": "^4.0.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {

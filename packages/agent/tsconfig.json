@@ -6,7 +6,8 @@
     "strict": false,
     "noImplicitAny": false,
     "paths": {
-      "@robin/shared": ["../shared/dist/index.d.ts"],
+      "@robin/shared": ["../shared/dist/index.d.mts"],
+      "@robin/caslock": ["../caslock/dist/index.d.mts"],
       "@robin/queue": ["../queue/dist/index.d.ts"]
     }
   },
