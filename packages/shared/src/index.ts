@@ -1,6 +1,6 @@
 export * from './types/entry.js'
 export * from './types/fragment.js'
-export * from './types/thread.js'
+export * from './types/wiki.js'
 export * from './types/config.js'
 export * from './prompts/index.js'
 export * from './identity.js'

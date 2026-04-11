@@ -4,7 +4,7 @@ import { diffLines } from 'diff'
 import { parseFrontmatter, assembleFrontmatter } from '../lib/frontmatter.js'
 import { sessionMiddleware } from '../middleware/session.js'
 import { db } from '../db/client.js'
-import { entries, fragments, threads, people, edges, threadEdits } from '../db/schema.js'
+import { entries, fragments, wikis, people, edges, edits } from '../db/schema.js'
 import { gatewayClient } from '../gateway/client.js'
 import { VALID_TYPES, WRITE_SCHEMAS, type ContentType } from '../lib/content-schemas.js'
 import {
@@ -27,7 +27,7 @@ contentRoutes.use('*', sessionMiddleware)
 const TABLE_MAP = {
   fragment: fragments,
   entry: entries,
-  thread: threads,
+  thread: wikis,
   person: people,
 } as const
 
@@ -187,8 +187,8 @@ contentRoutes.put('/:type/:key', async (c) => {
       })
       .where(eq(fragments.lookupKey, key))
 
-    // Mark parent threads DIRTY
-    // Find threads connected to this fragment via edges
+    // Mark parent wikis DIRTY
+    // Find wikis connected to this fragment via edges
     const threadEdgeRows = await db
       .select({ dstId: edges.dstId })
       .from(edges)
@@ -196,22 +196,22 @@ contentRoutes.put('/:type/:key', async (c) => {
         and(
           eq(edges.srcType, 'frag'),
           eq(edges.srcId, key),
-          eq(edges.dstType, 'thread'),
-          eq(edges.edgeType, 'FRAGMENT_IN_THREAD'),
+          eq(edges.dstType, 'wiki'),
+          eq(edges.edgeType, 'FRAGMENT_IN_WIKI'),
           isNull(edges.deletedAt)
         )
       )
 
     if (threadEdgeRows.length > 0) {
-      const threadKeys = threadEdgeRows.map((r) => r.dstId)
+      const wikiKeys = threadEdgeRows.map((r) => r.dstId)
       await db.execute(
-        sql`UPDATE threads SET state = 'DIRTY', updated_at = NOW()
+        sql`UPDATE wikis SET state = 'DIRTY', updated_at = NOW()
             WHERE lookup_key = ANY(ARRAY[${sql.join(
-              threadKeys.map((k) => sql`${k}`),
+              wikiKeys.map((k) => sql`${k}`),
               sql`, `
             )}])`
       )
-      log.info({ fragmentKey: key, threadCount: threadKeys.length }, 'marked parent threads DIRTY')
+      log.info({ fragmentKey: key, threadCount: wikiKeys.length }, 'marked parent wikis DIRTY')
     }
   } else if (type === 'entry') {
     await db
@@ -221,16 +221,16 @@ contentRoutes.put('/:type/:key', async (c) => {
         updatedAt: now,
       })
       .where(eq(entries.lookupKey, key))
-  } else if (type === 'thread') {
+  } else if (type === 'wiki') {
     await db
-      .update(threads)
+      .update(wikis)
       .set({
         name: data.frontmatter.name as string,
         type: (data.frontmatter.type as string) ?? 'log',
         prompt: (data.frontmatter.prompt as string) ?? '',
         updatedAt: now,
       })
-      .where(eq(threads.lookupKey, key))
+      .where(eq(wikis.lookupKey, key))
 
     // Log thread body edit delta
     if (body && current.body !== body) {
@@ -241,14 +241,15 @@ contentRoutes.put('/:type/:key', async (c) => {
         .filter((v) => v.length > 0)
 
       if (additions.length > 0) {
-        await db.insert(threadEdits).values({
+        await db.insert(edits).values({
           id: nanoid(),
-          threadId: key,
+          objectType: 'wiki',
+          objectId: key,
           userId,
           type: 'addition',
           content: additions.join('\n'),
         })
-        log.info({ threadKey: key, additionCount: additions.length }, 'logged thread edit delta')
+        log.info({ wikiKey: key, additionCount: additions.length }, 'logged wiki edit delta')
       }
     }
   } else if (type === 'person') {

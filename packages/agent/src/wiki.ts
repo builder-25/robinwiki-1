@@ -3,13 +3,13 @@
  * Builds a structured wiki from accumulated fragments using YAML-based type-specific prompts.
  */
 
-import { loadThreadWikiSpec, type ThreadWikiType } from '@robin/shared'
+import { loadWikiGenerationSpec, type WikiType } from '@robin/shared'
 
 // Re-export the type for consumers
-export type { ThreadWikiType }
+export type { WikiType }
 
 // Valid thread types for external validation
-export const THREAD_WIKI_TYPES: readonly ThreadWikiType[] = [
+export const THREAD_WIKI_TYPES: readonly WikiType[] = [
   'log',
   'collection',
   'belief',
@@ -34,14 +34,14 @@ export async function regenerateWiki(
   llm: (system: string, user: string) => Promise<string>,
   threadPrompt?: string
 ): Promise<string> {
-  const safeType: ThreadWikiType = THREAD_WIKI_TYPES.includes(threadType as ThreadWikiType)
-    ? (threadType as ThreadWikiType)
+  const safeType: WikiType = THREAD_WIKI_TYPES.includes(threadType as WikiType)
+    ? (threadType as WikiType)
     : 'log'
 
   const fragmentsBlock = fragments.map((f, i) => `### Fragment ${i + 1}\n${f}`).join('\n\n')
   const today = new Date().toISOString().split('T')[0]
 
-  const spec = loadThreadWikiSpec(safeType, {
+  const spec = loadWikiGenerationSpec(safeType, {
     fragments: fragmentsBlock,
     title: threadId, // Will be replaced by LLM
     date: today,

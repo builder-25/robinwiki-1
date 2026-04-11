@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { handleLogFragment, type McpServerDeps } from '../mcp/handlers.js'
 import {
   fragments as fragmentsTable,
-  threads as threadsTable,
+  wikis as threadsTable,
   edges as edgesTable,
   people as peopleTable,
 } from '../db/schema.js'
@@ -105,7 +105,7 @@ describe('handleLogFragment', () => {
     const parsed = JSON.parse(result.content[0].text)
     expect(parsed.fragmentKey).toMatch(/^frag/)
     expect(parsed.threadSlug).toBe(TEST_THREAD_SLUG)
-    expect(parsed.threadKey).toBe(TEST_THREAD_KEY)
+    expect(parsed.wikiKey).toBe(TEST_THREAD_KEY)
 
     const rows = await db.select().from(fragmentsTable).where(eq(fragmentsTable.userId, testUserId))
     expect(rows).toHaveLength(1)
@@ -133,7 +133,7 @@ describe('handleLogFragment', () => {
     expect(call.branch).toBe('main')
   })
 
-  it('inserts FRAGMENT_IN_THREAD edge', async () => {
+  it('inserts FRAGMENT_IN_WIKI edge', async () => {
     const deps = makeDeps()
     const result = await handleLogFragment(
       deps,
@@ -147,7 +147,7 @@ describe('handleLogFragment', () => {
       .from(edgesTable)
       .where(eq(edgesTable.srcId, parsed.fragmentKey))
     expect(edgeRows).toHaveLength(1)
-    expect(edgeRows[0].edgeType).toBe('FRAGMENT_IN_THREAD')
+    expect(edgeRows[0].edgeType).toBe('FRAGMENT_IN_WIKI')
     expect(edgeRows[0].dstId).toBe(TEST_THREAD_KEY)
   })
 

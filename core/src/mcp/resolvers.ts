@@ -29,7 +29,7 @@
 
 import { eq, and, isNull, sql, inArray } from 'drizzle-orm'
 import type { DB } from '../db/client.js'
-import { threads, fragments, people, edges } from '../db/schema.js'
+import { wikis, fragments, people, edges } from '../db/schema.js'
 import type { gatewayClient as GatewayClient } from '../gateway/client.js'
 
 /***********************************************************************
@@ -368,11 +368,11 @@ function resolvePerson(
  ***********************************************************************/
 
 /**
- * List all threads for a user with fragment counts and wiki previews.
+ * List all wikis for a user with fragment counts and wiki previews.
  *
  * @remarks
- * Returns the 20 most recently updated threads. Fragment counts are
- * computed via a LEFT JOIN on `FRAGMENT_IN_THREAD` edges. Wiki previews
+ * Returns the 20 most recently updated wikis. Fragment counts are
+ * computed via a LEFT JOIN on `FRAGMENT_IN_WIKI` edges. Wiki previews
  * are read from git (first 200 chars after frontmatter).
  *
  * @param deps   - Database and gateway client
@@ -382,33 +382,33 @@ function resolvePerson(
 export async function listThreads(deps: McpResolverDeps, userId: string): Promise<ThreadSummary[]> {
   const rows = await deps.db
     .select({
-      lookupKey: threads.lookupKey,
-      slug: threads.slug,
-      name: threads.name,
-      type: threads.type,
-      state: threads.state,
-      repoPath: threads.repoPath,
-      lastRebuiltAt: threads.lastRebuiltAt,
+      lookupKey: wikis.lookupKey,
+      slug: wikis.slug,
+      name: wikis.name,
+      type: wikis.type,
+      state: wikis.state,
+      repoPath: wikis.repoPath,
+      lastRebuiltAt: wikis.lastRebuiltAt,
       fragmentCount: sql<number>`count(${edges.id})::int`,
     })
-    .from(threads)
+    .from(wikis)
     .leftJoin(
       edges,
       and(
-        eq(edges.dstId, threads.lookupKey),
-        eq(edges.edgeType, 'FRAGMENT_IN_THREAD'),
+        eq(edges.dstId, wikis.lookupKey),
+        eq(edges.edgeType, 'FRAGMENT_IN_WIKI'),
         isNull(edges.deletedAt)
       )
     )
-    .where(and(eq(threads.userId, userId), isNull(threads.deletedAt)))
-    .groupBy(threads.lookupKey)
-    .orderBy(sql`${threads.updatedAt} DESC`)
+    .where(and(eq(wikis.userId, userId), isNull(wikis.deletedAt)))
+    .groupBy(wikis.lookupKey)
+    .orderBy(sql`${wikis.updatedAt} DESC`)
     .limit(20)
 
   const results: ThreadSummary[] = await Promise.all(
     rows.map(async (row) => {
       let wikiPreview = ''
-      const path = row.repoPath || `threads/${row.slug}.md`
+      const path = row.repoPath || `wikis/${row.slug}.md`
       try {
         const file = await deps.gatewayClient.read(userId, path)
         const body = stripFrontmatter(file.content)
@@ -437,7 +437,7 @@ export async function listThreads(deps: McpResolverDeps, userId: string): Promis
  *
  * @remarks
  * Reads the thread's wiki body from git (source of truth) and fetches
- * all member fragments via `FRAGMENT_IN_THREAD` edges with 300-char snippets.
+ * all member fragments via `FRAGMENT_IN_WIKI` edges with 300-char snippets.
  *
  * @param deps      - Database and gateway client
  * @param userId    - Authenticated user ID
@@ -453,16 +453,16 @@ export async function getThread(
 ): Promise<ThreadDetail | ErrorResult> {
   const allThreads = await deps.db
     .select({
-      lookupKey: threads.lookupKey,
-      slug: threads.slug,
-      name: threads.name,
-      type: threads.type,
-      state: threads.state,
-      repoPath: threads.repoPath,
-      lastRebuiltAt: threads.lastRebuiltAt,
+      lookupKey: wikis.lookupKey,
+      slug: wikis.slug,
+      name: wikis.name,
+      type: wikis.type,
+      state: wikis.state,
+      repoPath: wikis.repoPath,
+      lastRebuiltAt: wikis.lastRebuiltAt,
     })
-    .from(threads)
-    .where(and(eq(threads.userId, userId), isNull(threads.deletedAt)))
+    .from(wikis)
+    .where(and(eq(wikis.userId, userId), isNull(wikis.deletedAt)))
 
   const resolved = resolveSlug(
     slugInput,
@@ -475,7 +475,7 @@ export async function getThread(
 
   // Read wiki body from git (source of truth, not DB)
   let wikiBody = ''
-  const wikiPath = thread.repoPath || `threads/${thread.slug}.md`
+  const wikiPath = thread.repoPath || `wikis/${thread.slug}.md`
   try {
     const file = await deps.gatewayClient.read(userId, wikiPath)
     wikiBody = stripFrontmatter(file.content)
@@ -491,7 +491,7 @@ export async function getThread(
       and(
         eq(edges.userId, userId),
         eq(edges.dstId, thread.lookupKey),
-        eq(edges.edgeType, 'FRAGMENT_IN_THREAD'),
+        eq(edges.edgeType, 'FRAGMENT_IN_WIKI'),
         isNull(edges.deletedAt)
       )
     )
@@ -754,13 +754,13 @@ export async function resolveThreadBySlug(
 > {
   const allThreads = await deps.db
     .select({
-      lookupKey: threads.lookupKey,
-      slug: threads.slug,
-      name: threads.name,
-      state: threads.state,
+      lookupKey: wikis.lookupKey,
+      slug: wikis.slug,
+      name: wikis.name,
+      state: wikis.state,
     })
-    .from(threads)
-    .where(and(eq(threads.userId, userId), isNull(threads.deletedAt)))
+    .from(wikis)
+    .where(and(eq(wikis.userId, userId), isNull(wikis.deletedAt)))
 
   // Exact match only — log_fragment requires precision
   const exact = allThreads.find((t) => t.slug === slugInput)

@@ -28,7 +28,7 @@ export interface WikiLinkResult {
 }
 
 /** Priority order for unqualified wiki-link resolution */
-const RESOLUTION_PRIORITY = ['thread', 'person', 'fragment', 'entry'] as const
+const RESOLUTION_PRIORITY = ['wiki', 'person', 'fragment', 'entry'] as const
 
 /**
  * Parse wiki-links from body text. Pure function, no DB access.

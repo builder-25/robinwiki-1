@@ -106,6 +106,6 @@ export async function clearTestData(db: ReturnType<typeof drizzle<typeof schema>
   await db.delete(schema.edges)
   await db.delete(schema.fragments)
   await db.delete(schema.entries)
-  await db.delete(schema.threads)
+  await db.delete(schema.wikis)
   await db.delete(schema.people)
 }

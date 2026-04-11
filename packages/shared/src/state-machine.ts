@@ -32,7 +32,7 @@ const VAULT_TRANSITIONS: TransitionMap = {}
 const TRANSITIONS: Record<ObjectType, TransitionMap> = {
   entry: STANDARD_TRANSITIONS,
   frag: STANDARD_TRANSITIONS,
-  thread: STANDARD_TRANSITIONS,
+  wiki: STANDARD_TRANSITIONS,
   person: STANDARD_TRANSITIONS,
   vault: VAULT_TRANSITIONS,
 }

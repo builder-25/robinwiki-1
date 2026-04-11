@@ -33,7 +33,7 @@ vi.mock('../db/schema.js', () => ({
   },
   entries: {},
   files: {},
-  threads: {},
+  wikis: {},
   vaults: { id: 'id', userId: 'user_id' },
   fragments: {},
   edges: {},

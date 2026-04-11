@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 // ── Content Types ───────────────────────────────────────────────────────────
 
-export const VALID_TYPES = ['fragment', 'entry', 'thread', 'person'] as const
+export const VALID_TYPES = ['fragment', 'entry', 'wiki', 'person'] as const
 export type ContentType = (typeof VALID_TYPES)[number]
 
 // ── Per-type Write Schemas ──────────────────────────────────────────────────
@@ -13,7 +13,7 @@ export const fragmentWriteSchema = z.object({
       title: z.string().min(1),
       tags: z.array(z.string()).default([]),
       vaultId: z.string().optional(),
-      threadKeys: z.array(z.string()).default([]),
+      wikiKeys: z.array(z.string()).default([]),
       personKeys: z.array(z.string()).default([]),
       relatedFragmentKeys: z.array(z.string()).default([]),
     })
@@ -31,7 +31,7 @@ export const entryWriteSchema = z.object({
   // body is ignored for entries (read-only after ingestion)
 })
 
-export const threadWriteSchema = z.object({
+export const wikiWriteSchema = z.object({
   frontmatter: z
     .object({
       name: z.string().min(1),
@@ -59,6 +59,6 @@ export const personWriteSchema = z.object({
 export const WRITE_SCHEMAS: Record<ContentType, z.ZodType> = {
   fragment: fragmentWriteSchema,
   entry: entryWriteSchema,
-  thread: threadWriteSchema,
+  wiki: wikiWriteSchema,
   person: personWriteSchema,
 }

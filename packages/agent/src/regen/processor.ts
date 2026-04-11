@@ -17,7 +17,7 @@ interface RegenJob {
   jobId: string
   userId: string
   objectKey: string
-  objectType: 'thread' | 'person'
+  objectType: 'wiki' | 'person'
   triggeredBy: string
   enqueuedAt: string
 }
@@ -31,10 +31,10 @@ interface JobResult {
 
 // ── Thread Regen ────────────────────────────────────────────────────────────
 
-async function regenThread(deps: RegenDeps, job: RegenJob): Promise<JobResult> {
+async function regenWiki(deps: RegenDeps, job: RegenJob): Promise<JobResult> {
   const { objectKey, userId, jobId } = job
 
-  const locked = await deps.acquireLock('threads', objectKey, jobId, 'DIRTY')
+  const locked = await deps.acquireLock('wikis', objectKey, jobId, 'DIRTY')
   if (!locked) {
     return {
       jobId,
@@ -49,7 +49,7 @@ async function regenThread(deps: RegenDeps, job: RegenJob): Promise<JobResult> {
     if (job.triggeredBy !== 'manual') {
       const canRegen = await deps.canRebuildThread(objectKey)
       if (!canRegen) {
-        await deps.releaseLock('threads', objectKey, 'DIRTY')
+        await deps.releaseLock('wikis', objectKey, 'DIRTY')
         return {
           jobId,
           success: true,
@@ -61,7 +61,7 @@ async function regenThread(deps: RegenDeps, job: RegenJob): Promise<JobResult> {
 
     const thread = await deps.loadThread(objectKey)
     if (!thread) {
-      await deps.releaseLock('threads', objectKey, 'DIRTY')
+      await deps.releaseLock('wikis', objectKey, 'DIRTY')
       return {
         jobId,
         success: false,
@@ -111,11 +111,11 @@ async function regenThread(deps: RegenDeps, job: RegenJob): Promise<JobResult> {
       branch: 'main',
     })
 
-    await deps.updateAfterRegen('threads', objectKey, repoPath)
+    await deps.updateAfterRegen('wikis', objectKey, repoPath)
 
     return { jobId, success: true, processedAt: new Date().toISOString() }
   } catch (err) {
-    await deps.releaseLock('threads', objectKey, 'DIRTY')
+    await deps.releaseLock('wikis', objectKey, 'DIRTY')
     throw err
   }
 }
@@ -200,5 +200,5 @@ async function regenPerson(deps: RegenDeps, job: RegenJob): Promise<JobResult> {
 // ── Public API ──────────────────────────────────────────────────────────────
 
 export async function processRegenJob(deps: RegenDeps, job: RegenJob): Promise<JobResult> {
-  return job.objectType === 'thread' ? regenThread(deps, job) : regenPerson(deps, job)
+  return job.objectType === 'wiki' ? regenWiki(deps, job) : regenPerson(deps, job)
 }

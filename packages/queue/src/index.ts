@@ -91,7 +91,7 @@ export interface ReclassifyJob {
   type: 'reclassify'
   jobId: string
   userId: string
-  threadKey: string
+  wikiKey: string
   vaultId: string
   enqueuedAt: string
 }
@@ -117,7 +117,7 @@ export interface RegenJob {
   jobId: string
   userId: string
   objectKey: string
-  objectType: 'thread' | 'person'
+  objectType: 'wiki' | 'person'
   triggeredBy: 'scheduler' | 'manual'
   enqueuedAt: string
 }

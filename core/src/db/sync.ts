@@ -1,17 +1,17 @@
 import { eq, or, sql, and, inArray } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
-import { entries, fragments, threads, people, edges } from './schema.js'
+import { entries, fragments, wikis, people, edges } from './schema.js'
 import { canTransition, type ObjectState, type ObjectType } from '@robin/shared'
 
 // ── Table dispatch ──────────────────────────────────────────────────────────
 
 const TABLE_MAP: Record<
   string,
-  typeof entries | typeof fragments | typeof threads | typeof people
+  typeof entries | typeof fragments | typeof wikis | typeof people
 > = {
   entry: entries,
   frag: fragments,
-  thread: threads,
+  thread: wikis,
   person: people,
 }
 
@@ -56,7 +56,7 @@ export async function upsertObject(
     values.entryId = params.entryId ?? params.lookupKey
   } else if (params.type === 'entry') {
     values.title = params.slug
-  } else if (params.type === 'thread') {
+  } else if (params.type === 'wiki') {
     values.name = params.slug
   } else if (params.type === 'person') {
     values.name = params.slug
@@ -92,11 +92,11 @@ export async function getObjectByKey(
   // Determine type from key prefix
   const typeMap: Record<
     string,
-    typeof entries | typeof fragments | typeof threads | typeof people
+    typeof entries | typeof fragments | typeof wikis | typeof people
   > = {
     entry: entries,
     frag: fragments,
-    thread: threads,
+    thread: wikis,
     person: people,
   }
 
@@ -141,10 +141,10 @@ export async function syncEdgesFromFrontmatter(
   // Delete only the edge types that this sync will recreate (scoped by source)
   const edgeTypesToSync =
     params.type === 'frag'
-      ? ['FRAGMENT_IN_THREAD', 'FRAGMENT_MENTIONS_PERSON', 'FRAGMENT_IN_VAULT']
+      ? ['FRAGMENT_IN_WIKI', 'FRAGMENT_MENTIONS_PERSON', 'FRAGMENT_IN_VAULT']
       : params.type === 'entry'
         ? ['ENTRY_IN_VAULT']
-        : params.type === 'thread'
+        : params.type === 'wiki'
           ? ['THREAD_IN_VAULT']
           : []
 
@@ -157,17 +157,17 @@ export async function syncEdgesFromFrontmatter(
   const edgesToInsert: Array<Record<string, unknown>> = []
 
   if (params.type === 'frag') {
-    // threadKeys -> FRAGMENT_IN_THREAD edges
-    const threadKeys = (params.frontmatter.threadKeys as string[]) ?? []
-    for (const threadKey of threadKeys) {
+    // wikiKeys -> FRAGMENT_IN_WIKI edges
+    const wikiKeys = (params.frontmatter.wikiKeys as string[]) ?? []
+    for (const wikiKey of wikiKeys) {
       edgesToInsert.push({
         id: crypto.randomUUID(),
         userId: params.userId,
         srcType: 'frag',
         srcId: params.lookupKey,
-        dstType: 'thread',
-        dstId: threadKey,
-        edgeType: 'FRAGMENT_IN_THREAD',
+        dstType: 'wiki',
+        dstId: wikiKey,
+        edgeType: 'FRAGMENT_IN_WIKI',
       })
     }
 
@@ -226,14 +226,14 @@ export async function syncEdgesFromFrontmatter(
         edgeType: 'ENTRY_IN_VAULT',
       })
     }
-  } else if (params.type === 'thread') {
+  } else if (params.type === 'wiki') {
     // vaultId -> THREAD_IN_VAULT edge
     const threadVaultId = params.frontmatter.vaultId as string | undefined
     if (threadVaultId) {
       edgesToInsert.push({
         id: crypto.randomUUID(),
         userId: params.userId,
-        srcType: 'thread',
+        srcType: 'wiki',
         srcId: params.lookupKey,
         dstType: 'vault',
         dstId: threadVaultId,
@@ -256,28 +256,28 @@ export async function cascadeDirtyDownstream(
   db: PostgresJsDatabase,
   fragmentKey: string
 ): Promise<void> {
-  // Find threads connected to this fragment
-  const threadEdges = await db
+  // Find wikis connected to this fragment
+  const wikiEdges = await db
     .select({ dstId: edges.dstId })
     .from(edges)
     .where(
-      sql`${edges.srcId} = ${fragmentKey} AND ${edges.edgeType} = 'FRAGMENT_IN_THREAD' AND ${edges.deletedAt} IS NULL`
+      sql`${edges.srcId} = ${fragmentKey} AND ${edges.edgeType} = 'FRAGMENT_IN_WIKI' AND ${edges.deletedAt} IS NULL`
     )
 
-  for (const edge of threadEdges) {
+  for (const edge of wikiEdges) {
     const [thread] = await db
-      .select({ lookupKey: threads.lookupKey, state: threads.state })
-      .from(threads)
-      .where(eq(threads.lookupKey, edge.dstId))
+      .select({ lookupKey: wikis.lookupKey, state: wikis.state })
+      .from(wikis)
+      .where(eq(wikis.lookupKey, edge.dstId))
     if (!thread) continue
 
     if (
-      canTransition('thread' as ObjectType, thread.state as ObjectState, 'DIRTY' as ObjectState)
+      canTransition('wiki' as ObjectType, thread.state as ObjectState, 'DIRTY' as ObjectState)
     ) {
       await db
-        .update(threads)
+        .update(wikis)
         .set({ state: 'DIRTY', updatedAt: new Date() } as any)
-        .where(eq(threads.lookupKey, edge.dstId))
+        .where(eq(wikis.lookupKey, edge.dstId))
     }
   }
 

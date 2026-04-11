@@ -33,14 +33,14 @@ vi.mock('../db/schema.js', () => ({
     title: 'fragments.title',
     tags: 'fragments.tags',
   },
-  threads: {
-    lookupKey: 'threads.lookup_key',
-    repoPath: 'threads.repo_path',
-    userId: 'threads.user_id',
-    deletedAt: 'threads.deleted_at',
-    name: 'threads.name',
-    type: 'threads.type',
-    prompt: 'threads.prompt',
+  wikis: {
+    lookupKey: 'wikis.lookup_key',
+    repoPath: 'wikis.repo_path',
+    userId: 'wikis.user_id',
+    deletedAt: 'wikis.deleted_at',
+    name: 'wikis.name',
+    type: 'wikis.type',
+    prompt: 'wikis.prompt',
   },
   people: {
     lookupKey: 'people.lookup_key',
@@ -58,7 +58,7 @@ vi.mock('../db/schema.js', () => ({
     edgeType: 'edges.edge_type',
     deletedAt: 'edges.deleted_at',
   },
-  threadEdits: {
+  edits: {
     id: 'thread_edits.id',
     threadId: 'thread_edits.thread_id',
     userId: 'thread_edits.user_id',
@@ -137,7 +137,7 @@ describe('Content Write API (EDIT-02)', () => {
 
   const existingContent = '---\nname: Original\ntype: log\n---\nOriginal body'
 
-  function setupDbAndGateway(type = 'thread') {
+  function setupDbAndGateway(type = 'wiki') {
     const selectChain = chainMock([
       { lookupKey: 'key-123', repoPath: `${type}s/file.md`, deletedAt: null },
     ])
@@ -297,7 +297,7 @@ describe('Content Write API (EDIT-02)', () => {
       expect(mockDbUpdate).toHaveBeenCalled()
     })
 
-    it('marks parent threads DIRTY when fragment is edited', async () => {
+    it('marks parent wikis DIRTY when fragment is edited', async () => {
       mockRead.mockResolvedValue({
         content: '---\ntitle: Frag\ntags: []\n---\nFragment body',
       })
@@ -324,7 +324,7 @@ describe('Content Write API (EDIT-02)', () => {
             },
           ])
         }
-        // Second select: edge lookup for parent threads (no .limit(), direct where result)
+        // Second select: edge lookup for parent wikis (no .limit(), direct where result)
         const edgeChain: Record<string, any> = {}
         edgeChain.from = vi.fn().mockReturnValue(edgeChain)
         edgeChain.where = vi.fn().mockResolvedValue([{ dstId: 'thread-abc' }])

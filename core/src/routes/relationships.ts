@@ -2,13 +2,13 @@ import { Hono } from 'hono'
 import { and, eq, or, isNull, inArray } from 'drizzle-orm'
 import { sessionMiddleware } from '../middleware/session.js'
 import { db } from '../db/client.js'
-import { edges, entries, fragments, threads, vaults, people } from '../db/schema.js'
+import { edges, entries, fragments, wikis, vaults, people } from '../db/schema.js'
 import { logger } from '../lib/logger.js'
 import { relationshipsResponseSchema } from '../schemas/relationships.schema.js'
 
 const log = logger.child({ component: 'relationships' })
 
-const VALID_TYPES = ['entry', 'fragment', 'thread', 'vault', 'person'] as const
+const VALID_TYPES = ['entry', 'fragment', 'wiki', 'vault', 'person'] as const
 
 const relationshipsRouter = new Hono()
 relationshipsRouter.use('*', sessionMiddleware)
@@ -81,9 +81,9 @@ relationshipsRouter.get('/:type/:id', async (c) => {
   if (idsByType.thread?.size) {
     const ids = [...idsByType.thread]
     const rows = await db
-      .select({ key: threads.lookupKey, name: threads.name })
-      .from(threads)
-      .where(inArray(threads.lookupKey, ids))
+      .select({ key: wikis.lookupKey, name: wikis.name })
+      .from(wikis)
+      .where(inArray(wikis.lookupKey, ids))
     for (const r of rows) labelMap[`thread:${r.key}`] = r.name
   }
   if (idsByType.vault?.size) {

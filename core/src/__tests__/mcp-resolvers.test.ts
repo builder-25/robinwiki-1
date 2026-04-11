@@ -86,7 +86,7 @@ import type postgres from 'postgres'
 import type { McpResolverDeps } from '../mcp/resolvers.js'
 import { listThreads, getThread, getFragment, getPerson } from '../mcp/resolvers.js'
 import { makeLookupKey, ObjectType } from '@robin/shared'
-import { entries, fragments, threads, people, edges } from '../db/schema.js'
+import { entries, fragments, wikis, people, edges } from '../db/schema.js'
 import {
   ensureTestDatabase,
   pushTestSchema,
@@ -119,7 +119,7 @@ describe('MCP resolvers (real DB)', () => {
 
   // Reusable keys
   let entryKey: string
-  let threadKey: string
+  let wikiKey: string
   let fragKey1: string
   let fragKey2: string
   let personKey1: string
@@ -144,7 +144,7 @@ describe('MCP resolvers (real DB)', () => {
 
     // Seed test data
     entryKey = makeLookupKey(ObjectType.ENTRY)
-    threadKey = makeLookupKey(ObjectType.THREAD)
+    wikiKey = makeLookupKey(ObjectType.THREAD)
     fragKey1 = makeLookupKey(ObjectType.FRAGMENT)
     fragKey2 = makeLookupKey(ObjectType.FRAGMENT)
     personKey1 = makeLookupKey(ObjectType.PERSON)
@@ -160,14 +160,14 @@ describe('MCP resolvers (real DB)', () => {
       content: 'Some content',
     })
 
-    await db.insert(threads).values({
-      lookupKey: threadKey,
+    await db.insert(wikis).values({
+      lookupKey: wikiKey,
       userId: testUserId,
       slug: 'ai-infrastructure',
       name: 'AI Infrastructure & Startups',
       type: 'log',
       state: 'RESOLVED',
-      repoPath: 'threads/ai-infrastructure.md',
+      repoPath: 'wikis/ai-infrastructure.md',
       lastRebuiltAt: new Date('2025-06-01'),
     })
 
@@ -226,18 +226,18 @@ describe('MCP resolvers (real DB)', () => {
         userId: testUserId,
         srcType: 'frag',
         srcId: fragKey1,
-        dstType: 'thread',
-        dstId: threadKey,
-        edgeType: 'FRAGMENT_IN_THREAD',
+        dstType: 'wiki',
+        dstId: wikiKey,
+        edgeType: 'FRAGMENT_IN_WIKI',
       },
       {
         id: crypto.randomUUID(),
         userId: testUserId,
         srcType: 'frag',
         srcId: fragKey2,
-        dstType: 'thread',
-        dstId: threadKey,
-        edgeType: 'FRAGMENT_IN_THREAD',
+        dstType: 'wiki',
+        dstId: wikiKey,
+        edgeType: 'FRAGMENT_IN_WIKI',
       },
       {
         id: crypto.randomUUID(),
@@ -254,9 +254,9 @@ describe('MCP resolvers (real DB)', () => {
   // ─── listThreads ───
 
   describe('listThreads', () => {
-    it('returns threads with correct fragment counts from edge joins', async () => {
+    it('returns wikis with correct fragment counts from edge joins', async () => {
       const gw = mockGateway({
-        'threads/ai-infrastructure.md': '---\ntitle: AI\n---\nWiki body about AI infra.',
+        'wikis/ai-infrastructure.md': '---\ntitle: AI\n---\nWiki body about AI infra.',
       })
 
       const result = await listThreads({ db, gatewayClient: gw }, testUserId)
@@ -269,17 +269,17 @@ describe('MCP resolvers (real DB)', () => {
       expect(result[0].lastRebuiltAt).toBe('2025-06-01T00:00:00.000Z')
     })
 
-    it('returns empty array for user with no threads', async () => {
+    it('returns empty array for user with no wikis', async () => {
       const gw = mockGateway()
       const result = await listThreads({ db, gatewayClient: gw }, 'nonexistent-user')
       expect(result).toEqual([])
     })
 
-    it('excludes soft-deleted threads', async () => {
+    it('excludes soft-deleted wikis', async () => {
       await db
-        .update(threads)
+        .update(wikis)
         .set({ deletedAt: new Date() })
-        .where(eq(threads.lookupKey, threadKey))
+        .where(eq(wikis.lookupKey, wikiKey))
 
       const gw = mockGateway()
       const result = await listThreads({ db, gatewayClient: gw }, testUserId)
@@ -291,7 +291,7 @@ describe('MCP resolvers (real DB)', () => {
       await db.update(edges).set({ deletedAt: new Date() }).where(eq(edges.srcId, fragKey2))
 
       const gw = mockGateway({
-        'threads/ai-infrastructure.md': '---\n---\nBody.',
+        'wikis/ai-infrastructure.md': '---\n---\nBody.',
       })
       const result = await listThreads({ db, gatewayClient: gw }, testUserId)
       expect(result[0].fragmentCount).toBe(1)
@@ -309,15 +309,15 @@ describe('MCP resolvers (real DB)', () => {
   describe('getThread', () => {
     it('resolves exact slug and returns wiki body + linked fragments', async () => {
       const gw = mockGateway({
-        'threads/ai-infrastructure.md': '---\ntitle: AI\n---\nFull wiki body.',
+        'wikis/ai-infrastructure.md': '---\ntitle: AI\n---\nFull wiki body.',
         'fragments/vector-db-note.md': '---\ntitle: VDB\n---\nVector DB snippet content.',
         'fragments/startup-pivot.md': '---\ntitle: Pivot\n---\nStartup pivot snippet.',
       })
 
       const result = await getThread({ db, gatewayClient: gw }, testUserId, 'ai-infrastructure')
 
-      expect('thread' in result).toBe(true)
-      if ('thread' in result) {
+      expect('wiki' in result).toBe(true)
+      if ('wiki' in result) {
         expect(result.thread.slug).toBe('ai-infrastructure')
         expect(result.thread.state).toBe('RESOLVED')
         expect(result.wikiBody).toBe('Full wiki body.')
@@ -330,14 +330,14 @@ describe('MCP resolvers (real DB)', () => {
 
     it('resolves fuzzy slug match', async () => {
       const gw = mockGateway({
-        'threads/ai-infrastructure.md': '---\n---\nBody.',
+        'wikis/ai-infrastructure.md': '---\n---\nBody.',
         'fragments/vector-db-note.md': '---\n---\nSnippet.',
         'fragments/startup-pivot.md': '---\n---\nSnippet.',
       })
 
       const result = await getThread({ db, gatewayClient: gw }, testUserId, 'ai-infra')
-      expect('thread' in result).toBe(true)
-      if ('thread' in result) {
+      expect('wiki' in result).toBe(true)
+      if ('wiki' in result) {
         expect(result.thread.slug).toBe('ai-infrastructure')
       }
     })
@@ -355,13 +355,13 @@ describe('MCP resolvers (real DB)', () => {
       await db.update(edges).set({ deletedAt: new Date() }).where(eq(edges.srcId, fragKey2))
 
       const gw = mockGateway({
-        'threads/ai-infrastructure.md': '---\n---\nBody.',
+        'wikis/ai-infrastructure.md': '---\n---\nBody.',
         'fragments/vector-db-note.md': '---\n---\nSnippet.',
       })
 
       const result = await getThread({ db, gatewayClient: gw }, testUserId, 'ai-infrastructure')
-      expect('thread' in result).toBe(true)
-      if ('thread' in result) {
+      expect('wiki' in result).toBe(true)
+      if ('wiki' in result) {
         expect(result.fragments).toHaveLength(1)
         expect(result.fragments[0].slug).toBe('vector-db-note')
       }

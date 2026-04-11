@@ -13,13 +13,13 @@ import type { ReclassifyJob } from '@robin/queue'
 import { nanoid } from '../lib/id.js'
 import { sessionMiddleware } from '../middleware/session.js'
 import { db } from '../db/client.js'
-import { vaults, threads, edges } from '../db/schema.js'
+import { vaults, wikis, edges } from '../db/schema.js'
 import { gatewayClient } from '../gateway/client.js'
 import { producer } from '../queue/producer.js'
 import { logger } from '../lib/logger.js'
 import { validationHook } from '../lib/validation.js'
-import { threadResponseSchema } from '../schemas/threads.schema.js'
-import { prepareThread } from './threads.js'
+import { threadResponseSchema } from '../schemas/wikis.schema.js'
+import { prepareThread } from './wikis.js'
 import {
   vaultResponseSchema,
   vaultListResponseSchema,
@@ -27,7 +27,7 @@ import {
   updateVaultBodySchema,
   updateVaultProfileBodySchema,
 } from '../schemas/vaults.schema.js'
-import { createThreadBodySchema } from '../schemas/threads.schema.js'
+import { createThreadBodySchema } from '../schemas/wikis.schema.js'
 
 const log = logger.child({ component: 'vaults' })
 
@@ -42,7 +42,7 @@ function slugify(name: string): string {
 }
 
 // GET /vaults — list user's vaults with counts
-// TODO(phase-5): update counts to use entries.vaultId and edges for threads/fragments
+// TODO(phase-5): update counts to use entries.vaultId and edges for wikis/fragments
 vaultsRouter.get('/', async (c) => {
   const userId = c.get('userId') as string
   const rows = await db
@@ -131,21 +131,21 @@ vaultsRouter.put('/:id/profile', zValidator('json', updateVaultProfileBodySchema
   return c.json(vaultResponseSchema.parse({ ...vault, threadCount: 0, noteCount: 0 }))
 })
 
-// GET /vaults/:vaultId/threads -- list threads in a vault
-vaultsRouter.get('/:vaultId/threads', async (c) => {
+// GET /vaults/:vaultId/wikis -- list wikis in a vault
+vaultsRouter.get('/:vaultId/wikis', async (c) => {
   const userId = c.get('userId') as string
   const vaultId = c.req.param('vaultId')
 
   const rows = await db
     .select()
-    .from(threads)
-    .where(and(eq(threads.userId, userId), eq(threads.vaultId, vaultId)))
+    .from(wikis)
+    .where(and(eq(wikis.userId, userId), eq(wikis.vaultId, vaultId)))
 
-  return c.json({ threads: rows.map((r) => threadResponseSchema.parse(prepareThread(r))) })
+  return c.json({ wikis: rows.map((r) => threadResponseSchema.parse(prepareThread(r))) })
 })
 
-// POST /vaults/:vaultId/threads -- create thread
-vaultsRouter.post('/:vaultId/threads', zValidator('json', createThreadBodySchema, validationHook), async (c) => {
+// POST /vaults/:vaultId/wikis -- create thread
+vaultsRouter.post('/:vaultId/wikis', zValidator('json', createThreadBodySchema, validationHook), async (c) => {
   const userId = c.get('userId') as string
   const vaultId = c.req.param('vaultId')
   const [vault] = await db
@@ -156,16 +156,16 @@ vaultsRouter.post('/:vaultId/threads', zValidator('json', createThreadBodySchema
 
   const { name, type, prompt } = c.req.valid('json')
 
-  const lookupKey = makeLookupKey('thread')
+  const lookupKey = makeLookupKey('wiki')
   const slug = await checkSlugCollision(generateSlug(name), async (s) => {
     const [existing] = await db
-      .select({ slug: threads.slug })
-      .from(threads)
-      .where(and(eq(threads.userId, userId), eq(threads.slug, s)))
+      .select({ slug: wikis.slug })
+      .from(wikis)
+      .where(and(eq(wikis.userId, userId), eq(wikis.slug, s)))
     return !!existing
   })
   const [thread] = await db
-    .insert(threads)
+    .insert(wikis)
     .values({
       lookupKey,
       userId,
@@ -178,7 +178,7 @@ vaultsRouter.post('/:vaultId/threads', zValidator('json', createThreadBodySchema
     })
     .returning()
 
-  // Write initial thread note to git (threads are notes, same as fragments/entries)
+  // Write initial thread note to git (wikis are notes, same as fragments/entries)
   const { type: keyType, ulid } = parseLookupKey(lookupKey)
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
   const repoPath = `${TYPE_TO_DIR[keyType]}/${composeFilename({ date: today, slug, type: keyType, ulid })}`
@@ -202,16 +202,16 @@ vaultsRouter.post('/:vaultId/threads', zValidator('json', createThreadBodySchema
       message: `add(${ulid.slice(0, 8)}): ${name}`,
       branch: 'main',
     })
-    await db.update(threads).set({ repoPath }).where(eq(threads.lookupKey, lookupKey))
+    await db.update(wikis).set({ repoPath }).where(eq(wikis.lookupKey, lookupKey))
   } catch (err) {
-    log.error({ err, threadKey: lookupKey }, 'gateway write failed for thread — DB record created without git file')
+    log.error({ err, wikiKey: lookupKey }, 'gateway write failed for thread — DB record created without git file')
   }
 
   // Create THREAD_IN_VAULT edge for the knowledge graph
   await db.insert(edges).values({
     id: nanoid(),
     userId,
-    srcType: 'thread',
+    srcType: 'wiki',
     srcId: thread.lookupKey,
     dstType: 'vault',
     dstId: vaultId,
@@ -223,12 +223,12 @@ vaultsRouter.post('/:vaultId/threads', zValidator('json', createThreadBodySchema
     type: 'reclassify',
     jobId: crypto.randomUUID(),
     userId,
-    threadKey: thread.lookupKey,
+    wikiKey: thread.lookupKey,
     vaultId,
     enqueuedAt: new Date().toISOString(),
   }
   await producer.enqueueReclassify(userId, reclassifyJob)
-  log.info({ threadKey: thread.lookupKey }, 'enqueued reclassify job for new thread')
+  log.info({ wikiKey: thread.lookupKey }, 'enqueued reclassify job for new thread')
 
   return c.json(threadResponseSchema.parse(prepareThread(thread)), 201)
 })

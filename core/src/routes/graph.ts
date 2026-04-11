@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { and, eq, isNull, inArray } from 'drizzle-orm'
 import { sessionMiddleware } from '../middleware/session.js'
 import { db } from '../db/client.js'
-import { edges, entries, fragments, threads, vaults, people } from '../db/schema.js'
+import { edges, entries, fragments, wikis, vaults, people } from '../db/schema.js'
 import { logger } from '../lib/logger.js'
 import { graphResponseSchema } from '../schemas/graph.schema.js'
 
@@ -10,7 +10,7 @@ const log = logger.child({ component: 'graph' })
 
 const EDGE_TYPE_MAP: Record<string, string> = {
   ENTRY_HAS_FRAGMENT: 'filing',
-  FRAGMENT_IN_THREAD: 'filing',
+  FRAGMENT_IN_WIKI: 'filing',
   FRAGMENT_MENTIONS_PERSON: 'mention',
   FRAGMENT_RELATED_TO_FRAGMENT: 'wikilink',
   ENTRY_IN_VAULT: 'filing',
@@ -131,9 +131,9 @@ graphRouter.get('/', async (c) => {
   }
   if (idsByType.thread?.length) {
     const rows = await db
-      .select({ key: threads.lookupKey, name: threads.name })
-      .from(threads)
-      .where(inArray(threads.lookupKey, idsByType.thread))
+      .select({ key: wikis.lookupKey, name: wikis.name })
+      .from(wikis)
+      .where(inArray(wikis.lookupKey, idsByType.thread))
     for (const r of rows) labelMap[`thread:${r.key}`] = { label: r.name, vaultId: '' }
   }
   if (idsByType.vault?.length) {
@@ -157,7 +157,7 @@ graphRouter.get('/', async (c) => {
     return {
       id: n.id,
       label: resolved?.label ?? n.id,
-      type: n.type as 'thread' | 'fragment' | 'person' | 'entry' | 'vault',
+      type: n.type as 'wiki' | 'fragment' | 'person' | 'entry' | 'vault',
       vaultId: resolved?.vaultId ?? '',
       size: n.edgeCount,
     }

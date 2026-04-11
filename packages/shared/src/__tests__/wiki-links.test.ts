@@ -6,7 +6,7 @@ describe('parseWikiLinks', () => {
     const result = parseWikiLinks('Check [[nairobi]] and [[thread:moving]]')
     expect(result).toEqual([
       { slug: 'nairobi', typeHint: undefined, raw: '[[nairobi]]' },
-      { slug: 'moving', typeHint: 'thread', raw: '[[thread:moving]]' },
+      { slug: 'moving', typeHint: 'wiki', raw: '[[thread:moving]]' },
     ])
   })
 
@@ -35,7 +35,7 @@ describe('resolveWikiLinks', () => {
   it('resolves known slug to {slug, type, key}, puts unknown in broken[]', async () => {
     const lookupFn = vi
       .fn()
-      .mockResolvedValueOnce({ type: 'thread', key: 'thread01HABC' }) // nairobi found as thread
+      .mockResolvedValueOnce({ type: 'wiki', key: 'thread01HABC' }) // nairobi found as thread
       .mockResolvedValueOnce(null) // ghost not found in any type
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null)
@@ -44,13 +44,13 @@ describe('resolveWikiLinks', () => {
     const parsed = parseWikiLinks('See [[nairobi]] and [[ghost]]')
     const result = await resolveWikiLinks(parsed, lookupFn)
 
-    expect(result.resolved).toEqual([{ slug: 'nairobi', type: 'thread', key: 'thread01HABC' }])
+    expect(result.resolved).toEqual([{ slug: 'nairobi', type: 'wiki', key: 'thread01HABC' }])
     expect(result.broken).toEqual(['ghost'])
   })
 
   it('checks priority order: thread > person > fragment > entry for unqualified links', async () => {
     const lookupFn = vi.fn().mockImplementation(async (slug: string, type?: string) => {
-      if (type === 'thread') return null
+      if (type === 'wiki') return null
       if (type === 'person') return { type: 'person', key: 'person01HABC' }
       return null
     })
@@ -60,19 +60,19 @@ describe('resolveWikiLinks', () => {
 
     expect(result.resolved).toEqual([{ slug: 'sarah', type: 'person', key: 'person01HABC' }])
     // Should have tried thread first, then person
-    expect(lookupFn).toHaveBeenCalledWith('sarah', 'thread')
+    expect(lookupFn).toHaveBeenCalledWith('sarah', 'wiki')
     expect(lookupFn).toHaveBeenCalledWith('sarah', 'person')
   })
 
   it('uses type hint directly for qualified links like [[thread:x]]', async () => {
-    const lookupFn = vi.fn().mockResolvedValue({ type: 'thread', key: 'thread01HXXX' })
+    const lookupFn = vi.fn().mockResolvedValue({ type: 'wiki', key: 'thread01HXXX' })
 
     const parsed = parseWikiLinks('See [[thread:moving]]')
     const result = await resolveWikiLinks(parsed, lookupFn)
 
     expect(lookupFn).toHaveBeenCalledTimes(1)
-    expect(lookupFn).toHaveBeenCalledWith('moving', 'thread')
-    expect(result.resolved).toEqual([{ slug: 'moving', type: 'thread', key: 'thread01HXXX' }])
+    expect(lookupFn).toHaveBeenCalledWith('moving', 'wiki')
+    expect(result.resolved).toEqual([{ slug: 'moving', type: 'wiki', key: 'thread01HXXX' }])
   })
 
   it('puts qualified link in broken if type-specific lookup fails', async () => {

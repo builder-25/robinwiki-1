@@ -6,7 +6,7 @@ import type {
   FragmentDeps,
   PersistDeps,
   PersistResult,
-  ThreadClassifyDeps,
+  WikiClassifyDeps,
   FragRelateDeps,
   FragmentResult,
   EntityExtractDeps,
@@ -16,7 +16,7 @@ import { vaultClassify } from './vault-classify.js'
 import { fragment } from './fragment.js'
 import { persist } from './persist.js'
 import { entityExtract } from './entity-extract.js'
-import { threadClassify } from './thread-classify.js'
+import { wikiClassify } from './wiki-classify.js'
 import { fragRelate } from './frag-relate.js'
 
 // ── Orchestrator Dep Types ──────────────────────────────────────────────────
@@ -62,7 +62,7 @@ export interface ExtractionResult {
 }
 
 export interface LinkingOrchestratorDeps {
-  threadClassifyDeps: ThreadClassifyDeps
+  threadClassifyDeps: WikiClassifyDeps
   fragRelateDeps: FragRelateDeps
   acquireLock: (
     db: unknown,
@@ -79,11 +79,11 @@ export interface LinkingOrchestratorDeps {
   ) => Promise<void>
   emitEvent: EmitEvent
   insertEdge: (edge: Record<string, unknown>) => Promise<void>
-  transitionThread: (threadKey: string, targetState: string) => Promise<void>
+  transitionWiki: (wikiKey: string, targetState: string) => Promise<void>
   updateFragmentFrontmatter: (
     userId: string,
     fragmentKey: string,
-    threadKeys: string[],
+    wikiKeys: string[],
     relatedFragmentKeys: string[]
   ) => Promise<void>
   db: unknown
@@ -91,7 +91,7 @@ export interface LinkingOrchestratorDeps {
 
 export interface LinkingResult {
   fragmentKey: string
-  threadEdges: Array<{ threadKey: string; score: number }>
+  wikiEdges: Array<{ wikiKey: string; score: number }>
   relatedEdges: Array<{ fragmentKey: string; score: number }>
 }
 
@@ -236,7 +236,7 @@ export async function runExtraction(
 // ── Linking Orchestrator ────────────────────────────────────────────────────
 
 /**
- * Linking orchestrator: thread-classify -> frag-relate -> edge creation.
+ * Linking orchestrator: wiki-classify -> frag-relate -> edge creation.
  * Uses CAS sandwich pattern: lock fragment PENDING->LINKING, run stages,
  * release to RESOLVED. Fail-open to PENDING on error.
  */
@@ -274,7 +274,7 @@ export async function runLinking(
 
   try {
     // Stage 1: Thread classification
-    const threadResult = await threadClassify(deps.threadClassifyDeps, {
+    const threadResult = await wikiClassify(deps.threadClassifyDeps, {
       userId: input.userId,
       fragmentContent: input.fragmentContent,
       fragmentKey: input.fragmentKey,
@@ -283,18 +283,18 @@ export async function runLinking(
       entryKey: input.entryKey,
     })
 
-    // Create FRAGMENT_IN_THREAD edges and set threads DIRTY
-    for (const edge of threadResult.data.threadEdges) {
+    // Create FRAGMENT_IN_WIKI edges and set wikis DIRTY
+    for (const edge of threadResult.data.wikiEdges) {
       await deps.insertEdge({
         srcType: 'fragment',
         srcId: input.fragmentKey,
-        dstType: 'thread',
-        dstId: edge.threadKey,
-        edgeType: 'FRAGMENT_IN_THREAD',
+        dstType: 'wiki',
+        dstId: edge.wikiKey,
+        edgeType: 'FRAGMENT_IN_WIKI',
         attrs: { score: edge.score },
       })
       // Idempotent: RESOLVED->DIRTY or DIRTY->DIRTY (just updates updatedAt)
-      await deps.transitionThread(edge.threadKey, 'DIRTY')
+      await deps.transitionWiki(edge.wikiKey, 'DIRTY')
     }
 
     // Stage 2: Fragment-to-fragment relationships
@@ -332,12 +332,12 @@ export async function runLinking(
     await deps.releaseLock(deps.db, 'fragments', input.fragmentKey, 'RESOLVED')
 
     // Update fragment frontmatter in git with thread and relation keys
-    const threadKeys = threadResult.data.threadEdges.map((e) => e.threadKey)
+    const wikiKeys = threadResult.data.wikiEdges.map((e) => e.wikiKey)
     const relatedFragmentKeys = relateResult.data.relatedEdges.map((e) => e.fragmentKey)
     await deps.updateFragmentFrontmatter(
       input.userId,
       input.fragmentKey,
-      threadKeys,
+      wikiKeys,
       relatedFragmentKeys
     )
 
@@ -348,14 +348,14 @@ export async function runLinking(
       status: 'completed',
       fragmentKey: input.fragmentKey,
       metadata: {
-        threadEdgeCount: threadResult.data.threadEdges.length,
+        wikiEdgeCount: threadResult.data.wikiEdges.length,
         relatedEdgeCount: relateResult.data.relatedEdges.length,
       },
     })
 
     return {
       fragmentKey: input.fragmentKey,
-      threadEdges: threadResult.data.threadEdges,
+      wikiEdges: threadResult.data.wikiEdges,
       relatedEdges: relateResult.data.relatedEdges,
     }
   } catch (err) {

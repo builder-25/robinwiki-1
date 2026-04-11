@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { ZodError } from 'zod'
 import {
   loadVaultClassificationSpec,
-  loadThreadClassificationSpec,
+  loadWikiClassificationSpec,
   loadPeopleExtractionSpec,
   loadFragmentationSpec,
-  loadThreadRelevanceSpec,
+  loadWikiRelevanceSpec,
 } from '../../prompts/index'
 
 describe('vault-classification', () => {
@@ -44,14 +44,14 @@ describe('vault-classification', () => {
   })
 })
 
-describe('thread-classification', () => {
+describe('wiki-classification', () => {
   const fixtures = {
     content: 'test fragment about exercise',
-    threads: 'health-log, work-project, fitness-goals',
+    wikis: 'health-log, work-project, fitness-goals',
   }
 
   it('loads and returns a valid PromptResult', () => {
-    const result = loadThreadClassificationSpec(fixtures)
+    const result = loadWikiClassificationSpec(fixtures)
     expect(result).toHaveProperty('system')
     expect(result).toHaveProperty('user')
     expect(result.meta).toHaveProperty('temperature')
@@ -59,20 +59,20 @@ describe('thread-classification', () => {
   })
 
   it('renders system message with Marcel persona', () => {
-    const result = loadThreadClassificationSpec(fixtures)
+    const result = loadWikiClassificationSpec(fixtures)
     expect(result.system).toContain('Marcel')
   })
 
   it('renders user template with substituted variables', () => {
-    const result = loadThreadClassificationSpec(fixtures)
+    const result = loadWikiClassificationSpec(fixtures)
     expect(result.user).toContain('health-log, work-project, fitness-goals')
     expect(result.user).toContain('test fragment about exercise')
     expect(result.user).not.toContain('{{content}}')
-    expect(result.user).not.toContain('{{threads}}')
+    expect(result.user).not.toContain('{{wikis}}')
   })
 
   it('throws ZodError when required content is missing', () => {
-    expect(() => loadThreadClassificationSpec({ threads: 'foo' } as any)).toThrow(ZodError)
+    expect(() => loadWikiClassificationSpec({ wikis: 'foo' } as any)).toThrow(ZodError)
   })
 })
 
@@ -135,16 +135,16 @@ describe('fragmentation', () => {
   })
 })
 
-describe('thread-relevance', () => {
+describe('wiki-relevance', () => {
   const fixtures = {
-    threadName: 'Health Tracking',
+    wikiName: 'Health Tracking',
     threadType: 'log',
     threadDescription: 'A log of health-related activities',
     fragmentContent: 'I went for a 5k run this morning',
   }
 
   it('loads and returns a valid PromptResult', () => {
-    const result = loadThreadRelevanceSpec(fixtures)
+    const result = loadWikiRelevanceSpec(fixtures)
     expect(result).toHaveProperty('system')
     expect(result).toHaveProperty('user')
     expect(result.meta).toHaveProperty('temperature')
@@ -152,22 +152,22 @@ describe('thread-relevance', () => {
   })
 
   it('renders system message with Judge persona', () => {
-    const result = loadThreadRelevanceSpec(fixtures)
+    const result = loadWikiRelevanceSpec(fixtures)
     expect(result.system).toContain('Judge')
   })
 
   it('renders user template with substituted variables', () => {
-    const result = loadThreadRelevanceSpec(fixtures)
+    const result = loadWikiRelevanceSpec(fixtures)
     expect(result.user).toContain('Health Tracking')
     expect(result.user).toContain('I went for a 5k run this morning')
-    expect(result.user).not.toContain('{{threadName}}')
+    expect(result.user).not.toContain('{{wikiName}}')
     expect(result.user).not.toContain('{{fragmentContent}}')
   })
 
   it('throws ZodError when required fragmentContent is missing', () => {
     expect(() =>
-      loadThreadRelevanceSpec({
-        threadName: 'x',
+      loadWikiRelevanceSpec({
+        wikiName: 'x',
         threadType: 'log',
         threadDescription: 'desc',
       } as any)
@@ -183,8 +183,8 @@ describe('modification stack', () => {
     expect(result.meta.temperature).toBe(0.1)
   })
 
-  it('thread-classification has output.strict: true (classification)', () => {
-    const result = loadThreadClassificationSpec({ content: 'test', threads: 't1' })
+  it('wiki-classification has output.strict: true (classification)', () => {
+    const result = loadWikiClassificationSpec({ content: 'test', wikis: 't1' })
     expect(result.meta.temperature).toBe(0.1)
   })
 
@@ -198,9 +198,9 @@ describe('modification stack', () => {
     expect(result.meta.temperature).toBe(0.2)
   })
 
-  it('thread-relevance has output.loose: true (scoring)', () => {
-    const result = loadThreadRelevanceSpec({
-      threadName: 'x',
+  it('wiki-relevance has output.loose: true (scoring)', () => {
+    const result = loadWikiRelevanceSpec({
+      wikiName: 'x',
       threadType: 'log',
       threadDescription: 'd',
       fragmentContent: 'f',

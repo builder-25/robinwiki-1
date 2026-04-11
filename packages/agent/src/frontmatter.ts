@@ -52,7 +52,7 @@ export interface FragmentFrontmatterInput {
   tags: string[]
   entryKey?: string
   vaultId?: string
-  threadKeys: string[]
+  wikiKeys: string[]
   personKeys: string[]
   relatedFragmentKeys: string[]
   status: string
@@ -72,7 +72,7 @@ export function assembleFragmentFrontmatter(input: FragmentFrontmatterInput): st
     tags: input.tags,
     ...(input.entryKey !== undefined && { entryKey: input.entryKey }),
     ...(input.vaultId !== undefined && { vaultId: input.vaultId }),
-    threadKeys: input.threadKeys,
+    wikiKeys: input.wikiKeys,
     personKeys: input.personKeys,
     relatedFragmentKeys: input.relatedFragmentKeys,
     status: input.status,

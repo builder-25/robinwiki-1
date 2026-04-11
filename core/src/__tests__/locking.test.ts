@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
 import { eq, sql } from 'drizzle-orm'
 import type postgres from 'postgres'
 import { makeLookupKey, ObjectType } from '@robin/shared'
-import { entries, fragments, threads, edges } from '../db/schema.js'
+import { entries, fragments, wikis, edges } from '../db/schema.js'
 import {
   ensureTestDatabase,
   pushTestSchema,
@@ -128,9 +128,9 @@ describe('acquireLock', () => {
     expect(result?.state).toBe('LINKING')
   })
 
-  it('works on threads table', async () => {
+  it('works on wikis table', async () => {
     const key = makeLookupKey(ObjectType.THREAD)
-    await db.insert(threads).values({
+    await db.insert(wikis).values({
       lookupKey: key,
       userId: testUserId,
       slug: `thread-${Date.now()}`,
@@ -138,7 +138,7 @@ describe('acquireLock', () => {
       state: 'RESOLVED',
     })
 
-    const result = await acquireLock(db, 'threads', key, 'worker-1', 'RESOLVED')
+    const result = await acquireLock(db, 'wikis', key, 'worker-1', 'RESOLVED')
     expect(result).not.toBeNull()
     expect(result?.state).toBe('LINKING')
   })
@@ -204,9 +204,9 @@ describe('canRebuildThread', () => {
       vaultId: testVaultId,
     })
 
-    const threadKey = makeLookupKey(ObjectType.THREAD)
-    await db.insert(threads).values({
-      lookupKey: threadKey,
+    const wikiKey = makeLookupKey(ObjectType.THREAD)
+    await db.insert(wikis).values({
+      lookupKey: wikiKey,
       userId: testUserId,
       slug: `thread-${Date.now()}`,
       name: 'Rebuild Test',
@@ -228,12 +228,12 @@ describe('canRebuildThread', () => {
       userId: testUserId,
       srcType: 'frag',
       srcId: fragKey,
-      dstType: 'thread',
-      dstId: threadKey,
-      edgeType: 'FRAGMENT_IN_THREAD',
+      dstType: 'wiki',
+      dstId: wikiKey,
+      edgeType: 'FRAGMENT_IN_WIKI',
     })
 
-    const result = await canRebuildThread(db, threadKey)
+    const result = await canRebuildThread(db, wikiKey)
     expect(result).toBe(false)
   })
 
@@ -248,9 +248,9 @@ describe('canRebuildThread', () => {
       vaultId: testVaultId,
     })
 
-    const threadKey = makeLookupKey(ObjectType.THREAD)
-    await db.insert(threads).values({
-      lookupKey: threadKey,
+    const wikiKey = makeLookupKey(ObjectType.THREAD)
+    await db.insert(wikis).values({
+      lookupKey: wikiKey,
       userId: testUserId,
       slug: `thread-${Date.now()}`,
       name: 'Rebuild Test',
@@ -274,12 +274,12 @@ describe('canRebuildThread', () => {
       userId: testUserId,
       srcType: 'frag',
       srcId: fragKey,
-      dstType: 'thread',
-      dstId: threadKey,
-      edgeType: 'FRAGMENT_IN_THREAD',
+      dstType: 'wiki',
+      dstId: wikiKey,
+      edgeType: 'FRAGMENT_IN_WIKI',
     })
 
-    const result = await canRebuildThread(db, threadKey)
+    const result = await canRebuildThread(db, wikiKey)
     expect(result).toBe(false)
   })
 
@@ -294,9 +294,9 @@ describe('canRebuildThread', () => {
       vaultId: testVaultId,
     })
 
-    const threadKey = makeLookupKey(ObjectType.THREAD)
-    await db.insert(threads).values({
-      lookupKey: threadKey,
+    const wikiKey = makeLookupKey(ObjectType.THREAD)
+    await db.insert(wikis).values({
+      lookupKey: wikiKey,
       userId: testUserId,
       slug: `thread-${Date.now()}`,
       name: 'Rebuild Test',
@@ -329,36 +329,36 @@ describe('canRebuildThread', () => {
         userId: testUserId,
         srcType: 'frag',
         srcId: fragKey1,
-        dstType: 'thread',
-        dstId: threadKey,
-        edgeType: 'FRAGMENT_IN_THREAD',
+        dstType: 'wiki',
+        dstId: wikiKey,
+        edgeType: 'FRAGMENT_IN_WIKI',
       },
       {
         id: crypto.randomUUID(),
         userId: testUserId,
         srcType: 'frag',
         srcId: fragKey2,
-        dstType: 'thread',
-        dstId: threadKey,
-        edgeType: 'FRAGMENT_IN_THREAD',
+        dstType: 'wiki',
+        dstId: wikiKey,
+        edgeType: 'FRAGMENT_IN_WIKI',
       },
     ])
 
-    const result = await canRebuildThread(db, threadKey)
+    const result = await canRebuildThread(db, wikiKey)
     expect(result).toBe(true)
   })
 
   it('returns true when thread has no linked fragments', async () => {
-    const threadKey = makeLookupKey(ObjectType.THREAD)
-    await db.insert(threads).values({
-      lookupKey: threadKey,
+    const wikiKey = makeLookupKey(ObjectType.THREAD)
+    await db.insert(wikis).values({
+      lookupKey: wikiKey,
       userId: testUserId,
       slug: `thread-${Date.now()}`,
       name: 'Empty Thread',
       state: 'RESOLVED',
     })
 
-    const result = await canRebuildThread(db, threadKey)
+    const result = await canRebuildThread(db, wikiKey)
     expect(result).toBe(true)
   })
 })

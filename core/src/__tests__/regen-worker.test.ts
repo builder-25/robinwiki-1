@@ -11,7 +11,7 @@ vi.mock('../db/client.js', () => ({
 
 vi.mock('../db/schema.js', () => ({
   entries: { lookupKey: 'lookup_key' },
-  threads: { lookupKey: 'lookup_key' },
+  wikis: { lookupKey: 'lookup_key' },
   people: { lookupKey: 'lookup_key' },
   edges: { srcId: 'src_id' },
   fragments: { lookupKey: 'lookup_key' },
@@ -89,7 +89,7 @@ describe('processRegenJob', () => {
       jobId: 'regen-1',
       userId: 'user-1',
       objectKey: 'thread-key-1',
-      objectType: 'thread',
+      objectType: 'wiki',
       triggeredBy: 'scheduler',
       enqueuedAt: new Date().toISOString(),
     }
@@ -111,7 +111,7 @@ describe('processRegenJob', () => {
       jobId: 'regen-2',
       userId: 'user-1',
       objectKey: 'thread-key-1',
-      objectType: 'thread',
+      objectType: 'wiki',
       triggeredBy: 'manual',
       enqueuedAt: new Date().toISOString(),
     }
@@ -129,7 +129,7 @@ describe('processRegenBatchJob', () => {
     vi.clearAllMocks()
   })
 
-  it('scans DIRTY threads and people and enqueues regen jobs', async () => {
+  it('scans DIRTY wikis and people and enqueues regen jobs', async () => {
     const job: RegenBatchJob = {
       type: 'regen-batch',
       jobId: 'batch-1',
@@ -137,10 +137,10 @@ describe('processRegenBatchJob', () => {
       enqueuedAt: new Date().toISOString(),
     }
 
-    // Mock dirty threads query
+    // Mock dirty wikis query
     vi.mocked(db.execute).mockResolvedValueOnce([
-      { lookup_key: 'thread-1', user_id: 'user-1', type: 'thread' },
-      { lookup_key: 'thread-2', user_id: 'user-2', type: 'thread' },
+      { lookup_key: 'thread-1', user_id: 'user-1', type: 'wiki' },
+      { lookup_key: 'thread-2', user_id: 'user-2', type: 'wiki' },
     ] as any)
 
     // Mock dirty people query

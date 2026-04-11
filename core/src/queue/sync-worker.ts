@@ -13,7 +13,7 @@ import { db } from '../db/client.js'
 import { parseFrontmatter as parseFm } from '../lib/frontmatter.js'
 
 /** Valid directories for sync processing */
-const VALID_DIRS = new Set(['entries', 'fragments', 'threads', 'people'])
+const VALID_DIRS = new Set(['entries', 'fragments', 'wikis', 'people'])
 
 export async function processSyncJob(job: SyncJob): Promise<JobResult> {
   let processedCount = 0

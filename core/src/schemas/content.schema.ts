@@ -7,7 +7,7 @@ export {
   WRITE_SCHEMAS,
   fragmentWriteSchema,
   entryWriteSchema,
-  threadWriteSchema,
+  wikiWriteSchema,
   personWriteSchema,
   type ContentType,
 } from '../lib/content-schemas.js'

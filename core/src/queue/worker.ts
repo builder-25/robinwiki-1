@@ -59,15 +59,14 @@ import {
   fragScoreCall,
 } from '@robin/agent'
 import type { ExtractionOrchestratorDeps, LinkingOrchestratorDeps } from '@robin/agent'
-import { CONFIG_NOTE_BOOTSTRAPS, loadThreadClassificationSpec, makeLookupKey } from '@robin/shared'
+import { loadWikiClassificationSpec, makeLookupKey } from '@robin/shared'
 import { eq, and, sql } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import {
   users,
-  threads,
+  wikis,
   vaults,
   fragments,
-  configNotes,
   entries,
   edges,
   people,
@@ -298,7 +297,7 @@ async function processExtractionJob(job: ExtractionJob): Promise<JobResult> {
 /***********************************************************************
  * ## Link Job Processor
  *
- * @remarks Phase 2 of the pipeline: classify fragments into threads
+ * @remarks Phase 2 of the pipeline: classify fragments into wikis
  * and discover related fragments via vector similarity + LLM scoring.
  *
  * @see {@link runLinking} — orchestrator from `@robin/agent`
@@ -306,14 +305,14 @@ async function processExtractionJob(job: ExtractionJob): Promise<JobResult> {
  ***********************************************************************/
 
 /**
- * Process a link job: classify fragment into threads and find related fragments.
+ * Process a link job: classify fragment into wikis and find related fragments.
  *
  * @remarks
  * Builds {@link LinkingOrchestratorDeps} with gateway search for vector
  * candidates, thread classification via LLM, and fragment scoring via LLM.
  *
  * **Flow:** thread classify (LLM) → fragment relate (vector + LLM score)
- * → persist edges → update frontmatter → mark threads DIRTY.
+ * → persist edges → update frontmatter → mark wikis DIRTY.
  *
  * @param job - Link job with fragmentKey, entryKey, fragmentContent
  * @returns {@link JobResult} with success status and timing
@@ -334,27 +333,27 @@ async function processLinkJob(job: LinkJob): Promise<JobResult> {
       searchCandidates: async (userId, content, limit) => {
         const searchResult = await gatewayClient.search(userId, content, limit)
         const threadRows = await db
-          .select({ lookupKey: threads.lookupKey, name: threads.name })
-          .from(threads)
-          .where(eq(threads.userId, userId))
+          .select({ lookupKey: wikis.lookupKey, name: wikis.name })
+          .from(wikis)
+          .where(eq(wikis.userId, userId))
         return threadRows.map((t) => ({
-          threadKey: t.lookupKey,
+          wikiKey: t.lookupKey,
           score: searchResult.results?.find((r) => r.path?.includes(t.lookupKey))?.score ?? 0,
         }))
       },
-      loadThreads: async (threadKeys) => {
-        if (threadKeys.length === 0) return []
+      loadThreads: async (wikiKeys) => {
+        if (wikiKeys.length === 0) return []
         const rows = await db
           .select({
-            lookupKey: threads.lookupKey,
-            name: threads.name,
-            type: threads.type,
-            prompt: threads.prompt,
+            lookupKey: wikis.lookupKey,
+            name: wikis.name,
+            type: wikis.type,
+            prompt: wikis.prompt,
           })
-          .from(threads)
+          .from(wikis)
           .where(
-            sql`${threads.lookupKey} = ANY(ARRAY[${sql.join(
-              threadKeys.map((k) => sql`${k}`),
+            sql`${wikis.lookupKey} = ANY(ARRAY[${sql.join(
+              wikiKeys.map((k) => sql`${k}`),
               sql`, `
             )}])`
           )
@@ -397,14 +396,14 @@ async function processLinkJob(job: LinkJob): Promise<JobResult> {
         } as any)
         .onConflictDoNothing()
     },
-    transitionThread: async (threadKey, targetState) => {
+    transitionWiki: async (wikiKey, targetState) => {
       await db.execute(
-        sql`UPDATE ${threads} SET state = ${targetState}, updated_at = NOW()
-            WHERE lookup_key = ${threadKey}
+        sql`UPDATE ${wikis} SET state = ${targetState}, updated_at = NOW()
+            WHERE lookup_key = ${wikiKey}
             AND state IN ('RESOLVED', 'DIRTY')`
       )
     },
-    updateFragmentFrontmatter: async (userId, fragmentKey, threadKeys, relatedFragmentKeys) => {
+    updateFragmentFrontmatter: async (userId, fragmentKey, wikiKeys, relatedFragmentKeys) => {
       /** @fallback — frontmatter update is best-effort */
       try {
         const [fragRow] = await db
@@ -417,8 +416,8 @@ async function processLinkJob(job: LinkJob): Promise<JobResult> {
         let updated = fileContent.content
         updated = updated.replace(/status: PENDING/, `status: RESOLVED`)
         updated = updated.replace(
-          /threadKeys: \[.*?\]/,
-          `threadKeys: [${threadKeys.map((k) => `"${k}"`).join(', ')}]`
+          /wikiKeys: \[.*?\]/,
+          `wikiKeys: [${wikiKeys.map((k) => `"${k}"`).join(', ')}]`
         )
         updated = updated.replace(
           /relatedFragmentKeys: \[.*?\]/,
@@ -465,7 +464,7 @@ async function processLinkJob(job: LinkJob): Promise<JobResult> {
  *
  * @remarks Triggered when a new thread is created. Re-scores existing
  * fragments against the new thread via vector search + LLM classification.
- * Fragments above threshold get `FRAGMENT_IN_THREAD` edges.
+ * Fragments above threshold get `FRAGMENT_IN_WIKI` edges.
  *
  * @see {@link threadClassifyCall} — LLM classification call
  ***********************************************************************/
@@ -478,7 +477,7 @@ async function processLinkJob(job: LinkJob): Promise<JobResult> {
  * find fragments that belong to the new thread but were classified
  * before it existed. Threshold: 0.7 confidence.
  *
- * @param job - Reclassify job with threadKey and userId
+ * @param job - Reclassify job with wikiKey and userId
  * @returns {@link JobResult} with success status and reclassified count
  */
 async function processReclassifyJob(job: ReclassifyJob): Promise<JobResult> {
@@ -486,11 +485,11 @@ async function processReclassifyJob(job: ReclassifyJob): Promise<JobResult> {
   const t0 = performance.now()
 
   /** @step 1 — Load the target thread */
-  const [thread] = await db.select().from(threads).where(eq(threads.lookupKey, job.threadKey))
+  const [thread] = await db.select().from(wikis).where(eq(wikis.lookupKey, job.wikiKey))
 
   /** @gate — thread not found → abort */
   if (!thread) {
-    log.warn({ jobId: job.jobId, threadKey: job.threadKey }, 'reclassify: thread not found')
+    log.warn({ jobId: job.jobId, wikiKey: job.wikiKey }, 'reclassify: thread not found')
     return {
       jobId: job.jobId,
       success: false,
@@ -511,9 +510,9 @@ async function processReclassifyJob(job: ReclassifyJob): Promise<JobResult> {
     if (!candidate.path) continue
     try {
       const fileContent = await gatewayClient.read(job.userId, candidate.path)
-      const spec = loadThreadClassificationSpec({
+      const spec = loadWikiClassificationSpec({
         content: fileContent.content,
-        threads: JSON.stringify([
+        wikis: JSON.stringify([
           {
             key: thread.lookupKey,
             name: thread.name,
@@ -533,9 +532,9 @@ async function processReclassifyJob(job: ReclassifyJob): Promise<JobResult> {
           userId: job.userId,
           srcType: 'frag',
           srcId: fragLookupKey,
-          dstType: 'thread',
+          dstType: 'wiki',
           dstId: thread.lookupKey,
-          edgeType: 'FRAGMENT_IN_THREAD',
+          edgeType: 'FRAGMENT_IN_WIKI',
           attrs: { score },
         })
         reclassifiedCount++
@@ -549,8 +548,8 @@ async function processReclassifyJob(job: ReclassifyJob): Promise<JobResult> {
   /** @step 4 — Mark thread DIRTY if any fragments were reclassified */
   if (reclassifiedCount > 0) {
     await db.execute(
-      sql`UPDATE ${threads} SET state = 'DIRTY', updated_at = NOW()
-          WHERE lookup_key = ${job.threadKey}`
+      sql`UPDATE ${wikis} SET state = 'DIRTY', updated_at = NOW()
+          WHERE lookup_key = ${job.wikiKey}`
     )
   }
 
@@ -854,54 +853,20 @@ async function bootstrapDefaultVaults(userId: string, userName: string | null) {
   log.info({ userId, robinId, defaultId }, 'bootstrapped vaults')
 }
 
-/**
- * Seed config notes from {@link CONFIG_NOTE_BOOTSTRAPS} for a new user.
- *
- * @remarks Idempotent — only inserts notes whose keys don't exist yet.
- *
- * @param userId - User to bootstrap config notes for
- */
-async function bootstrapConfigNotes(userId: string) {
-  const existing = await db
-    .select({ key: configNotes.key })
-    .from(configNotes)
-    .where(eq(configNotes.userId, userId))
-  const existingKeys = new Set(existing.map((e) => e.key))
-
-  let inserted = 0
-  for (const seed of CONFIG_NOTE_BOOTSTRAPS) {
-    if (existingKeys.has(seed.key)) continue
-    const id = nanoid()
-    await db.insert(configNotes).values({
-      id,
-      userId,
-      key: seed.key,
-      title: seed.title,
-      content: seed.defaultContent,
-    })
-    inserted++
-  }
-
-  if (inserted > 0) {
-    log.info({ userId, count: inserted }, 'bootstrapped config notes')
-  }
-}
-
 /***********************************************************************
  * ## Provision Job Processor
  *
- * @remarks New-user onboarding: vaults → config notes → keypair →
+ * @remarks New-user onboarding: vaults → keypair →
  * git repo via gateway → persist keys. Fully idempotent — safe to
  * re-run on failed attempts.
  *
  * @see {@link bootstrapDefaultVaults} — vault creation
- * @see {@link bootstrapConfigNotes} — config note seeding
  * @see {@link generateKeypair} — SSH keypair generation
  * @see {@link gatewayClient.provision} — git repo provisioning
  ***********************************************************************/
 
 /**
- * Provision a new user: vaults, config notes, keypair, and git repo.
+ * Provision a new user: vaults, keypair, and git repo.
  *
  * @param job - {@link ProvisionJob} with userId
  * @returns {@link JobResult} with success/failure status
@@ -925,9 +890,8 @@ export async function processProvisionJob(job: ProvisionJob): Promise<JobResult>
     }
   }
 
-  /** @step 2 — Bootstrap vaults and config notes */
+  /** @step 2 — Bootstrap vaults */
   await bootstrapDefaultVaults(userId, user.name)
-  await bootstrapConfigNotes(userId)
 
   try {
     /** @step 3 — Generate keypair if missing */

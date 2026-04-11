@@ -132,9 +132,9 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
 
   server.registerResource(
     'list_threads',
-    'robin://threads',
+    'robin://wikis',
     {
-      description: 'All threads for the authenticated user with fragment counts and wiki previews',
+      description: 'All wikis for the authenticated user with fragment counts and wiki previews',
     },
     async (_uri, extra) => {
       const userId = extra.authInfo?.clientId as string
@@ -143,7 +143,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         return {
           contents: [
             {
-              uri: 'robin://threads',
+              uri: 'robin://wikis',
               mimeType: 'application/json',
               text: JSON.stringify(data),
             },
@@ -154,7 +154,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         return {
           contents: [
             {
-              uri: 'robin://threads',
+              uri: 'robin://wikis',
               mimeType: 'application/json',
               text: JSON.stringify({ error: message }),
             },

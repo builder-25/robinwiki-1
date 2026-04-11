@@ -41,7 +41,7 @@ const baseJob = {
   jobId: 'regen-1',
   userId: 'user-1',
   objectKey: 'thread01HZY3Q9R3TSV4RRFFQ69G5FAV',
-  objectType: 'thread' as const,
+  objectType: 'wiki' as const,
   triggeredBy: 'scheduler',
   enqueuedAt: new Date().toISOString(),
 }
@@ -56,16 +56,16 @@ describe('regen processor — repoPath persistence', () => {
     await processRegenJob(deps, baseJob)
 
     expect(deps.updateAfterRegen).toHaveBeenCalledWith(
-      'threads',
+      'wikis',
       'thread01HZY3Q9R3TSV4RRFFQ69G5FAV',
-      expect.stringMatching(/^threads\/\d{8}-fitness\.thread01HZY3Q9R3TSV4RRFFQ69G5FAV\.md$/)
+      expect.stringMatching(/^wikis\/\d{8}-fitness\.thread01HZY3Q9R3TSV4RRFFQ69G5FAV\.md$/)
     )
     expect(deps.batchWrite).toHaveBeenCalledWith(
       expect.objectContaining({
         files: [
           expect.objectContaining({
             path: expect.stringMatching(
-              /^threads\/\d{8}-fitness\.thread01HZY3Q9R3TSV4RRFFQ69G5FAV\.md$/
+              /^wikis\/\d{8}-fitness\.thread01HZY3Q9R3TSV4RRFFQ69G5FAV\.md$/
             ),
           }),
         ],
@@ -80,7 +80,7 @@ describe('regen processor — repoPath persistence', () => {
         name: 'Fitness',
         type: 'log',
         slug: 'fitness',
-        repoPath: 'threads/20260301-fitness.thread01ABC.md',
+        repoPath: 'wikis/20260301-fitness.thread01ABC.md',
         prompt: '',
       }),
     })
@@ -88,9 +88,9 @@ describe('regen processor — repoPath persistence', () => {
     await processRegenJob(deps, baseJob)
 
     expect(deps.updateAfterRegen).toHaveBeenCalledWith(
-      'threads',
+      'wikis',
       'thread01HZY3Q9R3TSV4RRFFQ69G5FAV',
-      'threads/20260301-fitness.thread01ABC.md'
+      'wikis/20260301-fitness.thread01ABC.md'
     )
   })
 })
@@ -121,7 +121,7 @@ describe('regen processor — manual trigger bypasses guard', () => {
     expect(result.error).toContain('blocked by pending/linking fragments')
     expect(deps.canRebuildThread).toHaveBeenCalledWith('thread01HZY3Q9R3TSV4RRFFQ69G5FAV')
     expect(deps.releaseLock).toHaveBeenCalledWith(
-      'threads',
+      'wikis',
       'thread01HZY3Q9R3TSV4RRFFQ69G5FAV',
       'DIRTY'
     )
@@ -149,7 +149,7 @@ describe('regen processor — lock + error handling', () => {
 
     await expect(processRegenJob(deps, baseJob)).rejects.toThrow('gateway down')
     expect(deps.releaseLock).toHaveBeenCalledWith(
-      'threads',
+      'wikis',
       'thread01HZY3Q9R3TSV4RRFFQ69G5FAV',
       'DIRTY'
     )

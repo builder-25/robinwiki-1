@@ -8,7 +8,7 @@ import { processRegenJob as agentProcessRegenJob } from '@robin/agent'
 import type { RegenDeps } from '@robin/agent'
 import { sql } from 'drizzle-orm'
 import { db } from '../db/client.js'
-import { threads, people, edges, fragments } from '../db/schema.js'
+import { wikis, people, edges, fragments } from '../db/schema.js'
 import { acquireLock, releaseLock, canRebuildThread } from '../db/locking.js'
 import { gatewayClient } from '../gateway/client.js'
 import { producer } from './producer.js'
@@ -65,7 +65,7 @@ async function loadLinkedFragments(
 function buildRegenDeps(userId: string): RegenDeps {
   return {
     loadThread: async (key) => {
-      const rows = await db.execute(sql`SELECT * FROM threads WHERE lookup_key = ${key}`)
+      const rows = await db.execute(sql`SELECT * FROM wikis WHERE lookup_key = ${key}`)
       const row = rows[0] as any
       if (!row) return null
       return {
@@ -73,14 +73,14 @@ function buildRegenDeps(userId: string): RegenDeps {
         name: row.name,
         type: row.type ?? 'log',
         slug: row.slug,
-        repoPath: row.repo_path || `threads/${row.slug}.md`,
+        repoPath: row.repo_path || `wikis/${row.slug}.md`,
         prompt: row.prompt ?? '',
         vaultId: row.vault_id ?? null,
       }
     },
 
-    loadFragmentContents: (threadKey) =>
-      loadLinkedFragments(userId, threadKey, 'FRAGMENT_IN_THREAD'),
+    loadFragmentContents: (wikiKey) =>
+      loadLinkedFragments(userId, wikiKey, 'FRAGMENT_IN_WIKI'),
 
     loadPersonWithFragments: async (personKey) => {
       const personRows = await db.execute(sql`SELECT * FROM people WHERE lookup_key = ${personKey}`)
@@ -108,14 +108,14 @@ function buildRegenDeps(userId: string): RegenDeps {
 
     releaseLock: (table, key, toState) => releaseLock(db, table as any, key, toState),
 
-    canRebuildThread: (threadKey) => canRebuildThread(db, threadKey),
+    canRebuildThread: (wikiKey) => canRebuildThread(db, wikiKey),
 
     batchWrite: async (req) => {
       await gatewayClient.batchWrite(req)
     },
 
     updateAfterRegen: async (table, key, repoPath) => {
-      const tableName = table === 'threads' ? threads : people
+      const tableName = table === 'wikis' ? wikis : people
       await db.execute(
         sql`UPDATE ${tableName}
             SET last_rebuilt_at = NOW(), state = 'RESOLVED', locked_by = NULL, locked_at = NULL, repo_path = ${repoPath}, updated_at = NOW()
@@ -142,9 +142,9 @@ export async function processRegenBatchJob(job: RegenBatchJob): Promise<JobResul
   log.info('processing batch regen scan')
   const t0 = performance.now()
 
-  // Query all DIRTY threads
+  // Query all DIRTY wikis
   const dirtyThreads = (await db.execute(
-    sql`SELECT lookup_key, user_id FROM threads WHERE state = 'DIRTY'`
+    sql`SELECT lookup_key, user_id FROM wikis WHERE state = 'DIRTY'`
   )) as any[]
 
   // Query all DIRTY people
@@ -160,7 +160,7 @@ export async function processRegenBatchJob(job: RegenBatchJob): Promise<JobResul
       jobId: `regen-thread-${row.lookup_key}-${Date.now()}`,
       userId: row.user_id,
       objectKey: row.lookup_key,
-      objectType: 'thread',
+      objectType: 'wiki',
       triggeredBy: 'scheduler',
       enqueuedAt: new Date().toISOString(),
     }

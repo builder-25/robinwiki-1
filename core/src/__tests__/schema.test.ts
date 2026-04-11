@@ -5,7 +5,7 @@ import { makeLookupKey, ObjectType } from '@robin/shared'
 import {
   entries,
   fragments,
-  threads,
+  wikis,
   people,
   edges,
   users,
@@ -124,7 +124,7 @@ describe('REQ-SCH-01: domain tables with shared base columns', () => {
 
   it('inserts and queries a thread', async () => {
     const key = makeLookupKey(ObjectType.THREAD)
-    await db.insert(threads).values({
+    await db.insert(wikis).values({
       lookupKey: key,
       userId: testUserId,
       slug: 'test-thread',
@@ -133,7 +133,7 @@ describe('REQ-SCH-01: domain tables with shared base columns', () => {
       prompt: 'Collect daily reflections',
     })
 
-    const [row] = await db.select().from(threads).where(eq(threads.lookupKey, key))
+    const [row] = await db.select().from(wikis).where(eq(wikis.lookupKey, key))
 
     expect(row).toBeDefined()
     expect(row.lookupKey).toBe(key)
@@ -173,7 +173,7 @@ describe('REQ-SCH-01: domain tables with shared base columns', () => {
   it('enforces objectStateEnum values', async () => {
     const key = makeLookupKey(ObjectType.THREAD)
     await expect(
-      db.insert(threads).values({
+      db.insert(wikis).values({
         lookupKey: key,
         userId: testUserId,
         slug: 'bad-state',
@@ -186,14 +186,14 @@ describe('REQ-SCH-01: domain tables with shared base columns', () => {
   it('accepts all valid objectStateEnum values', async () => {
     for (const state of ['PENDING', 'RESOLVED', 'LINKING', 'DIRTY'] as const) {
       const key = makeLookupKey(ObjectType.THREAD)
-      await db.insert(threads).values({
+      await db.insert(wikis).values({
         lookupKey: key,
         userId: testUserId,
         slug: `state-${state.toLowerCase()}`,
         name: `State ${state}`,
         state,
       })
-      const [row] = await db.select().from(threads).where(eq(threads.lookupKey, key))
+      const [row] = await db.select().from(wikis).where(eq(wikis.lookupKey, key))
       expect(row.state).toBe(state)
     }
   })
@@ -201,14 +201,14 @@ describe('REQ-SCH-01: domain tables with shared base columns', () => {
   it('enforces unique(userId, slug) per table', async () => {
     const key1 = makeLookupKey(ObjectType.THREAD)
     const key2 = makeLookupKey(ObjectType.THREAD)
-    await db.insert(threads).values({
+    await db.insert(wikis).values({
       lookupKey: key1,
       userId: testUserId,
       slug: 'duplicate-slug',
       name: 'First',
     })
     await expect(
-      db.insert(threads).values({
+      db.insert(wikis).values({
         lookupKey: key2,
         userId: testUserId,
         slug: 'duplicate-slug',
@@ -223,7 +223,7 @@ describe('REQ-SCH-01: domain tables with shared base columns', () => {
 describe('REQ-SCH-02: edges table with typed relationships', () => {
   let entryKey: string
   let fragKey: string
-  let threadKey: string
+  let wikiKey: string
   let personKey: string
 
   beforeAll(async () => {
@@ -233,7 +233,7 @@ describe('REQ-SCH-02: edges table with typed relationships', () => {
   async function createDomainObjects() {
     entryKey = makeLookupKey(ObjectType.ENTRY)
     fragKey = makeLookupKey(ObjectType.FRAGMENT)
-    threadKey = makeLookupKey(ObjectType.THREAD)
+    wikiKey = makeLookupKey(ObjectType.THREAD)
     personKey = makeLookupKey(ObjectType.PERSON)
 
     await db.insert(entries).values({
@@ -251,8 +251,8 @@ describe('REQ-SCH-02: edges table with typed relationships', () => {
       title: 'Edge Test Fragment',
       entryId: entryKey,
     })
-    await db.insert(threads).values({
-      lookupKey: threadKey,
+    await db.insert(wikis).values({
+      lookupKey: wikiKey,
       userId: testUserId,
       slug: `thread-${Date.now()}`,
       name: 'Edge Test Thread',
@@ -309,9 +309,9 @@ describe('REQ-SCH-02: edges table with typed relationships', () => {
       {
         srcType: 'frag',
         srcId: fragKey,
-        dstType: 'thread',
-        dstId: threadKey,
-        edgeType: 'FRAGMENT_IN_THREAD' as const,
+        dstType: 'wiki',
+        dstId: wikiKey,
+        edgeType: 'FRAGMENT_IN_WIKI' as const,
       },
       {
         srcType: 'frag',
@@ -351,7 +351,7 @@ describe('REQ-SCH-02: edges table with typed relationships', () => {
     expect(types).toEqual([
       'ENTRY_HAS_FRAGMENT',
       'ENTRY_IN_VAULT',
-      'FRAGMENT_IN_THREAD',
+      'FRAGMENT_IN_WIKI',
       'FRAGMENT_MENTIONS_PERSON',
       'FRAGMENT_RELATED_TO_FRAGMENT',
     ])

@@ -14,7 +14,7 @@ export interface RegenDeps {
   } | null>
 
   loadFragmentContents: (
-    threadKey: string
+    wikiKey: string
   ) => Promise<Array<{ lookupKey: string; content: string }>>
 
   loadPersonWithFragments: (personKey: string) => Promise<{
@@ -32,7 +32,7 @@ export interface RegenDeps {
 
   releaseLock: (table: string, key: string, toState: string) => Promise<void>
 
-  canRebuildThread: (threadKey: string) => Promise<boolean>
+  canRebuildThread: (wikiKey: string) => Promise<boolean>
 
   batchWrite: (req: {
     userId: string

@@ -2,7 +2,7 @@ import type {
   PeopleExtractionOutput,
   VaultClassificationOutput,
   FragmentationOutput,
-  ThreadClassificationOutput,
+  WikiClassificationOutput,
   FragmentRelevanceOutput,
 } from '@robin/shared'
 
@@ -85,19 +85,19 @@ export interface ThreadInfo {
   prompt: string | null
 }
 
-export interface ThreadClassifyDeps {
+export interface WikiClassifyDeps {
   searchCandidates: (
     userId: string,
     content: string,
     limit: number
-  ) => Promise<Array<{ threadKey: string; score: number }>>
-  loadThreads: (threadKeys: string[]) => Promise<ThreadInfo[]>
-  llmCall: (system: string, user: string) => Promise<ThreadClassificationOutput>
+  ) => Promise<Array<{ wikiKey: string; score: number }>>
+  loadThreads: (wikiKeys: string[]) => Promise<ThreadInfo[]>
+  llmCall: (system: string, user: string) => Promise<WikiClassificationOutput>
   emitEvent: EmitEvent
 }
 
-export interface ThreadClassifyResult {
-  threadEdges: Array<{ threadKey: string; score: number }>
+export interface WikiClassifyResult {
+  wikiEdges: Array<{ wikiKey: string; score: number }>
 }
 
 export interface FragRelateDeps {

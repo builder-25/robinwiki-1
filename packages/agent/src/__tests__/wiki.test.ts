@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { regenerateWiki, THREAD_WIKI_TYPES } from '../wiki'
-import { loadThreadWikiSpec } from '@robin/shared'
+import { loadWikiGenerationSpec } from '@robin/shared'
 
 const mockLlm = vi.fn(async (_system: string, _user: string) => {
   // Return a minimal valid wiki with YAML frontmatter
@@ -55,7 +55,7 @@ describe('regenerateWiki', () => {
     expect(THREAD_WIKI_TYPES).toHaveLength(10)
     for (const type of THREAD_WIKI_TYPES) {
       // Each type should load without error
-      const spec = loadThreadWikiSpec(type, {
+      const spec = loadWikiGenerationSpec(type, {
         fragments: 'test fragment',
         title: 'Test',
         date: '2026-01-01',

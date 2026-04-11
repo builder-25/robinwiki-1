@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { entries, fragments, threads, people, edges } from './schema.js'
+import { entries, fragments, wikis, people, edges } from './schema.js'
 import type { DB } from './client.js'
 import { logger } from '../lib/logger.js'
 
@@ -14,7 +14,7 @@ export const LOCK_TTL_SECONDS = 30
 const TABLE_MAP = {
   entries,
   fragments,
-  threads,
+  wikis,
   people,
 } as const
 
@@ -94,7 +94,7 @@ export async function releaseLock(
 // ─── canRebuildThread ───
 
 /**
- * Returns false when any fragment linked to the thread (via FRAGMENT_IN_THREAD edges)
+ * Returns false when any fragment linked to the thread (via FRAGMENT_IN_WIKI edges)
  * is in PENDING or LINKING state. Returns true otherwise (all RESOLVED/DIRTY, or no fragments).
  */
 export async function canRebuildThread(db: DB, threadLookupKey: string): Promise<boolean> {
@@ -104,7 +104,7 @@ export async function canRebuildThread(db: DB, threadLookupKey: string): Promise
         FROM ${edges} e
         JOIN ${fragments} f ON f.lookup_key = e.src_id
         WHERE e.dst_id = ${threadLookupKey}
-          AND e.edge_type = 'FRAGMENT_IN_THREAD'
+          AND e.edge_type = 'FRAGMENT_IN_WIKI'
           AND f.state IN ('PENDING', 'LINKING')
         LIMIT 1`
   )

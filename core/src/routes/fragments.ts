@@ -185,7 +185,7 @@ fragmentsRouter.put('/:id', zValidator('json', updateFragmentBodySchema, validat
 })
 
 // PUT /fragments/:id/thread — move fragment to a thread (or unfile)
-// TODO(phase-5): rewrite to use edges table (FRAGMENT_IN_THREAD edge)
+// TODO(phase-5): rewrite to use edges table (FRAGMENT_IN_WIKI edge)
 fragmentsRouter.put('/:id/thread', async (c) => {
   return c.json({ error: 'Not implemented — use edges table' }, 501)
 })

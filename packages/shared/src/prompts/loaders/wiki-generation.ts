@@ -1,28 +1,17 @@
 import { z } from 'zod'
 import { loadSpec, renderTemplate } from '../loader.js'
 import type { PromptResult } from '../types.js'
-import { logWikiSchema } from '../specs/thread-wiki/log.schema.js'
-import { collectionWikiSchema } from '../specs/thread-wiki/collection.schema.js'
-import { beliefWikiSchema } from '../specs/thread-wiki/belief.schema.js'
-import { decisionWikiSchema } from '../specs/thread-wiki/decision.schema.js'
-import { projectWikiSchema } from '../specs/thread-wiki/project.schema.js'
-import { objectiveWikiSchema } from '../specs/thread-wiki/objective.schema.js'
-import { skillWikiSchema } from '../specs/thread-wiki/skill.schema.js'
-import { agentWikiSchema } from '../specs/thread-wiki/agent.schema.js'
-import { voiceWikiSchema } from '../specs/thread-wiki/voice.schema.js'
-import { principlesWikiSchema } from '../specs/thread-wiki/principles.schema.js'
-
-export type ThreadWikiType =
-  | 'log'
-  | 'collection'
-  | 'belief'
-  | 'decision'
-  | 'project'
-  | 'objective'
-  | 'skill'
-  | 'agent'
-  | 'voice'
-  | 'principles'
+import type { WikiType } from '../../types/wiki.js'
+import { logWikiSchema } from '../specs/wiki-types/log.schema.js'
+import { collectionWikiSchema } from '../specs/wiki-types/collection.schema.js'
+import { beliefWikiSchema } from '../specs/wiki-types/belief.schema.js'
+import { decisionWikiSchema } from '../specs/wiki-types/decision.schema.js'
+import { projectWikiSchema } from '../specs/wiki-types/project.schema.js'
+import { objectiveWikiSchema } from '../specs/wiki-types/objective.schema.js'
+import { skillWikiSchema } from '../specs/wiki-types/skill.schema.js'
+import { agentWikiSchema } from '../specs/wiki-types/agent.schema.js'
+import { voiceWikiSchema } from '../specs/wiki-types/voice.schema.js'
+import { principlesWikiSchema } from '../specs/wiki-types/principles.schema.js'
 
 const inputSchema = z.object({
   fragments: z.string(),
@@ -35,7 +24,7 @@ const inputSchema = z.object({
   edits: z.string().optional(),
 })
 
-const schemaMap: Record<ThreadWikiType, z.ZodType> = {
+const schemaMap: Record<WikiType, z.ZodType> = {
   log: logWikiSchema,
   collection: collectionWikiSchema,
   belief: beliefWikiSchema,
@@ -48,8 +37,8 @@ const schemaMap: Record<ThreadWikiType, z.ZodType> = {
   principles: principlesWikiSchema,
 }
 
-export function loadThreadWikiSpec(
-  type: ThreadWikiType,
+export function loadWikiGenerationSpec(
+  type: WikiType,
   vars: {
     fragments: string
     title: string
@@ -62,7 +51,7 @@ export function loadThreadWikiSpec(
   }
 ): PromptResult {
   const validated = inputSchema.parse(vars)
-  const spec = loadSpec(`${type}.yaml`, 'thread-wiki')
+  const spec = loadSpec(`${type}.yaml`, 'wiki-types')
   const user = renderTemplate(spec.template, validated)
   return {
     system: spec.system_message,

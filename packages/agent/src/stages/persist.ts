@@ -164,7 +164,7 @@ export async function persist(
       tags: frag.tags,
       entryKey: input.entryKey,
       vaultId: input.vaultId,
-      threadKeys: [],
+      wikiKeys: [],
       personKeys: matchedPersonKeys,
       relatedFragmentKeys: [],
       status: 'PENDING',

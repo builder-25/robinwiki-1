@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadThreadWikiSpec } from '../../prompts/index'
+import { loadWikiGenerationSpec } from '../../prompts/index'
 import type { ThreadWikiType } from '../../prompts/index'
 
 const wikiFixtures = {
@@ -22,11 +22,11 @@ const allTypes: ThreadWikiType[] = [
   'principles',
 ]
 
-describe('thread-wiki specs', () => {
+describe('wiki-types specs', () => {
   for (const type of allTypes) {
     describe(type, () => {
       it('loads and returns a valid PromptResult', () => {
-        const result = loadThreadWikiSpec(type, wikiFixtures)
+        const result = loadWikiGenerationSpec(type, wikiFixtures)
         expect(result).toHaveProperty('system')
         expect(result).toHaveProperty('user')
         expect(result.meta).toHaveProperty('temperature')
@@ -34,25 +34,25 @@ describe('thread-wiki specs', () => {
       })
 
       it('renders system message with Quill persona', () => {
-        const result = loadThreadWikiSpec(type, wikiFixtures)
+        const result = loadWikiGenerationSpec(type, wikiFixtures)
         expect(result.system).toContain('Quill')
       })
 
       it('renders user template with substituted title', () => {
-        const result = loadThreadWikiSpec(type, wikiFixtures)
+        const result = loadWikiGenerationSpec(type, wikiFixtures)
         expect(result.user).toContain('Health Tracking Log')
         expect(result.user).not.toContain('{{title}}')
       })
 
       it('renders user template with substituted fragments', () => {
-        const result = loadThreadWikiSpec(type, wikiFixtures)
+        const result = loadWikiGenerationSpec(type, wikiFixtures)
         expect(result.user).toContain('I went running today')
         expect(result.user).not.toContain('{{fragments}}')
       })
 
       it('is a generation category with output.strict: true', () => {
-        const result = loadThreadWikiSpec(type, wikiFixtures)
-        // All thread-wiki specs are generation category
+        const result = loadWikiGenerationSpec(type, wikiFixtures)
+        // All wiki-types specs are generation category
         // Temperature for generation specs
         expect(result.meta.temperature).toBeGreaterThan(0)
         expect(result.meta.outputSchema).toBeDefined()

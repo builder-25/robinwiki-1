@@ -26,7 +26,7 @@ export const threadWithWikiResponseSchema = threadResponseSchema.extend({
 })
 
 export const threadListResponseSchema = z.object({
-  threads: z.array(threadResponseSchema),
+  wikis: z.array(threadResponseSchema),
 })
 
 // ── Request schemas ─────────────────────────────────────────────────────────

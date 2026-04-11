@@ -42,7 +42,7 @@ export const mcpEndpointResponseSchema = z.object({
 export const exportDataResponseSchema = z.object({
   exportedAt: z.string(),
   vaults: z.array(z.any()),
-  threads: z.array(z.any()),
+  wikis: z.array(z.any()),
   fragments: z.array(z.any()),
   people: z.array(z.any()),
 })

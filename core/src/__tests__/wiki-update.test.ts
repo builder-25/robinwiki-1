@@ -14,19 +14,19 @@ vi.mock('../db/client.js', () => ({
 }))
 
 vi.mock('../db/schema.js', () => ({
-  threads: {
-    lookupKey: 'threads.lookup_key',
-    userId: 'threads.user_id',
-    slug: 'threads.slug',
-    name: 'threads.name',
-    type: 'threads.type',
-    prompt: 'threads.prompt',
-    state: 'threads.state',
-    repoPath: 'threads.repo_path',
-    vaultId: 'threads.vault_id',
-    lastRebuiltAt: 'threads.last_rebuilt_at',
-    createdAt: 'threads.created_at',
-    updatedAt: 'threads.updated_at',
+  wikis: {
+    lookupKey: 'wikis.lookup_key',
+    userId: 'wikis.user_id',
+    slug: 'wikis.slug',
+    name: 'wikis.name',
+    type: 'wikis.type',
+    prompt: 'wikis.prompt',
+    state: 'wikis.state',
+    repoPath: 'wikis.repo_path',
+    vaultId: 'wikis.vault_id',
+    lastRebuiltAt: 'wikis.last_rebuilt_at',
+    createdAt: 'wikis.created_at',
+    updatedAt: 'wikis.updated_at',
   },
 }))
 
@@ -61,13 +61,13 @@ vi.mock('../lib/logger.js', () => ({
   },
 }))
 
-import { threadsRoutes } from '../routes/threads.js'
+import { wikisRoutes } from '../routes/wikis.js'
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function createApp() {
   const app = new Hono()
-  app.route('/threads', threadsRoutes)
+  app.route('/wikis', wikisRoutes)
   return app
 }
 
@@ -82,7 +82,7 @@ function makeThread(overrides: Record<string, unknown> = {}) {
     type: 'log',
     prompt: 'Summarize engineering work',
     state: 'RESOLVED',
-    repoPath: 'threads/20260323-engineering-log.thread01TEST.md',
+    repoPath: 'wikis/20260323-engineering-log.thread01TEST.md',
     vaultId: 'vault-1',
     lastRebuiltAt: null,
     createdAt: now,
@@ -108,7 +108,7 @@ function updateChainMock(returning: unknown[]) {
 
 // ── Tests ────────────────────────────────────────────────────────────────
 
-describe('PUT /threads/:id — git sync', () => {
+describe('PUT /wikis/:id — git sync', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockRead.mockResolvedValue({
@@ -125,7 +125,7 @@ describe('PUT /threads/:id — git sync', () => {
     mockDbUpdate.mockReturnValue(updateChainMock([updated]))
 
     const app = createApp()
-    const res = await app.request('/threads/thread01TEST', {
+    const res = await app.request('/wikis/thread01TEST', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'New Name' }),
@@ -136,7 +136,7 @@ describe('PUT /threads/:id — git sync', () => {
     const writeCall = mockWrite.mock.calls[0][0]
     expect(writeCall.content).toContain('name: New Name')
     expect(writeCall.content).toContain('Wiki body content here.')
-    expect(writeCall.path).toBe('threads/20260323-engineering-log.thread01TEST.md')
+    expect(writeCall.path).toBe('wikis/20260323-engineering-log.thread01TEST.md')
   })
 
   it('marks thread DIRTY when prompt changes', async () => {
@@ -148,7 +148,7 @@ describe('PUT /threads/:id — git sync', () => {
     mockDbUpdate.mockReturnValue(updateChain)
 
     const app = createApp()
-    const res = await app.request('/threads/thread01TEST', {
+    const res = await app.request('/wikis/thread01TEST', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: 'new prompt' }),
@@ -169,7 +169,7 @@ describe('PUT /threads/:id — git sync', () => {
     mockDbUpdate.mockReturnValue(updateChain)
 
     const app = createApp()
-    await app.request('/threads/thread01TEST', {
+    await app.request('/wikis/thread01TEST', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Renamed' }),
@@ -187,7 +187,7 @@ describe('PUT /threads/:id — git sync', () => {
     mockDbUpdate.mockReturnValue(updateChainMock([updated]))
 
     const app = createApp()
-    const res = await app.request('/threads/thread01TEST', {
+    const res = await app.request('/wikis/thread01TEST', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'New' }),
@@ -207,7 +207,7 @@ describe('PUT /threads/:id — git sync', () => {
     mockWrite.mockRejectedValue(new Error('gateway down'))
 
     const app = createApp()
-    const res = await app.request('/threads/thread01TEST', {
+    const res = await app.request('/wikis/thread01TEST', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'X' }),

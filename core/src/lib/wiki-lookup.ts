@@ -1,6 +1,6 @@
 import { eq, and, isNull } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
-import { threads, people, fragments, entries } from '../db/schema.js'
+import { wikis, people, fragments, entries } from '../db/schema.js'
 import { logger } from './logger.js'
 
 const log = logger.child({ component: 'wiki-lookup' })
@@ -9,14 +9,14 @@ const log = logger.child({ component: 'wiki-lookup' })
  * Table config for each content type, mapping to the drizzle table and key columns.
  */
 const TABLE_MAP = {
-  thread: threads,
+  thread: wikis,
   person: people,
   fragment: fragments,
   entry: entries,
 } as const
 
 /** Priority order for unqualified wiki-link resolution */
-const RESOLUTION_PRIORITY = ['thread', 'person', 'fragment', 'entry'] as const
+const RESOLUTION_PRIORITY = ['wiki', 'person', 'fragment', 'entry'] as const
 
 /**
  * Create a DB-backed wiki-link lookup function scoped to a user.

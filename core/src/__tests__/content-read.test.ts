@@ -33,14 +33,14 @@ vi.mock('../db/schema.js', () => ({
     title: 'fragments.title',
     tags: 'fragments.tags',
   },
-  threads: {
-    lookupKey: 'threads.lookup_key',
-    repoPath: 'threads.repo_path',
-    userId: 'threads.user_id',
-    deletedAt: 'threads.deleted_at',
-    name: 'threads.name',
-    type: 'threads.type',
-    prompt: 'threads.prompt',
+  wikis: {
+    lookupKey: 'wikis.lookup_key',
+    repoPath: 'wikis.repo_path',
+    userId: 'wikis.user_id',
+    deletedAt: 'wikis.deleted_at',
+    name: 'wikis.name',
+    type: 'wikis.type',
+    prompt: 'wikis.prompt',
   },
   people: {
     lookupKey: 'people.lookup_key',
@@ -51,7 +51,7 @@ vi.mock('../db/schema.js', () => ({
     relationship: 'people.relationship',
   },
   edges: {},
-  threadEdits: {},
+  edits: {},
 }))
 
 const mockRead = vi.fn()
@@ -139,7 +139,7 @@ describe('Content Read API (EDIT-01)', () => {
 
     it('returns raw markdown content by default', async () => {
       const chain = chainMock([
-        { lookupKey: 'key-123', repoPath: 'threads/file.md', deletedAt: null },
+        { lookupKey: 'key-123', repoPath: 'wikis/file.md', deletedAt: null },
       ])
       mockDbSelect.mockReturnValue(chain)
       mockRead.mockResolvedValue({
@@ -154,7 +154,7 @@ describe('Content Read API (EDIT-01)', () => {
 
     it('returns structured { frontmatter, body, raw } when ?format=structured', async () => {
       const chain = chainMock([
-        { lookupKey: 'key-123', repoPath: 'threads/file.md', deletedAt: null },
+        { lookupKey: 'key-123', repoPath: 'wikis/file.md', deletedAt: null },
       ])
       mockDbSelect.mockReturnValue(chain)
       mockRead.mockResolvedValue({
@@ -171,7 +171,7 @@ describe('Content Read API (EDIT-01)', () => {
 
     it('applies defaults for missing frontmatter fields (wikiLinks, brokenLinks, tags)', async () => {
       const chain = chainMock([
-        { lookupKey: 'key-123', repoPath: 'threads/file.md', deletedAt: null },
+        { lookupKey: 'key-123', repoPath: 'wikis/file.md', deletedAt: null },
       ])
       mockDbSelect.mockReturnValue(chain)
       mockRead.mockResolvedValue({ content: '---\nname: Test\n---\nBody' })
@@ -187,7 +187,7 @@ describe('Content Read API (EDIT-01)', () => {
       // sessionMiddleware is mocked to always set userId, but testing the
       // middleware is present ensures the route uses session auth
       const chain = chainMock([
-        { lookupKey: 'key-123', repoPath: 'threads/file.md', deletedAt: null },
+        { lookupKey: 'key-123', repoPath: 'wikis/file.md', deletedAt: null },
       ])
       mockDbSelect.mockReturnValue(chain)
       mockRead.mockResolvedValue({ content: '---\nname: Test\n---\nBody' })

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
 import type postgres from 'postgres'
-import { threads, people, fragments, entries, users } from '../db/schema.js'
+import { wikis, people, fragments, entries, users } from '../db/schema.js'
 import {
   ensureTestDatabase,
   pushTestSchema,
@@ -38,24 +38,24 @@ afterEach(async () => {
 describe('Wiki Lookup (LINK-01)', () => {
   describe('createWikiLookupFn', () => {
     it('returns matching thread by slug and userId', async () => {
-      await db.insert(threads).values({
+      await db.insert(wikis).values({
         id: 'thread-001',
         userId: testUserId,
         lookupKey: 'thread-abc123',
         name: 'My Thread',
         slug: 'my-thread',
         type: 'log',
-        repoPath: 'threads/my-thread.md',
+        repoPath: 'wikis/my-thread.md',
       })
 
       const lookup = createWikiLookupFn(testUserId, db)
-      const result = await lookup('my-thread', 'thread')
-      expect(result).toEqual({ type: 'thread', key: 'thread-abc123' })
+      const result = await lookup('my-thread', 'wiki')
+      expect(result).toEqual({ type: 'wiki', key: 'thread-abc123' })
     })
 
     it('returns null when no match found', async () => {
       const lookup = createWikiLookupFn(testUserId, db)
-      const result = await lookup('nonexistent', 'thread')
+      const result = await lookup('nonexistent', 'wiki')
       expect(result).toBeNull()
     })
 
@@ -143,18 +143,18 @@ describe('Wiki Lookup (LINK-01)', () => {
         })
         .onConflictDoNothing()
 
-      await db.insert(threads).values({
+      await db.insert(wikis).values({
         id: 'thread-other',
         userId: otherUserId,
         lookupKey: 'thread-other-key',
         name: 'Other Thread',
         slug: 'other-thread',
         type: 'log',
-        repoPath: 'threads/other-thread.md',
+        repoPath: 'wikis/other-thread.md',
       })
 
       const lookup = createWikiLookupFn(testUserId, db)
-      const result = await lookup('other-thread', 'thread')
+      const result = await lookup('other-thread', 'wiki')
       expect(result).toBeNull()
     })
   })

@@ -5,7 +5,7 @@ import { generateSlug } from '@robin/shared'
 import type { RegenJob } from '@robin/queue'
 import { sessionMiddleware } from '../middleware/session.js'
 import { db } from '../db/client.js'
-import { threads } from '../db/schema.js'
+import { wikis } from '../db/schema.js'
 import { gatewayClient } from '../gateway/client.js'
 import { producer } from '../queue/producer.js'
 import { logger } from '../lib/logger.js'
@@ -15,14 +15,14 @@ import {
   threadResponseSchema,
   threadWithWikiResponseSchema,
   updateThreadBodySchema,
-} from '../schemas/threads.schema.js'
+} from '../schemas/wikis.schema.js'
 import { queuedResponseSchema } from '../schemas/base.schema.js'
 
-const log = logger.child({ component: 'threads' })
+const log = logger.child({ component: 'wikis' })
 
 /** Prepare a thread row for schema parsing (add id alias + computed defaults) */
 function prepareThread(
-  t: typeof threads.$inferSelect & { noteCount?: number; lastUpdated?: string }
+  t: typeof wikis.$inferSelect & { noteCount?: number; lastUpdated?: string }
 ) {
   return {
     ...t,
@@ -32,19 +32,19 @@ function prepareThread(
   }
 }
 
-const threadsRouter = new Hono()
-threadsRouter.use('*', sessionMiddleware)
+const wikisRouter = new Hono()
+wikisRouter.use('*', sessionMiddleware)
 
-// GET /threads/:id -- get single thread (includes wiki content from git)
-threadsRouter.get('/:id', async (c) => {
+// GET /wikis/:id -- get single thread (includes wiki content from git)
+wikisRouter.get('/:id', async (c) => {
   const userId = c.get('userId') as string
   const id = c.req.param('id')
-  const [thread] = await db.select().from(threads).where(eq(threads.lookupKey, id))
+  const [thread] = await db.select().from(wikis).where(eq(wikis.lookupKey, id))
   if (!thread || thread.userId !== userId) return c.json({ error: 'Not found' }, 404)
 
   let wikiContent = ''
   if (!thread.repoPath) {
-    log.debug({ threadKey: id }, 'thread has no repoPath, skipping wiki read')
+    log.debug({ wikiKey: id }, 'thread has no repoPath, skipping wiki read')
   } else {
     try {
       const file = await gatewayClient.read(userId, thread.repoPath)
@@ -59,7 +59,7 @@ threadsRouter.get('/:id', async (c) => {
     } catch (err) {
       log.warn(
         {
-          threadKey: id,
+          wikiKey: id,
           repoPath: thread.repoPath,
           err: err instanceof Error ? err.message : String(err),
         },
@@ -71,13 +71,13 @@ threadsRouter.get('/:id', async (c) => {
   return c.json(threadWithWikiResponseSchema.parse({ ...prepareThread(thread), wikiContent }))
 })
 
-// PUT /threads/:id -- update thread
-threadsRouter.put('/:id', zValidator('json', updateThreadBodySchema, validationHook), async (c) => {
+// PUT /wikis/:id -- update thread
+wikisRouter.put('/:id', zValidator('json', updateThreadBodySchema, validationHook), async (c) => {
   const userId = c.get('userId') as string
   const id = c.req.param('id')
   const body = c.req.valid('json')
 
-  const [existing] = await db.select().from(threads).where(eq(threads.lookupKey, id))
+  const [existing] = await db.select().from(wikis).where(eq(wikis.lookupKey, id))
   if (!existing || existing.userId !== userId) return c.json({ error: 'Not found' }, 404)
 
   const updates: Record<string, unknown> = { updatedAt: new Date() }
@@ -93,12 +93,12 @@ threadsRouter.put('/:id', zValidator('json', updateThreadBodySchema, validationH
   }
 
   const [thread] = await db
-    .update(threads)
+    .update(wikis)
     .set(updates)
-    .where(eq(threads.lookupKey, id))
+    .where(eq(wikis.lookupKey, id))
     .returning()
 
-  // Sync metadata changes to git frontmatter (threads are notes, same as fragments)
+  // Sync metadata changes to git frontmatter (wikis are notes, same as fragments)
   if (existing.repoPath) {
     try {
       const file = await gatewayClient.read(userId, existing.repoPath)
@@ -115,26 +115,26 @@ threadsRouter.put('/:id', zValidator('json', updateThreadBodySchema, validationH
         branch: 'main',
       })
     } catch (err) {
-      log.error({ err, threadKey: id }, 'failed to sync thread metadata to git')
+      log.error({ err, wikiKey: id }, 'failed to sync thread metadata to git')
     }
   }
 
   return c.json(threadResponseSchema.parse(prepareThread(thread)))
 })
 
-// POST /threads/:id/regenerate -- manually trigger thread wiki regen
-threadsRouter.post('/:id/regenerate', async (c) => {
+// POST /wikis/:id/regenerate -- manually trigger thread wiki regen
+wikisRouter.post('/:id/regenerate', async (c) => {
   const userId = c.get('userId') as string
   const id = c.req.param('id')
-  const [thread] = await db.select().from(threads).where(eq(threads.lookupKey, id))
+  const [thread] = await db.select().from(wikis).where(eq(wikis.lookupKey, id))
   if (!thread || thread.userId !== userId) return c.json({ error: 'Not found' }, 404)
 
   // Force thread to DIRTY so the regen processor can acquire the lock
   if (thread.state !== 'DIRTY') {
     await db
-      .update(threads)
+      .update(wikis)
       .set({ state: 'DIRTY', updatedAt: new Date() })
-      .where(eq(threads.lookupKey, id))
+      .where(eq(wikis.lookupKey, id))
   }
 
   const jobId = crypto.randomUUID()
@@ -143,22 +143,22 @@ threadsRouter.post('/:id/regenerate', async (c) => {
     jobId,
     userId,
     objectKey: thread.lookupKey,
-    objectType: 'thread',
+    objectType: 'wiki',
     triggeredBy: 'manual',
     enqueuedAt: new Date().toISOString(),
   }
   await producer.enqueueRegenJob(userId, regenJob)
   log.info(
-    { threadKey: thread.lookupKey, previousState: thread.state },
+    { wikiKey: thread.lookupKey, previousState: thread.state },
     'enqueued manual regen job'
   )
 
   return c.json(queuedResponseSchema.parse({ status: 'queued', jobId }), 202)
 })
 
-// POST /threads/:targetId/merge -- merge source thread into target
-threadsRouter.post('/:targetId/merge', async (c) => {
+// POST /wikis/:targetId/merge -- merge source thread into target
+wikisRouter.post('/:targetId/merge', async (c) => {
   return c.json({ error: 'Not implemented -- thread merge needs edges table rewrite' }, 501)
 })
 
-export { threadsRouter as threadsRoutes, prepareThread }
+export { wikisRouter as wikisRoutes, prepareThread }

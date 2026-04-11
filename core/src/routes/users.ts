@@ -6,13 +6,12 @@ import {
   users,
   apiKeys,
   fragments,
-  threads,
+  wikis,
   people,
   vaults,
   auditLog,
   entries,
   edges,
-  configNotes,
 } from '../db/schema.js'
 import { decryptPrivateKey } from '../keypair.js'
 import { signMcpToken } from '../mcp/jwt.js'
@@ -96,9 +95,9 @@ usersRouter.get('/keypair', async (c) => {
 usersRouter.get('/stats', async (c) => {
   const userId = c.get('userId') as string
 
-  const [[noteCount], [threadCount], [personCount], [unthreadedCountResult]] = await Promise.all([
+  const [[noteCount], [wikiCount], [personCount], [unwikiedCountResult]] = await Promise.all([
     db.select({ count: sql<number>`count(*)` }).from(fragments).where(eq(fragments.userId, userId)),
-    db.select({ count: sql<number>`count(*)` }).from(threads).where(eq(threads.userId, userId)),
+    db.select({ count: sql<number>`count(*)` }).from(wikis).where(eq(wikis.userId, userId)),
     db.select({ count: sql<number>`count(*)` }).from(people).where(eq(people.userId, userId)),
     db
       .select({ count: sql<number>`count(*)` })
@@ -109,7 +108,7 @@ usersRouter.get('/stats', async (c) => {
           sql`${fragments.lookupKey} NOT IN (
             SELECT src_id FROM edges
             WHERE user_id = ${userId}
-            AND edge_type = 'FRAGMENT_IN_THREAD'
+            AND edge_type = 'FRAGMENT_IN_WIKI'
             AND deleted_at IS NULL
           )`
         )
@@ -119,9 +118,9 @@ usersRouter.get('/stats', async (c) => {
   return c.json(
     userStatsResponseSchema.parse({
       totalNotes: Number(noteCount?.count ?? 0),
-      totalThreads: Number(threadCount?.count ?? 0),
+      totalThreads: Number(wikiCount?.count ?? 0),
       peopleCount: Number(personCount?.count ?? 0),
-      unthreadedCount: Number(unthreadedCountResult?.count ?? 0),
+      unthreadedCount: Number(unwikiedCountResult?.count ?? 0),
       lastSync: new Date().toISOString(),
     })
   )
@@ -152,9 +151,9 @@ usersRouter.get('/activity', async (c) => {
 usersRouter.post('/export', async (c) => {
   const userId = c.get('userId') as string
 
-  const [userVaults, userThreads, userFragments, userPeople] = await Promise.all([
+  const [userVaults, userWikis, userFragments, userPeople] = await Promise.all([
     db.select().from(vaults).where(eq(vaults.userId, userId)),
-    db.select().from(threads).where(eq(threads.userId, userId)),
+    db.select().from(wikis).where(eq(wikis.userId, userId)),
     db.select().from(fragments).where(eq(fragments.userId, userId)),
     db.select().from(people).where(eq(people.userId, userId)),
   ])
@@ -163,7 +162,7 @@ usersRouter.post('/export', async (c) => {
     exportDataResponseSchema.parse({
       exportedAt: new Date().toISOString(),
       vaults: userVaults,
-      threads: userThreads,
+      wikis: userWikis,
       fragments: userFragments,
       people: userPeople,
     })
@@ -177,10 +176,9 @@ usersRouter.delete('/data', async (c) => {
   await Promise.all([
     db.delete(edges).where(eq(edges.userId, userId)),
     db.delete(entries).where(eq(entries.userId, userId)),
-    db.delete(threads).where(eq(threads.userId, userId)),
+    db.delete(wikis).where(eq(wikis.userId, userId)),
     db.delete(people).where(eq(people.userId, userId)),
     db.delete(vaults).where(eq(vaults.userId, userId)),
-    db.delete(configNotes).where(eq(configNotes.userId, userId)),
     db.delete(auditLog).where(eq(auditLog.userId, userId)),
   ])
 

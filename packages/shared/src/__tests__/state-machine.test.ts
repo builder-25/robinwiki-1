@@ -18,7 +18,7 @@ describe('ObjectState', () => {
 
 describe('canTransition', () => {
   describe('standard types (entry, frag, thread, person)', () => {
-    const standardTypes: ObjectType[] = ['entry', 'frag', 'thread', 'person']
+    const standardTypes: ObjectType[] = ['entry', 'frag', 'wiki', 'person']
 
     // Valid transitions
     const validTransitions: [string, string][] = [

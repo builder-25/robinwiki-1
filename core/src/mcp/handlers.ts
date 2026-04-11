@@ -43,7 +43,7 @@ import type { DB } from '../db/client.js'
 import {
   entries as entriesTable,
   fragments as fragmentsTable,
-  threads as threadsTable,
+  wikis as threadsTable,
   edges as edgesTable,
   people as peopleTable,
 } from '../db/schema.js'
@@ -234,7 +234,7 @@ export async function handleLogEntry(
  * fragmentation, and thread classify — going straight to persist.
  *
  * **Edge types created:**
- * - `FRAGMENT_IN_THREAD` — links fragment to its parent thread
+ * - `FRAGMENT_IN_WIKI` — links fragment to its parent thread
  * - `FRAGMENT_MENTIONS_PERSON` — one per extracted person mention
  *
  * @param deps   - Injected dependencies (db, gateway, LLM calls, etc.)
@@ -374,7 +374,7 @@ export async function handleLogFragment(
       type: 'observation',
       date: today,
       tags: input.tags ?? [],
-      threadKeys: [threadResult.lookupKey],
+      wikiKeys: [threadResult.lookupKey],
       personKeys,
       relatedFragmentKeys: [],
       status: 'RESOLVED',
@@ -442,7 +442,7 @@ export async function handleLogFragment(
       repoPath,
     })
 
-    /** @step 7b — Insert FRAGMENT_IN_THREAD edge */
+    /** @step 7b — Insert FRAGMENT_IN_WIKI edge */
     await deps.db
       .insert(edgesTable)
       .values({
@@ -450,9 +450,9 @@ export async function handleLogFragment(
         userId,
         srcType: 'fragment',
         srcId: fragKey,
-        dstType: 'thread',
+        dstType: 'wiki',
         dstId: threadResult.lookupKey,
-        edgeType: 'FRAGMENT_IN_THREAD',
+        edgeType: 'FRAGMENT_IN_WIKI',
       } as any)
       .onConflictDoNothing()
 
@@ -502,7 +502,7 @@ export async function handleLogFragment(
       fragmentKey: fragKey,
       fragmentSlug: fragSlug,
       threadSlug: threadResult.slug,
-      threadKey: threadResult.lookupKey,
+      wikiKey: threadResult.lookupKey,
     }
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(result) }],

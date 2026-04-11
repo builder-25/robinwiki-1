@@ -1,5 +1,5 @@
 export { regenerateWiki, THREAD_WIKI_TYPES, stripFrontmatter } from './wiki.js'
-export type { ThreadWikiType } from './wiki.js'
+export type { WikiType } from './wiki.js'
 export { jaccardSimilarity, dedupBatch } from './dedup.js'
 export { stripWikiDelimiters, resolveWikiLinks as resolveWikiLinksFromNotes } from './wikilink.js'
 export {
@@ -33,7 +33,7 @@ export type {
   LinkingInput,
   VaultClassifyDeps,
   FragmentDeps,
-  ThreadClassifyDeps,
+  WikiClassifyDeps,
   FragRelateDeps,
   PersistDeps,
   EntityExtractDeps,
