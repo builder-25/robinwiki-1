@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { eq, and, or, sql } from 'drizzle-orm'
+import { eq, or, sql } from 'drizzle-orm'
 import { processedJobs, entries, fragments } from './schema.js'
 import type { DB } from './client.js'
 
@@ -21,37 +21,29 @@ export function computeContentHash(content: string): string {
 // ─── Content-level dedup ───
 
 /**
- * @summary Check if an entry with identical content already exists for this user.
+ * @summary Check if an entry with identical content already exists.
  *
  * @returns The existing entry row if duplicate, or null if content is new.
  */
-export async function findDuplicateEntry(
-  db: DB,
-  userId: string,
-  dedupHash: string
-) {
+export async function findDuplicateEntry(db: DB, dedupHash: string) {
   const [existing] = await db
     .select()
     .from(entries)
-    .where(and(eq(entries.userId, userId), eq(entries.dedupHash, dedupHash)))
+    .where(eq(entries.dedupHash, dedupHash))
     .limit(1)
   return existing ?? null
 }
 
 /**
- * @summary Check if a fragment with identical content already exists for this user.
+ * @summary Check if a fragment with identical content already exists.
  *
  * @returns The existing fragment row if duplicate, or null if content is new.
  */
-export async function findDuplicateFragment(
-  db: DB,
-  userId: string,
-  dedupHash: string
-) {
+export async function findDuplicateFragment(db: DB, dedupHash: string) {
   const [existing] = await db
     .select()
     .from(fragments)
-    .where(and(eq(fragments.userId, userId), eq(fragments.dedupHash, dedupHash)))
+    .where(eq(fragments.dedupHash, dedupHash))
     .limit(1)
   return existing ?? null
 }
