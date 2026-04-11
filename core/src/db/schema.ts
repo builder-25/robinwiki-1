@@ -10,7 +10,6 @@ import {
   uniqueIndex,
   vector,
   customType,
-  check,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import { nanoid } from '../lib/id.js'
@@ -23,7 +22,10 @@ const tsvector = customType<{ data: string; driverData: string }>({
   },
 })
 
-// ─── Auth Tables (better-auth — preserved with single-user additions) ───
+// ─── Auth Tables (better-auth — single-user, user_id retained) ───
+// NOTE: These four tables keep user_id and FKs because better-auth requires them.
+// All other domain tables dropped user_id in M2 (single-user collapse). Do not
+// re-add user_id to domain tables — single user means unscoped queries.
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -86,27 +88,20 @@ export const verifications = pgTable('verifications', {
 
 // ─── Vaults (config table — no shared base columns, preserved as-is) ───
 
-export const vaults = pgTable(
-  'vaults',
-  {
-    id: text('id').primaryKey(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    slug: text('slug').notNull(),
-    icon: text('icon').notNull().default(''),
-    description: text('description').notNull().default(''),
-    profile: text('profile').notNull().default(''),
-    color: text('color').notNull().default(''),
-    type: text('type').notNull().default('user'),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').defaultNow().notNull(),
-  },
-  (t) => [index('vaults_user_idx').on(t.userId)]
-)
+export const vaults = pgTable('vaults', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
+  icon: text('icon').notNull().default(''),
+  description: text('description').notNull().default(''),
+  profile: text('profile').notNull().default(''),
+  color: text('color').notNull().default(''),
+  type: text('type').notNull().default('user'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
 
-// ─── Configs (normalized system + user config store) ───
+// ─── Configs (normalized config store — single-user) ───
 
 export const configs = pgTable(
   'configs',
@@ -115,7 +110,6 @@ export const configs = pgTable(
       .primaryKey()
       .$defaultFn(() => nanoid()),
     scope: text('scope').notNull(), // 'system' | 'user'
-    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
     kind: text('kind').notNull(), // 'llm_key' | 'model_preference' | 'wiki_type_prompt' | ...
     key: text('key').notNull(),
     value: jsonb('value').notNull().$type<unknown>(),
@@ -124,33 +118,22 @@ export const configs = pgTable(
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
   (t) => [
-    uniqueIndex('configs_scope_user_kind_key_uidx').on(t.scope, t.userId, t.kind, t.key),
-    index('configs_user_kind_idx').on(t.userId, t.kind),
-    check(
-      'configs_scope_check',
-      sql`(${t.scope} = 'system' AND ${t.userId} IS NULL) OR (${t.scope} = 'user' AND ${t.userId} IS NOT NULL)`
-    ),
+    uniqueIndex('configs_scope_kind_key_uidx').on(t.scope, t.kind, t.key),
+    index('configs_kind_idx').on(t.kind),
   ]
 )
 
 // ─── State Enum ───
 
-export const objectStateEnum = pgEnum('object_state', ['PENDING', 'RESOLVED', 'LINKING', 'DIRTY'])
+export const objectStateEnum = pgEnum('object_state', ['PENDING', 'LINKING', 'RESOLVED'])
 
 // ─── Shared Base Columns ───
 
 function baseColumns() {
   return {
     lookupKey: text('lookup_key').primaryKey(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
     slug: text('slug').notNull(),
     state: objectStateEnum('state').notNull().default('PENDING'),
-    repoPath: text('repo_path').notNull().default(''),
-    frontmatterHash: text('frontmatter_hash'),
-    bodyHash: text('body_hash'),
-    contentHash: text('content_hash'),
     dedupHash: text('dedup_hash'),
     lockedBy: text('locked_by'),
     lockedAt: timestamp('locked_at'),
@@ -175,10 +158,14 @@ export const entries = pgTable(
     vaultId: text('vault_id').references(() => vaults.id, {
       onDelete: 'set null',
     }),
+    ingestStatus: text('ingest_status').notNull().default('pending'),
+    lastError: text('last_error'),
+    lastAttemptAt: timestamp('last_attempt_at'),
+    attemptCount: integer('attempt_count').notNull().default(0),
   },
   (t) => [
-    index('raw_sources_user_idx').on(t.userId),
-    uniqueIndex('raw_sources_user_slug_uidx').on(t.userId, t.slug),
+    uniqueIndex('raw_sources_slug_uidx').on(t.slug),
+    index('raw_sources_ingest_status_idx').on(t.ingestStatus),
   ]
 )
 
@@ -198,10 +185,7 @@ export const fragments = pgTable(
     embedding: vector('embedding', { dimensions: 1536 }),
     searchVector: tsvector('search_vector'),
   },
-  (t) => [
-    index('fragments_user_idx').on(t.userId),
-    uniqueIndex('fragments_user_slug_uidx').on(t.userId, t.slug),
-  ]
+  (t) => [uniqueIndex('fragments_slug_uidx').on(t.slug)]
 )
 
 export const wikis = pgTable(
@@ -218,10 +202,7 @@ export const wikis = pgTable(
     embedding: vector('embedding', { dimensions: 1536 }),
     searchVector: tsvector('search_vector'),
   },
-  (t) => [
-    index('wikis_user_idx').on(t.userId),
-    uniqueIndex('wikis_user_slug_uidx').on(t.userId, t.slug),
-  ]
+  (t) => [uniqueIndex('wikis_slug_uidx').on(t.slug)]
 )
 
 export const people = pgTable(
@@ -230,18 +211,20 @@ export const people = pgTable(
     ...baseColumns(),
     name: text('name').notNull(),
     relationship: text('relationship').notNull().default(''),
-    sections: jsonb('sections').notNull().default({}).$type<Record<string, unknown>>(),
+    canonicalName: text('canonical_name').notNull().default(''),
+    aliases: text('aliases').array().notNull().default(sql`'{}'::text[]`),
+    verified: boolean('verified').notNull().default(false),
     lastRebuiltAt: timestamp('last_rebuilt_at'),
     embedding: vector('embedding', { dimensions: 1536 }),
     searchVector: tsvector('search_vector'),
   },
   (t) => [
-    index('people_user_idx').on(t.userId),
-    uniqueIndex('people_user_slug_uidx').on(t.userId, t.slug),
+    uniqueIndex('people_slug_uidx').on(t.slug),
+    index('people_aliases_gin_idx').using('gin', t.aliases),
   ]
 )
 
-// ─── Edits (generalized user-edit log across any object type) ───
+// ─── Edits (generalized edit log across any object type) ───
 
 export const edits = pgTable(
   'edits',
@@ -251,9 +234,6 @@ export const edits = pgTable(
       .$defaultFn(() => nanoid()),
     objectType: text('object_type').notNull(), // 'wiki' | 'raw_source' | 'fragment' | 'person'
     objectId: text('object_id').notNull(), // lookup_key of target
-    userId: text('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
     timestamp: timestamp('timestamp').defaultNow().notNull(),
     type: text('type').notNull().default('addition'),
     content: text('content').notNull(),
@@ -267,9 +247,6 @@ export const edges = pgTable(
   'edges',
   {
     id: text('id').primaryKey(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
     srcType: text('src_type').notNull(),
     srcId: text('src_id').notNull(),
     dstType: text('dst_type').notNull(),
@@ -281,8 +258,8 @@ export const edges = pgTable(
   },
   (t) => [
     uniqueIndex('edges_src_dst_type_uidx').on(t.srcType, t.srcId, t.dstType, t.dstId, t.edgeType),
-    index('edges_user_src_idx').on(t.userId, t.srcType, t.srcId, t.edgeType),
-    index('edges_user_dst_idx').on(t.userId, t.dstType, t.dstId, t.edgeType),
+    index('edges_src_idx').on(t.srcType, t.srcId, t.edgeType),
+    index('edges_dst_idx').on(t.dstType, t.dstId, t.edgeType),
   ]
 )
 
@@ -326,9 +303,6 @@ export const pipelineEvents = pgTable(
 
 export const auditLog = pgTable('audit_log', {
   id: text('id').primaryKey(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
   operation: text('operation').notNull(),
   metadata: jsonb('metadata'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -336,9 +310,6 @@ export const auditLog = pgTable('audit_log', {
 
 export const apiKeys = pgTable('api_keys', {
   id: text('id').primaryKey(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
   keyHash: text('key_hash').notNull().unique(),
   hint: text('hint').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
