@@ -26,6 +26,7 @@ import { startWorkers } from './queue/worker.js'
 import { bullBoardApp } from './routes/bull-board.js'
 import { adminRoutes } from './routes/admin.js'
 import { seedFirstUser } from './bootstrap/seed-first-user.js'
+import { checkOpenRouterKey } from './bootstrap/check-openrouter-key.js'
 import { loadMasterKey } from './lib/crypto.js'
 
 declare module 'hono' {
@@ -123,6 +124,11 @@ loadMasterKey()
 await seedFirstUser().catch((err) => {
   logger.fatal({ err }, 'seed-first-user failed')
   process.exit(1)
+})
+
+// Warn loudly if the OpenRouter key is missing — non-fatal so non-ingest traffic still works
+await checkOpenRouterKey().catch((err) => {
+  logger.error({ err }, 'check-openrouter-key failed')
 })
 
 // Single global worker — no per-user spawning under single-user M2
