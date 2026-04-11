@@ -1,7 +1,9 @@
 import { betterAuth } from 'better-auth'
+import { APIError } from 'better-auth/api'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { db } from './db/client.js'
 import * as schema from './db/schema.js'
+import { sql } from 'drizzle-orm'
 import { producer } from './queue/producer.js'
 import { logger } from './lib/logger.js'
 
@@ -20,24 +22,8 @@ export const auth = betterAuth({
 
   emailAndPassword: { enabled: true },
 
-  socialProviders: {
-    ...(process.env.GOOGLE_CLIENT_ID
-      ? {
-          google: {
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
-          },
-        }
-      : {}),
-    ...(process.env.GITHUB_CLIENT_ID
-      ? {
-          github: {
-            clientId: process.env.GITHUB_CLIENT_ID,
-            clientSecret: process.env.GITHUB_CLIENT_SECRET ?? '',
-          },
-        }
-      : {}),
-  },
+  // Single-user mode: no social providers. Use INITIAL_USERNAME/INITIAL_PASSWORD
+  // env vars + the boot seed script to create the one-and-only user.
 
   secret: (() => {
     const s = process.env.BETTER_AUTH_SECRET
@@ -48,8 +34,6 @@ export const auth = betterAuth({
   basePath: '/api/auth',
   trustedOrigins: [
     'http://localhost:8080',
-    'https://withrobin.lovable.app',
-    'https://preview--withrobin.lovable.app',
     ...(process.env.EXTRA_TRUSTED_ORIGINS?.split(',') ?? []),
   ],
   advanced: {
@@ -61,13 +45,23 @@ export const auth = betterAuth({
   },
 
   hooks: {
+    before: async (rawCtx) => {
+      const ctx = rawCtx as Record<string, unknown>
+      // Single-user gate: block sign-up if any user exists
+      if (ctx.path === '/sign-up/email') {
+        const [row] = await db.execute<{ count: number }>(sql`SELECT count(*)::int AS count FROM users`)
+        if (row && row.count > 0) {
+          throw new APIError('FORBIDDEN', {
+            message: 'sign-ups disabled — single-user mode',
+          })
+        }
+      }
+    },
+
     after: async (rawCtx) => {
       const ctx = rawCtx as Record<string, unknown>
-      if (ctx.path !== '/sign-up/email' && !(ctx.path as string)?.startsWith('/callback/'))
-        return { response: null, headers: null }
+      if (ctx.path !== '/sign-up/email') return { response: null, headers: null }
 
-      // Extract userId — better-auth puts the session in context.newSession (sign-up)
-      // or context.session (callbacks)
       const c = ctx.context as Record<string, unknown> | undefined
       const newSession = c?.newSession as Record<string, unknown> | undefined
       const session = c?.session as Record<string, unknown> | undefined

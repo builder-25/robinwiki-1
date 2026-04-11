@@ -12,17 +12,18 @@ import { search } from './routes/search.js'
 import { mcp } from './routes/mcp.js'
 import { users } from './routes/users.js'
 import { vaultsRoutes } from './routes/vaults.js'
-import { threadsRoutes } from './routes/threads.js'
+import { wikisRoutes } from './routes/wikis.js'
 import { fragmentsRoutes } from './routes/fragments.js'
 import { peopleRoutes } from './routes/people.js'
 import { graphRoutes } from './routes/graph.js'
 import { relationshipsRoutes } from './routes/relationships.js'
-import { robinRoutes } from './routes/robin.js'
 import { contentRoutes } from './routes/content.js'
 import { internalRoutes } from './routes/internal.js'
 import { startWorkers } from './queue/worker.js'
 import { bullBoardApp } from './routes/bull-board.js'
 import { adminRoutes } from './routes/admin.js'
+import { seedFirstUser } from './bootstrap/seed-first-user.js'
+import { loadMasterKey } from './lib/crypto.js'
 
 declare module 'hono' {
   interface ContextVariableMap {
@@ -100,17 +101,25 @@ app.route('/search', search)
 app.route('/mcp', mcp)
 app.route('/users', users)
 app.route('/vaults', vaultsRoutes)
-app.route('/threads', threadsRoutes)
+app.route('/wikis', wikisRoutes)
 app.route('/fragments', fragmentsRoutes)
 app.route('/people', peopleRoutes)
 app.route('/graph', graphRoutes)
 app.route('/relationships', relationshipsRoutes)
-app.route('/robin', robinRoutes)
 app.route('/api/content', contentRoutes)
 
 /***********************************************************************
  * ## Boot
  ***********************************************************************/
+
+// Fail fast on missing MASTER_KEY before any crypto ops run
+loadMasterKey()
+
+// Seed the single user from INITIAL_USERNAME/INITIAL_PASSWORD if users table is empty
+await seedFirstUser().catch((err) => {
+  logger.fatal({ err }, 'seed-first-user failed')
+  process.exit(1)
+})
 
 startWorkers()
 
