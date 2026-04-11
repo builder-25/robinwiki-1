@@ -42,6 +42,9 @@ importers:
       '@robin/agent':
         specifier: workspace:*
         version: link:../packages/agent
+      '@robin/caslock':
+        specifier: workspace:*
+        version: link:../packages/caslock
       '@robin/queue':
         specifier: workspace:*
         version: link:../packages/queue
