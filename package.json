@@ -9,10 +9,12 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "format": "biome format --write .",
-    "clean": "find core packages -type d \\( -name dist -o -name node_modules -o -name .turbo \\) -prune -exec rm -rf {} + && rm -rf node_modules .turbo"
+    "clean": "find core packages -type d \\( -name dist -o -name node_modules -o -name .turbo \\) -prune -exec rm -rf {} + && rm -rf node_modules .turbo",
+    "seed-openrouter-key": "tsx core/scripts/seed-openrouter-key.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "tsx": "^4.0.0",
     "turbo": "^2.8.11",
     "typescript": "^5.9.3"
   },

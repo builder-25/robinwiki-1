@@ -35,8 +35,8 @@ usersRouter.get('/profile', async (c) => {
 
   if (!user) return c.json({ error: 'User not found' }, 404)
 
-  // Get API key hint if any
-  const [key] = await db.select().from(apiKeys).where(eq(apiKeys.userId, userId))
+  // Single-user app: any api key in the table is the active one
+  const [key] = await db.select().from(apiKeys).limit(1)
 
   const mcpToken = await signMcpToken(user.id).catch(() => null)
   const appUrl = process.env.APP_URL ?? 'http://localhost:3000'
@@ -91,27 +91,20 @@ usersRouter.get('/keypair', async (c) => {
 })
 
 // GET /users/stats
-// TODO(phase-5): update stats to use edges for vault scoping (unthreadedCount now computed)
 usersRouter.get('/stats', async (c) => {
-  const userId = c.get('userId') as string
-
   const [[noteCount], [wikiCount], [personCount], [unwikiedCountResult]] = await Promise.all([
-    db.select({ count: sql<number>`count(*)` }).from(fragments).where(eq(fragments.userId, userId)),
-    db.select({ count: sql<number>`count(*)` }).from(wikis).where(eq(wikis.userId, userId)),
-    db.select({ count: sql<number>`count(*)` }).from(people).where(eq(people.userId, userId)),
+    db.select({ count: sql<number>`count(*)` }).from(fragments),
+    db.select({ count: sql<number>`count(*)` }).from(wikis),
+    db.select({ count: sql<number>`count(*)` }).from(people),
     db
       .select({ count: sql<number>`count(*)` })
       .from(fragments)
       .where(
-        and(
-          eq(fragments.userId, userId),
-          sql`${fragments.lookupKey} NOT IN (
-            SELECT src_id FROM edges
-            WHERE user_id = ${userId}
-            AND edge_type = 'FRAGMENT_IN_WIKI'
-            AND deleted_at IS NULL
-          )`
-        )
+        sql`${fragments.lookupKey} NOT IN (
+          SELECT src_id FROM edges
+          WHERE edge_type = 'FRAGMENT_IN_WIKI'
+          AND deleted_at IS NULL
+        )`
       ),
   ])
 
@@ -128,12 +121,9 @@ usersRouter.get('/stats', async (c) => {
 
 // GET /users/activity
 usersRouter.get('/activity', async (c) => {
-  const userId = c.get('userId') as string
-
   const rows = await db
     .select()
     .from(auditLog)
-    .where(eq(auditLog.userId, userId))
     .orderBy(sql`${auditLog.createdAt} DESC`)
     .limit(20)
 
@@ -147,15 +137,13 @@ usersRouter.get('/activity', async (c) => {
   )
 })
 
-// POST /users/export — export all user data as JSON
+// POST /users/export — export all data as JSON
 usersRouter.post('/export', async (c) => {
-  const userId = c.get('userId') as string
-
   const [userVaults, userWikis, userFragments, userPeople] = await Promise.all([
-    db.select().from(vaults).where(eq(vaults.userId, userId)),
-    db.select().from(wikis).where(eq(wikis.userId, userId)),
-    db.select().from(fragments).where(eq(fragments.userId, userId)),
-    db.select().from(people).where(eq(people.userId, userId)),
+    db.select().from(vaults),
+    db.select().from(wikis),
+    db.select().from(fragments),
+    db.select().from(people),
   ])
 
   return c.json(
@@ -169,17 +157,15 @@ usersRouter.post('/export', async (c) => {
   )
 })
 
-// DELETE /users/data — delete all user content (keeps account intact)
+// DELETE /users/data — delete all content (keeps account intact)
 usersRouter.delete('/data', async (c) => {
-  const userId = c.get('userId') as string
-
   await Promise.all([
-    db.delete(edges).where(eq(edges.userId, userId)),
-    db.delete(entries).where(eq(entries.userId, userId)),
-    db.delete(wikis).where(eq(wikis.userId, userId)),
-    db.delete(people).where(eq(people.userId, userId)),
-    db.delete(vaults).where(eq(vaults.userId, userId)),
-    db.delete(auditLog).where(eq(auditLog.userId, userId)),
+    db.delete(edges),
+    db.delete(entries),
+    db.delete(wikis),
+    db.delete(people),
+    db.delete(vaults),
+    db.delete(auditLog),
   ])
 
   return c.json(okResponseSchema.parse({ ok: true }))

@@ -6,7 +6,6 @@ import { lookupKeySchema, objectStateSchema, paginationQuerySchema } from './bas
 export const entryResponseSchema = z.object({
   id: lookupKeySchema,
   lookupKey: lookupKeySchema,
-  userId: z.string(),
   slug: z.string(),
   title: z.string(),
   content: z.string(),
@@ -14,7 +13,7 @@ export const entryResponseSchema = z.object({
   source: z.string(),
   vaultId: z.string().nullable(),
   state: objectStateSchema,
-  repoPath: z.string(),
+  ingestStatus: z.string(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 })

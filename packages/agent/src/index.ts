@@ -1,26 +1,10 @@
-export { regenerateWiki, THREAD_WIKI_TYPES, stripFrontmatter } from './wiki.js'
-export type { WikiType } from './wiki.js'
+// ── Dedup ────────────────────────────────────────────────────────────────
 export { jaccardSimilarity, dedupBatch } from './dedup.js'
-export { stripWikiDelimiters, resolveWikiLinks as resolveWikiLinksFromNotes } from './wikilink.js'
-export {
-  assembleEntryFrontmatter,
-  assembleFragmentFrontmatter,
-  assembleThreadFrontmatter,
-  assemblePersonFrontmatter,
-} from './frontmatter.js'
-export type {
-  EntryFrontmatterInput,
-  FragmentFrontmatterInput,
-  ThreadFrontmatterInput,
-  PersonFrontmatterInput,
-  WikiLinkRef,
-} from './frontmatter.js'
-export { synthesizePersonBody } from './person-body.js'
-export type { SynthesizePersonBodyInput } from './person-body.js'
 
-// ── Stage-runner orchestrators (new pipeline) ───────────────────────────
+// ── Stage-runner orchestrators ───────────────────────────────────────────
 export { runExtraction, runLinking } from './stages/index.js'
 export { entityExtract, resolvePerson } from './stages/entity-extract.js'
+export { persist, matchMentionsToFragments } from './stages/persist.js'
 export type { ResolveResult } from './stages/entity-extract.js'
 export type {
   ExtractionOrchestratorDeps,
@@ -36,27 +20,28 @@ export type {
   WikiClassifyDeps,
   FragRelateDeps,
   PersistDeps,
+  PersistResult,
   EntityExtractDeps,
   EntityExtractResult,
   ResolutionConfig,
   KnownPerson,
+  FragmentResult,
+  EmitEvent,
 } from './stages/types.js'
 export { DEFAULT_RESOLUTION_CONFIG } from './stages/types.js'
 
-// ── Regen processing (delegated from server) ─────────────────────────────
-export { processRegenJob } from './regen/processor.js'
-export type { RegenDeps } from './regen/types.js'
+// ── OpenRouter + embeddings ──────────────────────────────────────────────
+export type { OpenRouterConfig } from './openrouter-config.js'
+export { NoOpenRouterKeyError } from './openrouter-config.js'
+export { embedText } from './embeddings.js'
+export type { EmbedConfig } from './embeddings.js'
 
-// ── Mastra agent callers ─────────────────────────────────────────────────
+// ── Mastra agent factory + caller helpers ────────────────────────────────
+export { createIngestAgents } from './agent-factory.js'
+export type { IngestAgents } from './agent-factory.js'
 export {
-  vaultClassifyCall,
-  fragmentCall,
-  entityExtractCall,
-  threadClassifyCall,
-  fragScoreCall,
-  wikiGenerateCall,
-  personSynthesizeCall,
-} from './agents/index.js'
-
-// ── OpenRouter provider ──────────────────────────────────────────────────
-export { openRouterModel, openRouterCall } from './provider.js'
+  createTypedCaller,
+  createStringCaller,
+  AGENT_RETRY_CONFIG,
+  AGENT_MODEL_SETTINGS,
+} from './agents/caller.js'

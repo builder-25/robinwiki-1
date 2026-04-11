@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { and, eq, isNull, inArray } from 'drizzle-orm'
+import { eq, isNull, inArray } from 'drizzle-orm'
 import { sessionMiddleware } from '../middleware/session.js'
 import { db } from '../db/client.js'
 import { edges, entries, fragments, wikis, vaults, people } from '../db/schema.js'
@@ -21,32 +21,25 @@ graphRouter.use('*', sessionMiddleware)
 
 // GET /graph — build graph nodes and edges from the edges table
 graphRouter.get('/', async (c) => {
-  const userId = c.get('userId') as string
   const vaultId = c.req.query('vaultId')
 
-  // 1. Query all edges for the user
-  let edgeRows = await db
-    .select()
-    .from(edges)
-    .where(and(eq(edges.userId, userId), isNull(edges.deletedAt)))
+  // 1. Query all edges
+  let edgeRows = await db.select().from(edges).where(isNull(edges.deletedAt))
 
   // 2. If vaultId filter, find entries/fragments in that vault, then filter edges
   if (vaultId) {
     const vaultEntryKeys = await db
       .select({ key: entries.lookupKey })
       .from(entries)
-      .where(and(eq(entries.userId, userId), eq(entries.vaultId, vaultId)))
+      .where(eq(entries.vaultId, vaultId))
 
     const vaultFragmentKeys = await db
       .select({ key: fragments.lookupKey })
       .from(fragments)
       .where(
-        and(
-          eq(fragments.userId, userId),
-          inArray(
-            fragments.entryId,
-            vaultEntryKeys.map((e) => e.key)
-          )
+        inArray(
+          fragments.entryId,
+          vaultEntryKeys.map((e) => e.key)
         )
       )
 

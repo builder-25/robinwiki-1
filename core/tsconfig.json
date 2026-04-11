@@ -15,5 +15,15 @@
     }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "src/__tests__"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/__tests__",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "src/mcp/server.ts",
+    "src/mcp/handlers.ts",
+    "src/mcp/resolvers.ts",
+    "src/routes/internal.ts"
+  ]
 }

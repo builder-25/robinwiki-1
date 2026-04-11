@@ -1,14 +1,12 @@
 import { Hono } from 'hono'
-import { eq, and, desc } from 'drizzle-orm'
+import { eq, desc } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
-import { makeLookupKey, parseLookupKey, generateSlug } from '@robin/shared'
+import { makeLookupKey, generateSlug } from '@robin/shared'
 import { resolveFragmentSlug } from '../db/slug.js'
 import { computeContentHash, findDuplicateFragment } from '../db/dedup.js'
 import { sessionMiddleware } from '../middleware/session.js'
 import { db } from '../db/client.js'
 import { fragments, entries } from '../db/schema.js'
-import { gatewayClient } from '../gateway/client.js'
-import { logger } from '../lib/logger.js'
 import { validationHook } from '../lib/validation.js'
 import {
   fragmentResponseSchema,
@@ -19,22 +17,17 @@ import {
   fragmentListQuerySchema,
 } from '../schemas/fragments.schema.js'
 
-const log = logger.child({ component: 'fragments' })
-
 const fragmentsRouter = new Hono()
 fragmentsRouter.use('*', sessionMiddleware)
 
 // GET /fragments — list fragments (metadata only)
-// TODO(phase-5): rewrite with new schema columns (no vaultId/threadId on fragments)
 fragmentsRouter.get('/', async (c) => {
-  const userId = c.get('userId') as string
   const query = fragmentListQuerySchema.safeParse({ limit: c.req.query('limit') })
   const limit = query.success ? query.data.limit : 50
 
   const rows = await db
     .select()
     .from(fragments)
-    .where(eq(fragments.userId, userId))
     .orderBy(desc(fragments.updatedAt))
     .limit(limit)
 
@@ -43,48 +36,33 @@ fragmentsRouter.get('/', async (c) => {
   )
 })
 
-// GET /fragments/:id — get fragment with content from gateway
-// TODO(phase-5): update to use lookupKey, read content via repoPath
+// GET /fragments/:id — get fragment metadata (content lives in DB only post-M2)
 fragmentsRouter.get('/:id', async (c) => {
-  const userId = c.get('userId') as string
   const id = c.req.param('id')
 
   const [fragment] = await db.select().from(fragments).where(eq(fragments.lookupKey, id))
-  if (!fragment || fragment.userId !== userId) return c.json({ error: 'Not found' }, 404)
-
-  let content = ''
-  if (fragment.repoPath) {
-    try {
-      const result = await gatewayClient.read(userId, fragment.repoPath)
-      content = result.content
-    } catch {
-      // File might not exist yet
-    }
-  }
+  if (!fragment) return c.json({ error: 'Not found' }, 404)
 
   return c.json(
-    fragmentWithContentResponseSchema.parse({ ...fragment, id: fragment.lookupKey, content })
+    fragmentWithContentResponseSchema.parse({ ...fragment, id: fragment.lookupKey, content: '' })
   )
 })
 
 // POST /fragments — create fragment
-// TODO(phase-5): rewrite with new schema (lookupKey, entryId required, no vaultId/threadId)
 fragmentsRouter.post('/', zValidator('json', createFragmentBodySchema, validationHook), async (c) => {
-  const userId = c.get('userId') as string
   const { title, content, entryId, tags } = c.req.valid('json')
 
-  /** @gate — verify entryId belongs to the authenticated user */
+  /** @gate — verify entryId exists */
   const [parentEntry] = await db
-    .select({ userId: entries.userId, vaultId: entries.vaultId })
+    .select({ vaultId: entries.vaultId })
     .from(entries)
     .where(eq(entries.lookupKey, entryId))
-  if (!parentEntry || parentEntry.userId !== userId)
-    return c.json({ error: 'Entry not found' }, 404)
+  if (!parentEntry) return c.json({ error: 'Entry not found' }, 404)
 
-  // Content-level dedup: reject if identical content already exists for this user
+  // Content-level dedup: reject if identical content already exists
   if (content) {
     const hash = computeContentHash(content)
-    const existing = await findDuplicateFragment(db, userId, hash)
+    const existing = await findDuplicateFragment(db, hash)
     if (existing) {
       return c.json(
         fragmentWithContentResponseSchema.parse({
@@ -98,39 +76,17 @@ fragmentsRouter.post('/', zValidator('json', createFragmentBodySchema, validatio
   }
 
   const fragKey = makeLookupKey('frag')
-  const { ulid } = parseLookupKey(fragKey)
-  const date = new Date().toISOString().split('T')[0]
-  const slug = await resolveFragmentSlug(db, userId, generateSlug(title))
-  const repoPath = `fragments/${date}-${slug}.${fragKey}.md`
-
-  // Write content to gateway
-  let gatewayWriteOk = false
-  if (content) {
-    try {
-      await gatewayClient.write({
-        userId,
-        path: repoPath,
-        content,
-        message: `add(${ulid.slice(0, 8)}): ${title}`,
-        branch: 'main',
-      })
-      gatewayWriteOk = true
-    } catch (err) {
-      log.error({ err }, 'gateway write failed')
-    }
-  }
+  const slug = await resolveFragmentSlug(db, generateSlug(title))
 
   const [fragment] = await db
     .insert(fragments)
     .values({
       lookupKey: fragKey,
-      userId,
       slug,
       entryId,
       title,
       vaultId: parentEntry.vaultId,
       dedupHash: content ? computeContentHash(content) : null,
-      repoPath: gatewayWriteOk ? repoPath : '',
       tags,
     })
     .returning()
@@ -146,29 +102,12 @@ fragmentsRouter.post('/', zValidator('json', createFragmentBodySchema, validatio
 })
 
 // PUT /fragments/:id — update fragment
-// TODO(phase-5): rewrite with new schema columns
 fragmentsRouter.put('/:id', zValidator('json', updateFragmentBodySchema, validationHook), async (c) => {
-  const userId = c.get('userId') as string
   const id = c.req.param('id')
   const body = c.req.valid('json')
 
   const [existing] = await db.select().from(fragments).where(eq(fragments.lookupKey, id))
-  if (!existing || existing.userId !== userId) return c.json({ error: 'Not found' }, 404)
-
-  // If content changed, write to gateway
-  if (body.content != null && existing.repoPath) {
-    try {
-      await gatewayClient.write({
-        userId,
-        path: existing.repoPath,
-        content: body.content,
-        message: `update: ${existing.title}`,
-        branch: 'main',
-      })
-    } catch (err) {
-      log.error({ err }, 'gateway write failed')
-    }
-  }
+  if (!existing) return c.json({ error: 'Not found' }, 404)
 
   const updates: Record<string, unknown> = { updatedAt: new Date() }
   if (body.title != null) updates.title = body.title

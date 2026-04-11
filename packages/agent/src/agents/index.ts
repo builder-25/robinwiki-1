@@ -1,8 +1,9 @@
-// Typed callers — backed by Mastra agents, consumed via DI in stages
-export { vaultClassifyCall } from './vault-classifier.js'
-export { fragmentCall } from './fragmenter.js'
-export { entityExtractCall } from './entity-extractor.js'
-export { threadClassifyCall } from './wiki-classifier.js'
-export { fragScoreCall } from './frag-scorer.js'
-export { wikiGenerateCall } from './wiki-generator.js'
-export { personSynthesizeCall } from './person-synthesizer.js'
+// Caller factories — agents are built per-call via createIngestAgents(config).
+// Consumers build typed callers from the agents using createTypedCaller /
+// createStringCaller and inject them as llmCall deps into stages.
+export {
+  createTypedCaller,
+  createStringCaller,
+  AGENT_RETRY_CONFIG,
+  AGENT_MODEL_SETTINGS,
+} from './caller.js'

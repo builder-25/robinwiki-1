@@ -48,6 +48,7 @@ Load-bearing choices, with the reason they were made. These are the decisions fu
 | 8 | Env-seeded first user with forced password reset | M1 | First-boot should be automatic. "Change password on first login" covers the insecure-env-var case. |
 | 9 | No `config_notes` feature (deleted, not migrated) | M1 | The old `config_notes` table was stale from a prior iteration. Rebuilding on `configs` is cleaner than migrating cruft. |
 | 10 | Preserve workspace package boundaries (`@robin/core`, `@robin/agent`, `@robin/queue`, `@robin/shared`) | v1.0 | Package boundaries enforce the conceptual separation between server, intelligence pipeline, job queue, and shared types. |
+| 11 | Pin embedding models to `qwen/qwen3-embedding-8b` (default) and `openai/text-embedding-3-small` at `vector(1536)` | M1 | Qwen3-8B at 1536 (MRL truncation from 4096) beats OpenAI text-embedding-3-large at its native 3072 on MTEB (~67 vs 64.6), at 1/13th the cost. text-embedding-3-small is the alternative for OpenAI ecosystem fit. Two models keeps the onboarding model picker honest — each is a real, distinct choice. |
 
 ## Active Items Being Tracked
 

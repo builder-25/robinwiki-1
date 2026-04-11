@@ -12,7 +12,6 @@ const THRESHOLD = Number(process.env.FRAG_RELATE_THRESHOLD) || 0.5
 export async function fragRelate(
   deps: FragRelateDeps,
   input: {
-    userId: string
     fragmentContent: string
     fragmentKey: string
     jobId: string
@@ -21,15 +20,10 @@ export async function fragRelate(
 ): Promise<StageResult<FragRelateResult>> {
   const start = performance.now()
 
-  // Vector-only search for top 5 candidates
-  const candidates = await deps.vectorSearch(input.userId, input.fragmentContent, 5)
-
-  // Filter out self-reference
+  const candidates = await deps.vectorSearch(input.fragmentContent, 5)
   const filtered = candidates.filter((c) => c.fragmentKey !== input.fragmentKey)
 
-  // Score each candidate via LLM
   const relatedEdges: Array<{ fragmentKey: string; score: number }> = []
-
   for (const candidate of filtered) {
     const content = await deps.loadFragmentContent(candidate.fragmentKey)
     if (!content) continue

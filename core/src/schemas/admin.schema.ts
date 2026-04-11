@@ -8,7 +8,6 @@ export const retryStuckDryRunResponseSchema = z.object({
   fragments: z.array(
     z.object({
       fragmentKey: z.string(),
-      userId: z.string(),
       entryKey: z.string(),
     })
   ),

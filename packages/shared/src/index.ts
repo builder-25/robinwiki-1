@@ -1,3 +1,4 @@
+export * from './types/embedding.js'
 export * from './types/entry.js'
 export * from './types/fragment.js'
 export * from './types/wiki.js'

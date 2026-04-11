@@ -23,6 +23,7 @@
     "@hono/zod-validator": "^0.7.6",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@robin/agent": "workspace:*",
+    "@robin/caslock": "workspace:*",
     "@robin/queue": "workspace:*",
     "@robin/shared": "workspace:*",
     "better-auth": "^1.0.0",

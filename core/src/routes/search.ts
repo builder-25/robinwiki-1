@@ -1,7 +1,6 @@
 import { Hono } from 'hono'
-import { eq, and, inArray } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { sessionMiddleware } from '../middleware/session.js'
-import { gatewayClient } from '../gateway/client.js'
 import { db } from '../db/client.js'
 import { fragments } from '../db/schema.js'
 import { searchQuerySchema, searchResponseSchema } from '../schemas/search.schema.js'
@@ -9,9 +8,9 @@ import { searchQuerySchema, searchResponseSchema } from '../schemas/search.schem
 const search = new Hono()
 search.use('*', sessionMiddleware)
 
-// TODO(phase-5): rewrite search to use edges for thread scoping (vault scoping done via gateway-level repoPaths filter)
+// GET /search — Postgres-backed full-text search over fragments
+// TODO(phase-5): score with hybrid BM25 + pgvector reranking
 search.get('/', async (c) => {
-  const userId = c.get('userId') as string
   const parsed = searchQuerySchema.safeParse({
     q: c.req.query('q'),
     limit: c.req.query('limit'),
@@ -21,49 +20,34 @@ search.get('/', async (c) => {
   if (!parsed.success)
     return c.json({ error: 'Validation failed', fields: parsed.error.flatten() }, 400)
 
-  const { q, limit, minScore, vaultId } = parsed.data
+  const { q, limit, vaultId } = parsed.data
 
-  // Resolve vaultId to repoPaths for gateway-level vault scoping (D-02)
-  let repoPaths: string[] | undefined
-  if (vaultId) {
-    const vaultFragments = await db
-      .select({ repoPath: fragments.repoPath })
-      .from(fragments)
-      .where(and(eq(fragments.userId, userId), eq(fragments.vaultId, vaultId)))
-    repoPaths = vaultFragments.map((f) => f.repoPath).filter(Boolean) as string[]
-  }
+  const tsQuery = sql`plainto_tsquery('english', ${q})`
+  const conditions = [sql`${fragments.searchVector} @@ ${tsQuery}`]
+  if (vaultId) conditions.push(eq(fragments.vaultId, vaultId))
 
-  // Get search results from gateway (BM25 + vector), filtered to vault scope if specified
-  const gatewayResults = await gatewayClient.search(userId, q, limit, minScore, repoPaths)
-
-  // Extract file paths from results to join with fragment metadata
-  const resultPaths = (gatewayResults.results ?? []).map((r: { path: string }) => r.path)
-
-  if (resultPaths.length === 0) {
-    return c.json(searchResponseSchema.parse({ results: [] }))
-  }
-
-  // Look up fragment metadata for matching paths only
-  const allFragments = await db
-    .select()
-    .from(fragments)
-    .where(and(eq(fragments.userId, userId), inArray(fragments.repoPath, resultPaths)))
-
-  const enriched = (gatewayResults.results ?? [])
-    .map((r: { path: string; score: number; fragment?: string }) => {
-      const frag = allFragments.find((f) => f.repoPath === r.path)
-      if (!frag) return null
-      return {
-        score: r.score,
-        fragmentId: frag.lookupKey,
-        title: frag.title,
-        fragment: r.fragment ?? '',
-        tags: frag.tags,
-        vaultId: undefined, // TODO(phase-5): resolve via parent entry
-        threadId: undefined, // TODO(phase-5): resolve via edges
-      }
+  const rows = await db
+    .select({
+      lookupKey: fragments.lookupKey,
+      title: fragments.title,
+      tags: fragments.tags,
+      vaultId: fragments.vaultId,
+      score: sql<number>`ts_rank(${fragments.searchVector}, ${tsQuery})`,
     })
-    .filter(Boolean)
+    .from(fragments)
+    .where(and(...conditions))
+    .orderBy(sql`ts_rank(${fragments.searchVector}, ${tsQuery}) DESC`)
+    .limit(limit)
+
+  const enriched = rows.map((r) => ({
+    score: Number(r.score ?? 0),
+    fragmentId: r.lookupKey,
+    title: r.title,
+    fragment: '',
+    tags: r.tags,
+    vaultId: r.vaultId ?? undefined,
+    threadId: undefined,
+  }))
 
   return c.json(searchResponseSchema.parse({ results: enriched }))
 })

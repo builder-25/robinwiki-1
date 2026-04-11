@@ -1,88 +1,59 @@
-/***********************************************************************
- * @module queue/worker
+/**
+ * BullMQ workers for the M2 ingest pipeline.
  *
- * @summary Central job dispatch and processing for the Robin
- * ingestion pipeline. Routes jobs to type-specific processors.
+ * Two long-lived workers run for the single user: extraction and link.
+ * Extraction loads OpenRouter creds per-call, builds fresh Mastra agents,
+ * and dispatches to runExtraction. Link does the same for runLinking.
+ * Retries, backoff, and DLQ are handled by BullMQ via RETRY_CONFIG.
  *
- * @remarks
- * Jobs arrive via BullMQ queues (one per-user write queue, plus shared
- * provision and scheduler queues). The dispatcher ({@link processJob})
- * routes by `job.type` to the appropriate processor.
- *
- * Each processor builds an `OrchestratorDeps` object that adapts our
- * concrete DB/gateway/queue to the pure interfaces `@robin/agent` expects.
- *
- * | Type         | Processor                       | Purpose                           |
- * |--------------|---------------------------------|-----------------------------------|
- * | extraction   | {@link processExtractionJob}     | AI-driven entry → fragment split  |
- * | write        | {@link processWriteJob}          | Legacy write path (wraps extract) |
- * | link         | {@link processLinkJob}           | Thread classify + frag relate     |
- * | reclassify   | {@link processReclassifyJob}     | Re-score frags for a new thread   |
- * | sync         | `processSyncJob`                 | Git → DB reconciliation           |
- * | regen        | `processRegenJob`                | Single thread wiki regen          |
- * | regen-batch  | `processRegenBatchJob`           | Batch wiki regen (scheduler)      |
- *
- * @see {@link startWorkers} — lifecycle entry point called from `index.ts`
- * @see {@link spawnWriteWorker} — per-user worker spawner (idempotent)
- * @see {@link processProvisionJob} — new-user onboarding
- *
- * @privateRemarks
- * **Deps duplication:** `processExtractionJob` and `processWriteJob`
- * build near-identical deps. Intentional — write jobs are the legacy
- * path being migrated. Once all callers use `enqueueExtraction`,
- * `processWriteJob` disappears and so does the duplication.
- ***********************************************************************/
+ * Regen, reclassify, and provision are dormant or stubbed in M2. See the
+ * TODO(M3) comments in startWorkers().
+ */
 
 import {
   BullMQWorker,
   createRedisConnection,
-  QUEUE_NAMES,
-  type WriteJob,
-  type ProvisionJob,
   type ExtractionJob,
   type LinkJob,
-  type ReclassifyJob,
-  type SyncJob,
-  type RegenJob,
-  type RegenBatchJob,
-  type RobinJob,
   type JobResult,
 } from '@robin/queue'
 import {
   runExtraction,
   runLinking,
+  createIngestAgents,
+  embedText,
   DEFAULT_RESOLUTION_CONFIG,
-  vaultClassifyCall,
-  fragmentCall,
-  entityExtractCall,
-  threadClassifyCall,
-  fragScoreCall,
+  createTypedCaller,
+  NoOpenRouterKeyError,
+  type OpenRouterConfig,
+  type ExtractionOrchestratorDeps,
+  type LinkingOrchestratorDeps,
 } from '@robin/agent'
-import type { ExtractionOrchestratorDeps, LinkingOrchestratorDeps } from '@robin/agent'
-import { loadWikiClassificationSpec, makeLookupKey } from '@robin/shared'
-import { eq, and, sql } from 'drizzle-orm'
+import {
+  makeLookupKey,
+  generateSlug,
+  vaultClassificationSchema,
+  fragmentationSchema,
+  peopleExtractionSchema,
+  wikiClassificationSchema,
+  fragmentRelevanceSchema,
+} from '@robin/shared'
+import { eq, sql } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import {
-  users,
-  wikis,
   vaults,
   fragments,
   entries,
   edges,
   people,
+  wikis,
 } from '../db/schema.js'
+import { entryLock, fragmentLock } from '../db/locks.js'
 import { resolveFragmentSlug } from '../db/slug.js'
 import { computeContentHash } from '../db/dedup.js'
-import { acquireLock, releaseLock } from '../db/locking.js'
 import { emitPipelineEvent } from '../db/pipeline-events.js'
-import { gatewayClient } from '../gateway/client.js'
-import { generateKeypair } from '../keypair.js'
-import { createWikiLookupFn } from '../lib/wiki-lookup.js'
-import { processSyncJob } from './sync-worker.js'
-import { processRegenJob, processRegenBatchJob } from './regen-worker.js'
-import { setupRegenScheduler } from './scheduler.js'
 import { producer } from './producer.js'
-import { nanoid } from '../lib/id.js'
+import { loadOpenRouterConfigFromDb } from '../lib/openrouter-config.js'
 import { logger } from '../lib/logger.js'
 
 const log = logger.child({ component: 'worker' })
@@ -90,18 +61,8 @@ const log = logger.child({ component: 'worker' })
 const connection = createRedisConnection()
 const bullWorker = new BullMQWorker(connection)
 
-/***********************************************************************
- * ## Pipeline event helper
- *
- * @internal Bound wrapper — processors call this without passing `db`.
- ***********************************************************************/
+// ── Shared helpers ──────────────────────────────────────────────────────────
 
-/**
- * Thin wrapper around {@link emitPipelineEvent} that binds the
- * module-level `db` instance.
- *
- * @param event - Pipeline event to emit (stage, status, metadata)
- */
 function emitEvent(event: {
   entryKey: string
   jobId: string
@@ -110,236 +71,278 @@ function emitEvent(event: {
   fragmentKey?: string
   metadata?: Record<string, unknown>
 }): Promise<void> {
-  return emitPipelineEvent(db as any, event)
+  return emitPipelineEvent(db as never, event)
 }
 
-/***********************************************************************
- * ## Extraction Job Processor
- *
- * @remarks The primary AI pipeline. Takes raw entry content and splits
- * it into structured fragments via {@link runExtraction}.
- *
- * @see {@link runExtraction} — orchestrator from `@robin/agent`
- * @see {@link ExtractionOrchestratorDeps} — dep interface we satisfy
- ***********************************************************************/
+async function loadFallbackVaultId(): Promise<string> {
+  const [row] = await db.select({ id: vaults.id }).from(vaults).where(eq(vaults.type, 'inbox'))
+  return row?.id ?? ''
+}
 
-/**
- * Process an extraction job through the full AI ingestion pipeline.
- *
- * @remarks
- * Builds {@link ExtractionOrchestratorDeps} by adapting concrete
- * implementations (Drizzle DB, gateway client, BullMQ producer) to
- * the pure interfaces expected by `runExtraction`.
- *
- * **Flow:** vault classify → fragment split → entity extract →
- * persist → enqueue link jobs per fragment.
- *
- * @param job - Extraction job with userId, content, entryKey
- * @returns {@link JobResult} with success status and timing
- */
+async function insertEdgeRow(edge: Record<string, unknown>): Promise<void> {
+  await db
+    .insert(edges)
+    .values({
+      id: crypto.randomUUID(),
+      srcType: edge.srcType as string,
+      srcId: edge.srcId as string,
+      dstType: edge.dstType as string,
+      dstId: edge.dstId as string,
+      edgeType: edge.edgeType as string,
+      attrs: (edge.attrs as Record<string, unknown> | undefined) ?? null,
+    })
+    .onConflictDoNothing()
+}
+
+// ── Extraction processor ────────────────────────────────────────────────────
+
 async function processExtractionJob(job: ExtractionJob): Promise<JobResult> {
-  log.info({ jobId: job.jobId, userId: job.userId }, 'processing extraction job')
+  log.info({ jobId: job.jobId, entryKey: job.entryKey }, 'processing extraction job')
   const t0 = performance.now()
 
-  /** @step 1 — Resolve fallback vault (inbox) for low-confidence classify */
-  const [defaultVault] = await db
-    .select({ id: vaults.id })
-    .from(vaults)
-    .where(and(eq(vaults.userId, job.userId), eq(vaults.type, 'inbox')))
+  // 1. Per-call OpenRouter key fetch. Missing key → mark entry failed and rethrow.
+  let openRouterConfig: OpenRouterConfig
+  try {
+    openRouterConfig = await loadOpenRouterConfigFromDb(db)
+  } catch (err) {
+    if (err instanceof NoOpenRouterKeyError) {
+      await db
+        .update(entries)
+        .set({
+          ingestStatus: 'failed',
+          lastError: 'no_openrouter_key',
+          lastAttemptAt: new Date(),
+          attemptCount: sql`${entries.attemptCount} + 1`,
+        })
+        .where(eq(entries.lookupKey, job.entryKey))
+    }
+    throw err
+  }
 
-  const fallbackVaultId = defaultVault?.id ?? ''
+  // 2. Fresh Mastra agents per ingest run.
+  const agents = createIngestAgents(openRouterConfig)
+  const fallbackVaultId = await loadFallbackVaultId()
 
-  /** @step 2 — Build orchestrator deps from concrete implementations */
   const deps: ExtractionOrchestratorDeps = {
-    acquireLock,
-    releaseLock,
+    entryLock,
     emitEvent,
-    db,
+    enqueueLinkJob: async (linkJobData) => {
+      await producer.enqueueLink({
+        type: 'link',
+        jobId: crypto.randomUUID(),
+        fragmentKey: linkJobData.fragmentKey,
+        entryKey: linkJobData.entryKey,
+        vaultId: linkJobData.vaultId,
+        fragmentContent: linkJobData.fragmentContent,
+        enqueuedAt: new Date().toISOString(),
+      })
+    },
     vaultClassifyDeps: {
-      listUserVaults: async (userId: string) => {
-        const rows = await db
-          .select({ id: vaults.id, name: vaults.name, slug: vaults.slug })
-          .from(vaults)
-          .where(eq(vaults.userId, userId))
-        return rows
-      },
-      llmCall: vaultClassifyCall,
+      listVaults: async () =>
+        db.select({ id: vaults.id, name: vaults.name, slug: vaults.slug }).from(vaults),
+      llmCall: createTypedCaller(agents.vaultClassifier, vaultClassificationSchema),
       confidenceThreshold: Number.parseFloat(process.env.VAULT_CONFIDENCE_THRESHOLD ?? '0.5'),
       fallbackVaultId,
     },
     fragmentDeps: {
-      llmCall: fragmentCall,
+      llmCall: createTypedCaller(agents.fragmenter, fragmentationSchema),
       emitEvent,
     },
     entityExtractDeps: {
-      loadUserPeople: async (userId: string) => {
+      loadAllPeople: async () => {
         const rows = await db
           .select({
             lookupKey: people.lookupKey,
-            name: people.name,
-            sections: people.sections,
+            canonicalName: people.canonicalName,
+            aliases: people.aliases,
           })
           .from(people)
-          .where(eq(people.userId, userId))
         return rows.map((r) => ({
           lookupKey: r.lookupKey,
-          canonicalName: r.name,
-          aliases: ((r.sections as any)?.aliases as string[]) ?? [],
+          canonicalName: r.canonicalName,
+          aliases: r.aliases ?? [],
         }))
       },
-      llmCall: entityExtractCall,
+      llmCall: createTypedCaller(agents.entityExtractor, peopleExtractionSchema),
       emitEvent,
       config: DEFAULT_RESOLUTION_CONFIG,
       makePeopleKey: () => makeLookupKey('person'),
     },
     persistDeps: {
-      batchWrite: async (req) => {
-        const result = await gatewayClient.batchWrite(req)
-        return { commitHash: result.commitHash }
-      },
+      openRouterConfig,
+      emitEvent,
       insertEntry: async (entry) => {
+        const e = entry as Record<string, unknown>
+        const content = (e.content as string) ?? ''
         await db
           .insert(entries)
-          .values(entry as any)
+          .values({
+            lookupKey: e.lookupKey as string,
+            slug: e.slug as string,
+            title: (e.title as string) ?? '',
+            content,
+            source: (e.source as string) ?? 'api',
+            type: (e.type as string) ?? 'thought',
+            vaultId: (e.vaultId as string | null) ?? null,
+            state: (e.state as 'PENDING' | 'LINKING' | 'RESOLVED') ?? 'PENDING',
+            dedupHash: content ? computeContentHash(content) : null,
+          })
           .onConflictDoUpdate({
             target: entries.lookupKey,
             set: {
-              slug: (entry as any).slug,
-              title: (entry as any).title,
-              state: (entry as any).state,
-              repoPath: (entry as any).repoPath,
+              slug: e.slug as string,
+              title: (e.title as string) ?? '',
+              content,
+              vaultId: (e.vaultId as string | null) ?? null,
               updatedAt: new Date(),
             },
           })
       },
       insertFragment: async (fragment) => {
-        const f = fragment as any
-        f.slug = await resolveFragmentSlug(db, job.userId, f.slug)
-        if (f.content) f.dedupHash = computeContentHash(f.content)
-        await db.insert(fragments).values(f)
+        const f = fragment as Record<string, unknown>
+        const slug = await resolveFragmentSlug(db, f.slug as string)
+        const content = (f.content as string) ?? ''
+        await db.insert(fragments).values({
+          lookupKey: f.lookupKey as string,
+          slug,
+          title: (f.title as string) ?? '',
+          type: (f.type as string) ?? null,
+          tags: ((f.tags as string[]) ?? []) as string[],
+          entryId: (f.entryId as string | null) ?? null,
+          vaultId: (f.vaultId as string | null) ?? null,
+          state: (f.state as 'PENDING' | 'LINKING' | 'RESOLVED') ?? 'PENDING',
+          dedupHash: content ? computeContentHash(content) : null,
+        })
       },
-      insertEdge: async (edge) => {
-        await db
-          .insert(edges)
-          .values({
-            id: crypto.randomUUID(),
-            userId: job.userId,
-            ...edge,
-          } as any)
-          .onConflictDoNothing()
-      },
+      insertEdge: insertEdgeRow,
       insertPerson: async (person) => {
+        const p = person as Record<string, unknown>
         await db
           .insert(people)
-          .values(person as any)
-          .onConflictDoUpdate({
-            target: [people.userId, people.slug],
-            set: {
-              name: (person as any).name,
-              sections: (person as any).sections,
-              repoPath: (person as any).repoPath,
-              updatedAt: new Date(),
-            },
+          .values({
+            lookupKey: p.lookupKey as string,
+            slug: (p.slug as string) ?? '',
+            name: (p.name as string) ?? (p.canonicalName as string) ?? '',
+            canonicalName: (p.canonicalName as string) ?? '',
+            aliases: ((p.aliases as string[]) ?? []) as string[],
+            verified: Boolean(p.verified),
+            state: 'PENDING',
           })
+          .onConflictDoNothing()
       },
-      loadPersonByKey: async (key) => {
-        const rows = await db.select().from(people).where(eq(people.lookupKey, key))
-        if (rows.length === 0) return null
-        const r = rows[0]
-        return {
-          lookupKey: r.lookupKey,
-          slug: r.slug,
-          repoPath: r.repoPath ?? '',
-          name: r.name,
-          sections: r.sections as Record<string, unknown>,
+      updateFragmentEmbedding: async (fragmentKey, embedding) => {
+        await db
+          .update(fragments)
+          .set({ embedding })
+          .where(eq(fragments.lookupKey, fragmentKey))
+      },
+      upsertPerson: async (input) => {
+        const existing = await db
+          .select({ lookupKey: people.lookupKey })
+          .from(people)
+          .where(sql`LOWER(${people.canonicalName}) = LOWER(${input.canonicalName})`)
+          .limit(1)
+
+        if (existing.length > 0) {
+          return { personKey: existing[0].lookupKey, isNew: false }
         }
+
+        const slug = generateSlug(input.canonicalName) || input.personKey
+
+        await db.insert(people).values({
+          lookupKey: input.personKey,
+          slug,
+          name: input.canonicalName,
+          canonicalName: input.canonicalName,
+          aliases: [],
+          verified: input.verified,
+          state: 'PENDING',
+        })
+
+        return { personKey: input.personKey, isNew: true }
       },
-      emitEvent,
-      lookupFn: createWikiLookupFn(job.userId),
-    },
-    enqueueLinkJob: async (userId, linkJobData) => {
-      const linkJob: LinkJob = {
-        type: 'link',
-        jobId: crypto.randomUUID(),
-        userId,
-        fragmentKey: linkJobData.fragmentKey,
-        entryKey: linkJobData.entryKey,
-        vaultId: linkJobData.vaultId,
-        fragmentContent: linkJobData.fragmentContent ?? '',
-        enqueuedAt: new Date().toISOString(),
-      }
-      await producer.enqueueLinkJob(userId, linkJob)
+      mergePersonAliases: async (personKey, newAliases) => {
+        if (newAliases.length === 0) return
+        const [row] = await db
+          .select({ aliases: people.aliases })
+          .from(people)
+          .where(eq(people.lookupKey, personKey))
+          .limit(1)
+        if (!row) return
+
+        const seen = new Set((row.aliases ?? []).map((a) => a.toLowerCase()))
+        const merged = [...(row.aliases ?? [])]
+        for (const alias of newAliases) {
+          if (!seen.has(alias.toLowerCase())) {
+            seen.add(alias.toLowerCase())
+            merged.push(alias)
+          }
+        }
+        await db.update(people).set({ aliases: merged }).where(eq(people.lookupKey, personKey))
+      },
     },
   }
 
-  /** @step 3 — Run the extraction orchestrator */
-  const input = {
-    userId: job.userId,
-    content: job.content,
-    entryKey: job.entryKey,
-    userSelectedVaultId: job.userSelectedVaultId,
-    source: job.source,
-    jobId: job.jobId,
-  }
+  try {
+    const result = await runExtraction(deps, {
+      entryKey: job.entryKey,
+      content: job.content,
+      userSelectedVaultId: job.vaultId,
+      source: job.source,
+      jobId: job.jobId,
+    })
 
-  await runExtraction(deps, input)
+    await db
+      .update(entries)
+      .set({
+        ingestStatus: 'processed',
+        lastAttemptAt: new Date(),
+        attemptCount: sql`${entries.attemptCount} + 1`,
+        lastError: null,
+      })
+      .where(eq(entries.lookupKey, job.entryKey))
 
-  const elapsed = (performance.now() - t0).toFixed(0)
-  log.info({ jobId: job.jobId, ms: Number(elapsed) }, 'extraction job completed')
+    const elapsed = (performance.now() - t0).toFixed(0)
+    log.info(
+      { jobId: job.jobId, ms: Number(elapsed), fragmentCount: result.fragmentKeys.length },
+      'extraction job completed'
+    )
 
-  return {
-    jobId: job.jobId,
-    success: true,
-    processedAt: new Date().toISOString(),
+    return { jobId: job.jobId, success: true, processedAt: new Date().toISOString() }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    await db
+      .update(entries)
+      .set({
+        ingestStatus: 'failed',
+        lastError: message,
+        lastAttemptAt: new Date(),
+        attemptCount: sql`${entries.attemptCount} + 1`,
+      })
+      .where(eq(entries.lookupKey, job.entryKey))
+    throw err
   }
 }
 
-/***********************************************************************
- * ## Link Job Processor
- *
- * @remarks Phase 2 of the pipeline: classify fragments into wikis
- * and discover related fragments via vector similarity + LLM scoring.
- *
- * @see {@link runLinking} — orchestrator from `@robin/agent`
- * @see {@link LinkingOrchestratorDeps} — dep interface we satisfy
- ***********************************************************************/
+// ── Link processor ──────────────────────────────────────────────────────────
 
-/**
- * Process a link job: classify fragment into wikis and find related fragments.
- *
- * @remarks
- * Builds {@link LinkingOrchestratorDeps} with gateway search for vector
- * candidates, thread classification via LLM, and fragment scoring via LLM.
- *
- * **Flow:** thread classify (LLM) → fragment relate (vector + LLM score)
- * → persist edges → update frontmatter → mark wikis DIRTY.
- *
- * @param job - Link job with fragmentKey, entryKey, fragmentContent
- * @returns {@link JobResult} with success status and timing
- */
 async function processLinkJob(job: LinkJob): Promise<JobResult> {
-  log.info({ jobId: job.jobId, userId: job.userId }, 'processing link job')
+  log.info({ jobId: job.jobId, fragmentKey: job.fragmentKey }, 'processing link job')
   const t0 = performance.now()
 
-  const fragmentContent = job.fragmentContent ?? ''
+  const openRouterConfig = await loadOpenRouterConfigFromDb(db)
+  const agents = createIngestAgents(openRouterConfig)
 
-  /** @step 1 — Build linking orchestrator deps */
   const deps: LinkingOrchestratorDeps = {
-    acquireLock,
-    releaseLock,
+    fragmentLock,
     emitEvent,
-    db,
-    threadClassifyDeps: {
-      searchCandidates: async (userId, content, limit) => {
-        const searchResult = await gatewayClient.search(userId, content, limit)
-        const threadRows = await db
-          .select({ lookupKey: wikis.lookupKey, name: wikis.name })
+    wikiClassifyDeps: {
+      searchCandidates: async (_content, limit) => {
+        const rows = await db
+          .select({ lookupKey: wikis.lookupKey })
           .from(wikis)
-          .where(eq(wikis.userId, userId))
-        return threadRows.map((t) => ({
-          wikiKey: t.lookupKey,
-          score: searchResult.results?.find((r) => r.path?.includes(t.lookupKey))?.score ?? 0,
-        }))
+          .limit(limit)
+        return rows.map((r) => ({ wikiKey: r.lookupKey, score: 0 }))
       },
       loadThreads: async (wikiKeys) => {
         if (wikiKeys.length === 0) return []
@@ -359,672 +362,78 @@ async function processLinkJob(job: LinkJob): Promise<JobResult> {
           )
         return rows
       },
-      llmCall: threadClassifyCall,
+      llmCall: createTypedCaller(agents.wikiClassifier, wikiClassificationSchema),
       emitEvent,
     },
     fragRelateDeps: {
-      vectorSearch: async (userId, content, limit) => {
-        const searchResult = await gatewayClient.search(userId, content, limit, 0.01)
-        return (searchResult.results ?? []).map((r) => ({
-          fragmentKey: r.path?.split('/')?.pop()?.replace('.md', '') ?? '',
-          score: r.score ?? 0,
-        }))
+      vectorSearch: async (content, limit) => {
+        const vec = await embedText(content, {
+          apiKey: openRouterConfig.apiKey,
+          model: openRouterConfig.embeddingModel,
+        })
+        if (!vec) return []
+        const rows = await db
+          .select({ lookupKey: fragments.lookupKey })
+          .from(fragments)
+          .where(sql`${fragments.embedding} IS NOT NULL`)
+          .orderBy(sql`${fragments.embedding} <=> ${JSON.stringify(vec)}::vector`)
+          .limit(limit)
+        return rows.map((r) => ({ fragmentKey: r.lookupKey, score: 0 }))
       },
       loadFragmentContent: async (fragmentKey) => {
         const [row] = await db
-          .select({ repoPath: fragments.repoPath })
+          .select({ title: fragments.title })
           .from(fragments)
           .where(eq(fragments.lookupKey, fragmentKey))
-        if (!row?.repoPath) return null
-        try {
-          const file = await gatewayClient.read(job.userId, row.repoPath)
-          return file.content
-        } catch {
-          return null
-        }
+          .limit(1)
+        return row?.title ?? null
       },
-      llmCall: fragScoreCall,
+      llmCall: createTypedCaller(agents.fragScorer, fragmentRelevanceSchema),
       emitEvent,
     },
-    insertEdge: async (edge) => {
-      await db
-        .insert(edges)
-        .values({
-          id: crypto.randomUUID(),
-          userId: job.userId,
-          ...edge,
-        } as any)
-        .onConflictDoNothing()
-    },
-    transitionWiki: async (wikiKey, targetState) => {
-      await db.execute(
-        sql`UPDATE ${wikis} SET state = ${targetState}, updated_at = NOW()
-            WHERE lookup_key = ${wikiKey}
-            AND state IN ('RESOLVED', 'DIRTY')`
-      )
-    },
-    updateFragmentFrontmatter: async (userId, fragmentKey, wikiKeys, relatedFragmentKeys) => {
-      /** @fallback — frontmatter update is best-effort */
-      try {
-        const [fragRow] = await db
-          .select({ repoPath: fragments.repoPath })
-          .from(fragments)
-          .where(eq(fragments.lookupKey, fragmentKey))
-        if (!fragRow?.repoPath) return
-
-        const fileContent = await gatewayClient.read(userId, fragRow.repoPath)
-        let updated = fileContent.content
-        updated = updated.replace(/status: PENDING/, `status: RESOLVED`)
-        updated = updated.replace(
-          /wikiKeys: \[.*?\]/,
-          `wikiKeys: [${wikiKeys.map((k) => `"${k}"`).join(', ')}]`
-        )
-        updated = updated.replace(
-          /relatedFragmentKeys: \[.*?\]/,
-          `relatedFragmentKeys: [${relatedFragmentKeys.map((k) => `"${k}"`).join(', ')}]`
-        )
-        if (updated === fileContent.content) return
-        await gatewayClient.write({
-          userId,
-          path: fragRow.repoPath,
-          content: updated,
-          message: `link: update ${fragmentKey} frontmatter`,
-          branch: 'main',
-        })
-      } catch (err) {
-        log.warn({ fragmentKey, err }, 'failed to update frontmatter')
-      }
-    },
+    insertEdge: insertEdgeRow,
   }
 
-  /** @step 2 — Run the linking orchestrator */
-  const input: import('@robin/agent').LinkingInput = {
-    userId: job.userId,
+  await runLinking(deps, {
     fragmentKey: job.fragmentKey,
-    fragmentContent,
+    fragmentContent: job.fragmentContent,
     entryKey: job.entryKey,
     vaultId: job.vaultId,
     jobId: job.jobId,
-  }
-
-  await runLinking(deps, input)
+  })
 
   const elapsed = (performance.now() - t0).toFixed(0)
   log.info({ jobId: job.jobId, ms: Number(elapsed) }, 'link job completed')
 
-  return {
-    jobId: job.jobId,
-    success: true,
-    processedAt: new Date().toISOString(),
-  }
+  return { jobId: job.jobId, success: true, processedAt: new Date().toISOString() }
 }
 
-/***********************************************************************
- * ## Reclassify Job Processor
- *
- * @remarks Triggered when a new thread is created. Re-scores existing
- * fragments against the new thread via vector search + LLM classification.
- * Fragments above threshold get `FRAGMENT_IN_WIKI` edges.
- *
- * @see {@link threadClassifyCall} — LLM classification call
- ***********************************************************************/
+// ── Worker lifecycle ────────────────────────────────────────────────────────
+
+let extractionWorker: ReturnType<typeof bullWorker.startExtractionWorker> | null = null
+let linkWorker: ReturnType<typeof bullWorker.startLinkWorker> | null = null
 
 /**
- * Re-evaluate existing fragments for a newly-created thread.
+ * Start global ingest workers. Single-user — one worker per queue, no per-user fan-out.
  *
- * @remarks
- * Uses hybrid search (gateway vector search + LLM classification) to
- * find fragments that belong to the new thread but were classified
- * before it existed. Threshold: 0.7 confidence.
- *
- * @param job - Reclassify job with wikiKey and userId
- * @returns {@link JobResult} with success status and reclassified count
+ * TODO(M3): re-register the regen worker, regen scheduler, and reclassify worker
+ * once those pipelines come back online.
  */
-async function processReclassifyJob(job: ReclassifyJob): Promise<JobResult> {
-  log.info({ jobId: job.jobId, userId: job.userId }, 'processing reclassify job')
-  const t0 = performance.now()
-
-  /** @step 1 — Load the target thread */
-  const [thread] = await db.select().from(wikis).where(eq(wikis.lookupKey, job.wikiKey))
-
-  /** @gate — thread not found → abort */
-  if (!thread) {
-    log.warn({ jobId: job.jobId, wikiKey: job.wikiKey }, 'reclassify: thread not found')
-    return {
-      jobId: job.jobId,
-      success: false,
-      error: 'thread not found',
-      processedAt: new Date().toISOString(),
-    }
-  }
-
-  /** @step 2 — Search for candidate fragments via vector similarity */
-  const searchQuery = `${thread.name} ${thread.prompt}`.trim()
-  const searchResult = await gatewayClient.search(job.userId, searchQuery, 20)
-
-  let reclassifiedCount = 0
-  const RECLASSIFY_THRESHOLD = 0.7
-
-  /** @step 3 — Score each candidate against the thread via LLM */
-  for (const candidate of searchResult.results ?? []) {
-    if (!candidate.path) continue
-    try {
-      const fileContent = await gatewayClient.read(job.userId, candidate.path)
-      const spec = loadWikiClassificationSpec({
-        content: fileContent.content,
-        wikis: JSON.stringify([
-          {
-            key: thread.lookupKey,
-            name: thread.name,
-            type: thread.type,
-            prompt: thread.prompt,
-          },
-        ]),
-      })
-      const result = await threadClassifyCall(spec.system, spec.user)
-      const score = result.assignments.length > 0 ? result.assignments[0].confidence : 0
-
-      /** @gate — score above threshold → create edge */
-      if (score >= RECLASSIFY_THRESHOLD) {
-        const fragLookupKey = candidate.path.split('/').pop()?.replace('.md', '') ?? ''
-        await db.insert(edges).values({
-          id: crypto.randomUUID(),
-          userId: job.userId,
-          srcType: 'frag',
-          srcId: fragLookupKey,
-          dstType: 'wiki',
-          dstId: thread.lookupKey,
-          edgeType: 'FRAGMENT_IN_WIKI',
-          attrs: { score },
-        })
-        reclassifiedCount++
-      }
-    } catch (err) {
-      /** @fallback — individual candidate failure is non-fatal */
-      log.warn({ path: candidate.path, err }, 'reclassify: failed to evaluate candidate')
-    }
-  }
-
-  /** @step 4 — Mark thread DIRTY if any fragments were reclassified */
-  if (reclassifiedCount > 0) {
-    await db.execute(
-      sql`UPDATE ${wikis} SET state = 'DIRTY', updated_at = NOW()
-          WHERE lookup_key = ${job.wikiKey}`
-    )
-  }
-
-  const elapsed = (performance.now() - t0).toFixed(0)
-  log.info({ jobId: job.jobId, ms: Number(elapsed), reclassifiedCount }, 'reclassify job completed')
-
-  return {
-    jobId: job.jobId,
-    success: true,
-    processedAt: new Date().toISOString(),
-  }
-}
-
-/***********************************************************************
- * ## Write Job Processor (Legacy)
- *
- * @deprecated Will be removed once all callers migrate to
- * `enqueueExtraction`. Exists only for backwards compatibility.
- *
- * @remarks Wraps {@link runExtraction} with a provisioning guard.
- * If the user's git repo isn't provisioned yet, the job throws and
- * BullMQ auto-retries — buying time for the provision job to complete.
- *
- * @see {@link processExtractionJob} — the non-legacy equivalent
- ***********************************************************************/
-
-/**
- * Process a legacy write job by delegating to the extraction pipeline.
- *
- * @deprecated Use extraction jobs directly via `enqueueExtraction`.
- *
- * @param job - Write job with userId and payload containing rawEntry
- * @returns {@link JobResult} with success status and timing
- * @throws Error if user not provisioned (BullMQ retries automatically)
- */
-async function processWriteJob(job: WriteJob): Promise<JobResult> {
-  const { userId, payload } = job
-  log.debug({ jobId: job.jobId, userId }, 'processing write job')
-
-  /** @gate — user not provisioned → throw (BullMQ retries) */
-  const [provCheck] = await db
-    .select({ publicKey: users.publicKey })
-    .from(users)
-    .where(eq(users.id, userId))
-  if (!provCheck?.publicKey) {
-    throw new Error(`user ${userId} not yet provisioned, will retry`)
-  }
-
-  const t0 = performance.now()
-
-  /** @step 1 — Extract input from legacy write payload */
-  const entryKey = payload.entryId ?? job.jobId
-  const content = payload.rawEntry?.content ?? ''
-  const source = payload.rawEntry?.source ?? 'api'
-  const userSelectedVaultId = payload.rawEntry?.metadata?.vaultId as string | undefined
-
-  /** @step 2 — Resolve fallback vault (same as extraction processor) */
-  const [defaultVault] = await db
-    .select({ id: vaults.id })
-    .from(vaults)
-    .where(and(eq(vaults.userId, userId), eq(vaults.type, 'inbox')))
-  const fallbackVaultId = defaultVault?.id ?? ''
-
-  /** @step 3 — Build extraction deps (mirrors processExtractionJob) */
-  const deps: ExtractionOrchestratorDeps = {
-    acquireLock,
-    releaseLock,
-    emitEvent,
-    db,
-    vaultClassifyDeps: {
-      listUserVaults: async (uid: string) => {
-        const rows = await db
-          .select({ id: vaults.id, name: vaults.name, slug: vaults.slug })
-          .from(vaults)
-          .where(eq(vaults.userId, uid))
-        return rows
-      },
-      llmCall: vaultClassifyCall,
-      confidenceThreshold: Number.parseFloat(process.env.VAULT_CONFIDENCE_THRESHOLD ?? '0.5'),
-      fallbackVaultId,
-    },
-    fragmentDeps: {
-      llmCall: fragmentCall,
-      emitEvent,
-    },
-    entityExtractDeps: {
-      loadUserPeople: async (uid: string) => {
-        const rows = await db
-          .select({
-            lookupKey: people.lookupKey,
-            name: people.name,
-            sections: people.sections,
-          })
-          .from(people)
-          .where(eq(people.userId, uid))
-        return rows.map((r) => ({
-          lookupKey: r.lookupKey,
-          canonicalName: r.name,
-          aliases: ((r.sections as any)?.aliases as string[]) ?? [],
-        }))
-      },
-      llmCall: entityExtractCall,
-      emitEvent,
-      config: DEFAULT_RESOLUTION_CONFIG,
-      makePeopleKey: () => makeLookupKey('person'),
-    },
-    persistDeps: {
-      batchWrite: async (req) => {
-        const result = await gatewayClient.batchWrite(req)
-        return { commitHash: result.commitHash }
-      },
-      insertEntry: async (entry) => {
-        await db
-          .insert(entries)
-          .values(entry as any)
-          .onConflictDoUpdate({
-            target: entries.lookupKey,
-            set: {
-              slug: (entry as any).slug,
-              title: (entry as any).title,
-              state: (entry as any).state,
-              repoPath: (entry as any).repoPath,
-              updatedAt: new Date(),
-            },
-          })
-      },
-      insertFragment: async (fragment) => {
-        const f = fragment as any
-        f.slug = await resolveFragmentSlug(db, job.userId, f.slug)
-        if (f.content) f.dedupHash = computeContentHash(f.content)
-        await db.insert(fragments).values(f)
-      },
-      insertEdge: async (edge) => {
-        await db
-          .insert(edges)
-          .values({ id: crypto.randomUUID(), userId, ...edge } as any)
-          .onConflictDoNothing()
-      },
-      insertPerson: async (person) => {
-        await db
-          .insert(people)
-          .values(person as any)
-          .onConflictDoUpdate({
-            target: [people.userId, people.slug],
-            set: {
-              name: (person as any).name,
-              sections: (person as any).sections,
-              repoPath: (person as any).repoPath,
-              updatedAt: new Date(),
-            },
-          })
-      },
-      loadPersonByKey: async (key) => {
-        const rows = await db.select().from(people).where(eq(people.lookupKey, key))
-        if (rows.length === 0) return null
-        const r = rows[0]
-        return {
-          lookupKey: r.lookupKey,
-          slug: r.slug,
-          repoPath: r.repoPath ?? '',
-          name: r.name,
-          sections: r.sections as Record<string, unknown>,
-        }
-      },
-      emitEvent,
-      lookupFn: createWikiLookupFn(userId),
-    },
-    enqueueLinkJob: async (uid, linkJobData) => {
-      const linkJob: LinkJob = {
-        type: 'link',
-        jobId: crypto.randomUUID(),
-        userId: uid,
-        fragmentKey: linkJobData.fragmentKey,
-        entryKey: linkJobData.entryKey,
-        vaultId: linkJobData.vaultId,
-        fragmentContent: linkJobData.fragmentContent ?? '',
-        enqueuedAt: new Date().toISOString(),
-      }
-      await producer.enqueueLinkJob(uid, linkJob)
-    },
-  }
-
-  /** @step 4 — Delegate to extraction orchestrator */
-  await runExtraction(deps, {
-    userId,
-    content,
-    entryKey,
-    userSelectedVaultId,
-    source,
-    jobId: job.jobId,
-  })
-
-  const elapsed = (performance.now() - t0).toFixed(0)
-  log.info({ jobId: job.jobId, ms: Number(elapsed) }, 'write job completed')
-
-  return {
-    jobId: job.jobId,
-    success: true,
-    processedAt: new Date().toISOString(),
-  }
-}
-
-/***********************************************************************
- * ## Job Dispatcher
- *
- * @remarks Routes incoming jobs by type to the appropriate processor.
- * Sync and regen jobs delegate to their own worker modules.
- *
- * @see {@link processSyncJob} — `sync-worker.ts`
- * @see {@link processRegenJob} — `regen-worker.ts`
- ***********************************************************************/
-
-/**
- * Central job dispatcher. Routes by `job.type` to the correct processor.
- *
- * @param job - Any {@link RobinJob} variant
- * @returns {@link JobResult} from the matched processor
- * @throws Error for unknown job types
- */
-async function processJob(job: RobinJob): Promise<JobResult> {
-  switch (job.type) {
-    case 'extraction':
-      return processExtractionJob(job)
-    case 'link':
-      return processLinkJob(job)
-    case 'reclassify':
-      return processReclassifyJob(job)
-    case 'sync':
-      return processSyncJob(job)
-    case 'regen':
-      return processRegenJob(job)
-    case 'regen-batch':
-      return processRegenBatchJob(job)
-    case 'write':
-      return processWriteJob(job)
-    default:
-      throw new Error(`Unknown job type: ${(job as any).type}`)
-  }
-}
-
-/***********************************************************************
- * ## Vault & Config Bootstrapping
- *
- * @remarks First-run setup for new users. Both functions are idempotent
- * — safe to call on every provision.
- *
- * @see {@link processProvisionJob} — orchestrates these calls
- * @see {@link CONFIG_NOTE_BOOTSTRAPS} — seed data from `@robin/shared`
- ***********************************************************************/
-
-/**
- * Create default vaults for a new user if none exist.
- *
- * @remarks
- * Creates two vaults:
- * - **Robin** (`system`) — holds system configuration
- * - **User inbox** (`inbox`) — default destination for new entries
- *
- * @param userId   - User to bootstrap
- * @param userName - User's display name (falls back to `"My Notes"`)
- */
-async function bootstrapDefaultVaults(userId: string, userName: string | null) {
-  /** @gate — user already has vaults → skip */
-  const existing = await db.select({ id: vaults.id }).from(vaults).where(eq(vaults.userId, userId))
-  if (existing.length > 0) {
-    log.debug({ userId, count: existing.length }, 'user already has vaults, skipping bootstrap')
+export function startWorkers(): void {
+  if (extractionWorker || linkWorker) {
+    log.warn('workers already started — skipping')
     return
   }
 
-  /** @step 1 — Generate vault IDs and derive slug from user name */
-  const robinId = makeLookupKey('vault')
-  const defaultId = makeLookupKey('vault')
-  const defaultName = userName?.trim() || 'My Notes'
-  const defaultSlug = defaultName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
+  extractionWorker = bullWorker.startExtractionWorker(processExtractionJob)
+  extractionWorker.on('completed', (job) => log.info({ jobId: job.id }, 'extraction completed'))
+  extractionWorker.on('failed', (job, err) =>
+    log.error({ jobId: job?.id, err }, 'extraction failed')
+  )
 
-  /** @step 2 — Insert system + inbox vaults */
-  await db.insert(vaults).values([
-    {
-      id: robinId,
-      userId,
-      name: 'Robin',
-      slug: 'robin',
-      icon: 'PiRobotDuotone',
-      description: 'System configuration and settings',
-      type: 'system',
-    },
-    {
-      id: defaultId,
-      userId,
-      name: defaultName,
-      slug: defaultSlug,
-      icon: 'PiTrayDuotone',
-      description: 'Default vault for new entries',
-      type: 'inbox',
-    },
-  ])
+  linkWorker = bullWorker.startLinkWorker(processLinkJob)
+  linkWorker.on('completed', (job) => log.info({ jobId: job.id }, 'link completed'))
+  linkWorker.on('failed', (job, err) => log.error({ jobId: job?.id, err }, 'link failed'))
 
-  log.info({ userId, robinId, defaultId }, 'bootstrapped vaults')
-}
-
-/***********************************************************************
- * ## Provision Job Processor
- *
- * @remarks New-user onboarding: vaults → keypair →
- * git repo via gateway → persist keys. Fully idempotent — safe to
- * re-run on failed attempts.
- *
- * @see {@link bootstrapDefaultVaults} — vault creation
- * @see {@link generateKeypair} — SSH keypair generation
- * @see {@link gatewayClient.provision} — git repo provisioning
- ***********************************************************************/
-
-/**
- * Provision a new user: vaults, keypair, and git repo.
- *
- * @param job - {@link ProvisionJob} with userId
- * @returns {@link JobResult} with success/failure status
- * @throws Error on keypair generation or gateway failure (BullMQ retries)
- */
-export async function processProvisionJob(job: ProvisionJob): Promise<JobResult> {
-  const { userId, jobId } = job
-  log.info({ jobId, userId }, 'processing provision job')
-
-  /** @step 1 — Load user record */
-  const [user] = await db.select().from(users).where(eq(users.id, userId))
-
-  /** @gate — user not found → abort */
-  if (!user) {
-    log.error({ userId }, 'provision: user not found')
-    return {
-      jobId,
-      success: false,
-      error: 'user not found',
-      processedAt: new Date().toISOString(),
-    }
-  }
-
-  /** @step 2 — Bootstrap vaults */
-  await bootstrapDefaultVaults(userId, user.name)
-
-  try {
-    /** @step 3 — Generate keypair if missing */
-    let publicKey = user.publicKey ?? ''
-    let encryptedPrivateKey = user.encryptedPrivateKey ?? ''
-
-    if (!publicKey || !encryptedPrivateKey) {
-      const keySecret = process.env.KEY_ENCRYPTION_SECRET
-      if (!keySecret) throw new Error('KEY_ENCRYPTION_SECRET is not set')
-      const keys = generateKeypair(keySecret)
-      publicKey = keys.publicKey
-      encryptedPrivateKey = keys.encryptedPrivateKey
-      log.info({ userId, pubkeyLen: publicKey.length }, 'generated keypair')
-    }
-
-    /** @step 4 — Provision git repo via gateway (idempotent) */
-    await gatewayClient.provision(userId, publicKey)
-    log.info({ userId }, 'gateway provisioned')
-
-    /** @step 5 — Persist keys to DB (only after gateway succeeds) */
-    await db.update(users).set({ publicKey, encryptedPrivateKey }).where(eq(users.id, userId))
-    log.debug({ userId }, 'provision: DB updated')
-
-    return { jobId, success: true, processedAt: new Date().toISOString() }
-  } catch (err) {
-    log.error({ userId, err }, 'provision failed')
-    throw err
-  }
-}
-
-/***********************************************************************
- * ## Scheduler Worker
- *
- * @remarks Runs {@link processRegenBatchJob} on a cron schedule.
- * Dedicated BullMQ worker with `concurrency: 1` ensures only one
- * regen batch runs at a time.
- *
- * @see {@link setupRegenScheduler} — cron configuration
- * @see {@link QUEUE_NAMES.scheduler} — queue name
- ***********************************************************************/
-
-function startSchedulerWorker(): void {
-  import('@robin/queue')
-    .then(({ Worker: BullWorker }) => {
-      const schedulerQueue = producer.getQueue(QUEUE_NAMES.scheduler)
-      const schedulerWorker = new BullWorker(
-        QUEUE_NAMES.scheduler,
-        async (bullJob) => processRegenBatchJob(bullJob.data),
-        { connection, concurrency: 1, autorun: true }
-      )
-      schedulerWorker.on('completed', (job) => {
-        log.info({ jobId: job.id }, 'scheduler job completed')
-      })
-      schedulerWorker.on('failed', (job, err) => {
-        log.error({ jobId: job?.id, err }, 'scheduler job failed')
-      })
-      setupRegenScheduler(schedulerQueue).catch((err) =>
-        log.error({ err }, 'failed to set up regen scheduler')
-      )
-      log.info('scheduler worker started')
-    })
-    .catch((err) => log.error({ err }, 'scheduler worker failed to start'))
-}
-
-/***********************************************************************
- * ## Worker Lifecycle
- *
- * @remarks {@link startWorkers} is the main entry point called from
- * `index.ts`. Spins up provision worker, scheduler worker, and one
- * per-user write worker for every existing user.
- *
- * @see {@link spawnWriteWorker} — on-demand worker for new users
- ***********************************************************************/
-
-/**
- * Start all background workers: provision, scheduler, and per-user write workers.
- *
- * @remarks Called once at server startup from `index.ts`.
- */
-export function startWorkers() {
-  /** @step 1 — Start shared provision worker */
-  const provisionWorker = bullWorker.startProvisionWorker(processProvisionJob)
-  provisionWorker.on('completed', (job) => {
-    log.info({ jobId: job.id }, 'provision job completed')
-  })
-  provisionWorker.on('failed', (job, err) => {
-    log.error({ jobId: job?.id, err }, 'provision job failed')
-  })
-
-  /** @step 2 — Start scheduler worker for regen-batch jobs */
-  startSchedulerWorker()
-
-  /** @step 3 — Spawn per-user write workers for all existing users */
-  db.select({ id: users.id })
-    .from(users)
-    .then((rows) => {
-      for (const { id } of rows) {
-        spawnWriteWorker(id)
-      }
-      log.info({ count: rows.length }, 'started write workers')
-    })
-    .catch((err) => log.error({ err }, 'failed to load users for workers'))
-}
-
-const activeWriteWorkers = new Map<string, ReturnType<typeof bullWorker.startWriteWorker>>()
-
-/**
- * Spawn a dedicated write worker for a user (idempotent).
- *
- * @remarks
- * Each user gets their own BullMQ worker so jobs for one user don't
- * block another. Tracked in `activeWriteWorkers`, auto-cleaned on close.
- *
- * @param userId - User to spawn a write worker for
- *
- * @see {@link processJob} — dispatcher used as the worker's processor
- */
-export function spawnWriteWorker(userId: string): void {
-  /** @gate — already running → no-op */
-  if (activeWriteWorkers.has(userId)) return
-
-  const worker = bullWorker.startWriteWorker(userId, processJob as any)
-  activeWriteWorkers.set(userId, worker)
-
-  worker.on('completed', (job) => {
-    log.info({ userId, jobId: job.id }, 'job completed')
-  })
-
-  worker.on('failed', (job, err) => {
-    log.error({ userId, jobId: job?.id, err }, 'job failed')
-  })
-
-  worker.on('closed', () => {
-    activeWriteWorkers.delete(userId)
-  })
+  log.info('ingest workers started')
 }

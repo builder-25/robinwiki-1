@@ -148,7 +148,7 @@ describe('entityExtract', () => {
 
   it('calls LLM, parses output, resolves mentions, returns peopleMap', async () => {
     const mockDeps: EntityExtractDeps = {
-      loadUserPeople: vi
+      loadAllPeople: vi
         .fn()
         .mockResolvedValue([
           { lookupKey: 'personABC', canonicalName: 'Sarah Ouma', aliases: ['Sarah'] },
@@ -178,7 +178,6 @@ describe('entityExtract', () => {
 
     const result = await entityExtract(mockDeps, {
       content: 'Had coffee with Sarah. Bob said hello.',
-      userId: 'user1',
       entryKey: 'entry001',
       jobId: 'job001',
     })
@@ -193,7 +192,7 @@ describe('entityExtract', () => {
 
   it('returns empty results when no people found', async () => {
     const mockDeps: EntityExtractDeps = {
-      loadUserPeople: vi.fn().mockResolvedValue([]),
+      loadAllPeople: vi.fn().mockResolvedValue([]),
       llmCall: vi.fn().mockResolvedValue({ people: [] }),
       emitEvent: vi.fn().mockResolvedValue(undefined),
       config: DEFAULT_RESOLUTION_CONFIG,
@@ -202,7 +201,6 @@ describe('entityExtract', () => {
 
     const result = await entityExtract(mockDeps, {
       content: 'Nice weather today.',
-      userId: 'user1',
       entryKey: 'entry002',
       jobId: 'job002',
     })

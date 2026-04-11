@@ -1,11 +1,11 @@
 import type { MiddlewareHandler } from 'hono'
 import { eq } from 'drizzle-orm'
 import { db } from '../db/client.js'
-import { apiKeys } from '../db/schema.js'
+import { apiKeys, users } from '../db/schema.js'
 import { hashApiKey } from '../keypair.js'
 
-// API key auth for MCP endpoint
-// Clients send: Authorization: Bearer <api-key>
+// API key auth for MCP endpoint. Single-user: any valid api key resolves to
+// the lone user row; we still set `userId` on context for downstream auth.
 export const apiKeyMiddleware: MiddlewareHandler = async (c, next) => {
   const authHeader = c.req.header('Authorization')
   if (!authHeader?.startsWith('Bearer ')) {
@@ -20,6 +20,9 @@ export const apiKeyMiddleware: MiddlewareHandler = async (c, next) => {
 
   if (!row) return c.json({ error: 'Invalid API key' }, 401)
 
-  c.set('userId', row.userId)
+  const [user] = await db.select({ id: users.id }).from(users).limit(1)
+  if (!user) return c.json({ error: 'No user' }, 401)
+
+  c.set('userId', user.id)
   await next()
 }

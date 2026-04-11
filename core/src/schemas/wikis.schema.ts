@@ -6,13 +6,11 @@ import { lookupKeySchema, objectStateSchema, queuedResponseSchema } from './base
 export const threadResponseSchema = z.object({
   id: lookupKeySchema,
   lookupKey: lookupKeySchema,
-  userId: z.string(),
   slug: z.string(),
   name: z.string(),
   type: z.string(),
   prompt: z.string(),
   state: objectStateSchema,
-  repoPath: z.string(),
   vaultId: z.string().nullable(),
   lastRebuiltAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),

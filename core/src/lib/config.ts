@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import { configs, users } from '../db/schema.js'
 import { decryptWithDek, encryptWithDek, loadMasterKey, unwrapDek } from './crypto.js'
@@ -77,14 +77,7 @@ export async function getConfig(opts: GetConfigOptions): Promise<unknown | null>
   const rows = await db
     .select()
     .from(configs)
-    .where(
-      and(
-        eq(configs.scope, scope),
-        scope === 'user' ? eq(configs.userId, userId as string) : isNull(configs.userId),
-        eq(configs.kind, kind),
-        eq(configs.key, key)
-      )
-    )
+    .where(and(eq(configs.scope, scope), eq(configs.kind, kind), eq(configs.key, key)))
     .limit(1)
 
   const row = rows[0]
@@ -151,7 +144,6 @@ export async function setConfig(opts: SetConfigOptions): Promise<void> {
     .insert(configs)
     .values({
       scope,
-      userId: scope === 'user' ? (userId as string) : null,
       kind,
       key,
       value: storedValue,
@@ -159,7 +151,7 @@ export async function setConfig(opts: SetConfigOptions): Promise<void> {
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
-      target: [configs.scope, configs.userId, configs.kind, configs.key],
+      target: [configs.scope, configs.kind, configs.key],
       set: {
         value: storedValue,
         encrypted,

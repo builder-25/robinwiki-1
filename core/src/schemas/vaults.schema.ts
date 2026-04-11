@@ -4,7 +4,6 @@ import { z } from 'zod'
 
 export const vaultResponseSchema = z.object({
   id: z.string(),
-  userId: z.string(),
   name: z.string(),
   slug: z.string(),
   icon: z.string(),

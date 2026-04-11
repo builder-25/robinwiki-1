@@ -18,11 +18,15 @@ import { peopleRoutes } from './routes/people.js'
 import { graphRoutes } from './routes/graph.js'
 import { relationshipsRoutes } from './routes/relationships.js'
 import { contentRoutes } from './routes/content.js'
-import { internalRoutes } from './routes/internal.js'
+// M2 dormant: internalRoutes is the git-sync webhook, preserved verbatim in
+// src/routes/internal.ts for M3/M4 refinement. Gateway is gone in M2 so the
+// route is not mounted. Restore when sync-back lands.
+// import { internalRoutes } from './routes/internal.js'
 import { startWorkers } from './queue/worker.js'
 import { bullBoardApp } from './routes/bull-board.js'
 import { adminRoutes } from './routes/admin.js'
 import { seedFirstUser } from './bootstrap/seed-first-user.js'
+import { checkOpenRouterKey } from './bootstrap/check-openrouter-key.js'
 import { loadMasterKey } from './lib/crypto.js'
 
 declare module 'hono' {
@@ -87,7 +91,8 @@ const openapiSpec = loadYaml(readFileSync(new URL('../openapi.yaml', import.meta
 
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }))
 app.get('/openapi.json', (c) => c.json(openapiSpec))
-app.route('/internal', internalRoutes)
+// M2 dormant: git-sync webhook. See import comment above.
+// app.route('/internal', internalRoutes)
 app.route('/admin', adminRoutes)
 app.use('/api/auth/*', (c) => auth.handler(c.req.raw))
 app.route('/admin/queues', bullBoardApp)
@@ -121,6 +126,12 @@ await seedFirstUser().catch((err) => {
   process.exit(1)
 })
 
+// Warn loudly if the OpenRouter key is missing — non-fatal so non-ingest traffic still works
+await checkOpenRouterKey().catch((err) => {
+  logger.error({ err }, 'check-openrouter-key failed')
+})
+
+// Single global worker — no per-user spawning under single-user M2
 startWorkers()
 
 const port = Number.parseInt(process.env.PORT ?? '3000', 10)

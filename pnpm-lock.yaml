@@ -15,6 +15,9 @@ importers:
       '@biomejs/biome':
         specifier: ^1.9.4
         version: 1.9.4
+      tsx:
+        specifier: ^4.0.0
+        version: 4.21.0
       turbo:
         specifier: ^2.8.11
         version: 2.9.6
@@ -42,6 +45,9 @@ importers:
       '@robin/agent':
         specifier: workspace:*
         version: link:../packages/agent
+      '@robin/caslock':
+        specifier: workspace:*
+        version: link:../packages/caslock
       '@robin/queue':
         specifier: workspace:*
         version: link:../packages/queue
@@ -121,15 +127,18 @@ importers:
       '@openrouter/ai-sdk-provider':
         specifier: ^2.2.3
         version: 2.5.1(ai@6.0.158(zod@4.3.6))(zod@4.3.6)
+      '@robin/caslock':
+        specifier: workspace:*
+        version: link:../caslock
       '@robin/shared':
         specifier: workspace:*
         version: link:../shared
+      drizzle-orm:
+        specifier: ^0.45.1
+        version: 0.45.2(@opentelemetry/api@1.9.0)(kysely@0.28.16)(postgres@3.4.9)
       fuzzball:
         specifier: ^2.2.3
         version: 2.2.3
-      gray-matter:
-        specifier: ^4.0.3
-        version: 4.0.3
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -152,6 +161,24 @@ importers:
       vitest:
         specifier: ^3.2.1
         version: 3.2.4(@types/debug@4.1.13)(@types/node@20.19.39)(esbuild@0.27.7)(tsx@4.21.0)
+
+  packages/caslock:
+    devDependencies:
+      '@types/node':
+        specifier: ^25.3.5
+        version: 25.6.0
+      drizzle-orm:
+        specifier: ^0.45.1
+        version: 0.45.2(@opentelemetry/api@1.9.0)(kysely@0.28.16)(postgres@3.4.9)
+      tsdown:
+        specifier: ^0.21.0
+        version: 0.21.7(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.1
+        version: 3.2.4(@types/debug@4.1.13)(@types/node@25.6.0)(esbuild@0.27.7)(tsx@4.21.0)
 
   packages/queue:
     dependencies:

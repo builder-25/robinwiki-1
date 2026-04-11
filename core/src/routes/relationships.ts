@@ -15,7 +15,6 @@ relationshipsRouter.use('*', sessionMiddleware)
 
 // GET /relationships/:type/:id — get all relationships for an object
 relationshipsRouter.get('/:type/:id', async (c) => {
-  const userId = c.get('userId') as string
   const type = c.req.param('type')
   const id = c.req.param('id')
 
@@ -29,7 +28,6 @@ relationshipsRouter.get('/:type/:id', async (c) => {
     .from(edges)
     .where(
       and(
-        eq(edges.userId, userId),
         isNull(edges.deletedAt),
         or(
           and(eq(edges.srcType, type), eq(edges.srcId, id)),

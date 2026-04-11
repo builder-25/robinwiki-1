@@ -1,19 +1,14 @@
 import { Hono } from 'hono'
-import { eq, and, isNull, sql } from 'drizzle-orm'
-import { diffLines } from 'diff'
-import { parseFrontmatter, assembleFrontmatter } from '../lib/frontmatter.js'
+import { eq } from 'drizzle-orm'
 import { sessionMiddleware } from '../middleware/session.js'
 import { db } from '../db/client.js'
-import { entries, fragments, wikis, people, edges, edits } from '../db/schema.js'
-import { gatewayClient } from '../gateway/client.js'
+import { entries, fragments, wikis, people, edits } from '../db/schema.js'
 import { VALID_TYPES, WRITE_SCHEMAS, type ContentType } from '../lib/content-schemas.js'
 import {
   contentRawResponseSchema,
   contentStructuredResponseSchema,
 } from '../schemas/content.schema.js'
 import { okResponseSchema } from '../schemas/base.schema.js'
-import { createWikiLookupFn } from '../lib/wiki-lookup.js'
-import { parseWikiLinks, resolveWikiLinks } from '@robin/shared'
 import { logger } from '../lib/logger.js'
 import { nanoid } from '../lib/id.js'
 
@@ -27,7 +22,7 @@ contentRoutes.use('*', sessionMiddleware)
 const TABLE_MAP = {
   fragment: fragments,
   entry: entries,
-  thread: wikis,
+  wiki: wikis,
   person: people,
 } as const
 
@@ -38,11 +33,12 @@ function isValidType(type: string): type is ContentType {
 }
 
 // ── GET /:type/:key ─────────────────────────────────────────────────────
+// Post-M2: content lives in DB columns, not git. Returns the entry content
+// for type=entry; other types currently have no body store and return empty.
 
 contentRoutes.get('/:type/:key', async (c) => {
   const type = c.req.param('type')
   const key = c.req.param('key')
-  const userId = c.get('userId') as string
 
   if (!isValidType(type)) {
     return c.json(
@@ -55,45 +51,38 @@ contentRoutes.get('/:type/:key', async (c) => {
 
   const table = TABLE_MAP[type]
   const [row] = await db
-    .select({
-      lookupKey: table.lookupKey,
-      repoPath: table.repoPath,
-      deletedAt: table.deletedAt,
-    })
+    .select()
     .from(table)
-    .where(and(eq(table.lookupKey, key), eq(table.userId, userId)))
+    .where(eq(table.lookupKey, key))
     .limit(1)
 
   if (!row || row.deletedAt) {
     return c.json({ error: 'Not found' }, 404)
   }
 
-  if (!row.repoPath) {
-    return c.json({ error: 'Content not available' }, 404)
-  }
-
-  const file = await gatewayClient.read(userId, row.repoPath)
-  const raw = file.content
+  // Only entry rows currently store the source content directly.
+  const raw = type === 'entry' ? ((row as { content?: string }).content ?? '') : ''
   const format = c.req.query('format')
 
   if (format === 'structured') {
-    const { frontmatter, body } = parseFrontmatter(raw)
-    // Apply defaults for common fields
-    frontmatter.wikiLinks = frontmatter.wikiLinks ?? []
-    frontmatter.brokenLinks = frontmatter.brokenLinks ?? []
-    frontmatter.tags = frontmatter.tags ?? []
-    return c.json(contentStructuredResponseSchema.parse({ frontmatter, body, raw }))
+    return c.json(
+      contentStructuredResponseSchema.parse({
+        frontmatter: { wikiLinks: [], brokenLinks: [], tags: [] },
+        body: raw,
+        raw,
+      })
+    )
   }
 
   return c.json(contentRawResponseSchema.parse({ content: raw }))
 })
 
 // ── PUT /:type/:key ─────────────────────────────────────────────────────
+// Post-M2: writes update DB columns directly. No git, no frontmatter merging.
 
 contentRoutes.put('/:type/:key', async (c) => {
   const type = c.req.param('type') as string
   const key = c.req.param('key')
-  const userId = c.get('userId') as string
 
   if (!isValidType(type)) {
     return c.json(
@@ -106,24 +95,15 @@ contentRoutes.put('/:type/:key', async (c) => {
 
   const table = TABLE_MAP[type]
   const [row] = await db
-    .select({
-      lookupKey: table.lookupKey,
-      repoPath: table.repoPath,
-      deletedAt: table.deletedAt,
-    })
+    .select({ lookupKey: table.lookupKey, deletedAt: table.deletedAt })
     .from(table)
-    .where(and(eq(table.lookupKey, key), eq(table.userId, userId)))
+    .where(eq(table.lookupKey, key))
     .limit(1)
 
   if (!row || row.deletedAt) {
     return c.json({ error: 'Not found' }, 404)
   }
 
-  if (!row.repoPath) {
-    return c.json({ error: 'Content not available' }, 404)
-  }
-
-  // Parse and validate request body
   let rawBody: unknown
   try {
     rawBody = await c.req.json()
@@ -142,41 +122,8 @@ contentRoutes.put('/:type/:key', async (c) => {
     body?: string
   }
   const body = type === 'entry' ? '' : (data.body ?? '')
-
-  // Read current content for diff (thread edits) and for base frontmatter
-  const currentFile = await gatewayClient.read(userId, row.repoPath)
-  const current = parseFrontmatter(currentFile.content)
-
-  // Resolve wiki-links from body
-  if (body) {
-    const wikiParsed = parseWikiLinks(body)
-    const lookupFn = createWikiLookupFn(userId)
-    const wikiResult = await resolveWikiLinks(wikiParsed, lookupFn)
-    data.frontmatter.wikiLinks = wikiResult.resolved
-    data.frontmatter.brokenLinks = wikiResult.broken
-  } else {
-    data.frontmatter.wikiLinks = []
-    data.frontmatter.brokenLinks = []
-  }
-
-  // Merge frontmatter: start with existing, overlay user edits
-  const mergedFm = { ...current.frontmatter, ...data.frontmatter }
-
-  // Assemble markdown
-  const assembled = assembleFrontmatter(mergedFm, body || current.body)
-
-  // Write to gateway
-  await gatewayClient.write({
-    userId,
-    path: row.repoPath,
-    content: assembled,
-    message: 'content: update via API',
-    branch: 'main',
-    batch: true,
-  })
-
-  // Update DB row
   const now = new Date()
+
   if (type === 'fragment') {
     await db
       .update(fragments)
@@ -186,33 +133,6 @@ contentRoutes.put('/:type/:key', async (c) => {
         updatedAt: now,
       })
       .where(eq(fragments.lookupKey, key))
-
-    // Mark parent wikis DIRTY
-    // Find wikis connected to this fragment via edges
-    const threadEdgeRows = await db
-      .select({ dstId: edges.dstId })
-      .from(edges)
-      .where(
-        and(
-          eq(edges.srcType, 'frag'),
-          eq(edges.srcId, key),
-          eq(edges.dstType, 'wiki'),
-          eq(edges.edgeType, 'FRAGMENT_IN_WIKI'),
-          isNull(edges.deletedAt)
-        )
-      )
-
-    if (threadEdgeRows.length > 0) {
-      const wikiKeys = threadEdgeRows.map((r) => r.dstId)
-      await db.execute(
-        sql`UPDATE wikis SET state = 'DIRTY', updated_at = NOW()
-            WHERE lookup_key = ANY(ARRAY[${sql.join(
-              wikiKeys.map((k) => sql`${k}`),
-              sql`, `
-            )}])`
-      )
-      log.info({ fragmentKey: key, threadCount: wikiKeys.length }, 'marked parent wikis DIRTY')
-    }
   } else if (type === 'entry') {
     await db
       .update(entries)
@@ -232,25 +152,16 @@ contentRoutes.put('/:type/:key', async (c) => {
       })
       .where(eq(wikis.lookupKey, key))
 
-    // Log thread body edit delta
-    if (body && current.body !== body) {
-      const changes = diffLines(current.body, body)
-      const additions = changes
-        .filter((c) => c.added)
-        .map((c) => c.value.trim())
-        .filter((v) => v.length > 0)
-
-      if (additions.length > 0) {
-        await db.insert(edits).values({
-          id: nanoid(),
-          objectType: 'wiki',
-          objectId: key,
-          userId,
-          type: 'addition',
-          content: additions.join('\n'),
-        })
-        log.info({ wikiKey: key, additionCount: additions.length }, 'logged wiki edit delta')
-      }
+    // Log thread body edit as a single addition (no diff vs git anymore)
+    if (body) {
+      await db.insert(edits).values({
+        id: nanoid(),
+        objectType: 'wiki',
+        objectId: key,
+        type: 'addition',
+        content: body,
+      })
+      log.info({ wikiKey: key }, 'logged wiki edit')
     }
   } else if (type === 'person') {
     await db

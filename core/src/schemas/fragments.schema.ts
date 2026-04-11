@@ -6,7 +6,6 @@ import { lookupKeySchema, objectStateSchema, paginationQuerySchema } from './bas
 export const fragmentResponseSchema = z.object({
   id: lookupKeySchema,
   lookupKey: lookupKeySchema,
-  userId: z.string(),
   slug: z.string(),
   title: z.string(),
   type: z.string().nullable(),
@@ -14,7 +13,6 @@ export const fragmentResponseSchema = z.object({
   entryId: z.string().nullable(),
   vaultId: z.string().nullable(),
   state: objectStateSchema,
-  repoPath: z.string(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 })

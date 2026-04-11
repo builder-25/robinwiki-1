@@ -77,7 +77,6 @@ export const auth = betterAuth({
         .enqueueProvision({
           type: 'provision',
           jobId: `provision-${userId}`,
-          userId,
           enqueuedAt: new Date().toISOString(),
         })
         .catch((err) => log.error({ userId, err }, 'failed to enqueue provision'))
