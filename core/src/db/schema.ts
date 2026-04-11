@@ -8,10 +8,22 @@ import {
   boolean,
   index,
   uniqueIndex,
+  vector,
+  customType,
+  check,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { nanoid } from '../lib/id.js'
 
-// ─── Auth Tables (better-auth — preserved exactly) ───
+// tsvector custom column — managed by raw SQL triggers in the migration.
+// Drizzle treats it as opaque; no reads or writes from the ORM layer.
+const tsvector = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return 'tsvector'
+  },
+})
+
+// ─── Auth Tables (better-auth — preserved with single-user additions) ───
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -19,9 +31,14 @@ export const users = pgTable('users', {
   emailVerified: boolean('email_verified').notNull().default(false),
   name: text('name'),
   image: text('image'),
+  // MCP JWT signing + token revocation (preserved from prior schema):
   publicKey: text('public_key').notNull().default(''),
   encryptedPrivateKey: text('encrypted_private_key').notNull().default(''),
   mcpTokenVersion: integer('mcp_token_version').notNull().default(1),
+  // Single-user additions (M1):
+  encryptedDek: text('encrypted_dek').notNull().default(''),
+  passwordResetRequired: boolean('password_reset_required').notNull().default(false),
+  onboardingComplete: boolean('onboarding_complete').notNull().default(false),
   onboardedAt: timestamp('onboarded_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -82,11 +99,38 @@ export const vaults = pgTable(
     description: text('description').notNull().default(''),
     profile: text('profile').notNull().default(''),
     color: text('color').notNull().default(''),
-    type: text('type').notNull().default('user'), // 'user' | 'system' | 'inbox' (no more 'uncategorized')
+    type: text('type').notNull().default('user'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
   (t) => [index('vaults_user_idx').on(t.userId)]
+)
+
+// ─── Configs (normalized system + user config store) ───
+
+export const configs = pgTable(
+  'configs',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    scope: text('scope').notNull(), // 'system' | 'user'
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(), // 'llm_key' | 'model_preference' | 'wiki_type_prompt' | ...
+    key: text('key').notNull(),
+    value: jsonb('value').notNull().$type<unknown>(),
+    encrypted: boolean('encrypted').notNull().default(false),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex('configs_scope_user_kind_key_uidx').on(t.scope, t.userId, t.kind, t.key),
+    index('configs_user_kind_idx').on(t.userId, t.kind),
+    check(
+      'configs_scope_check',
+      sql`(${t.scope} = 'system' AND ${t.userId} IS NULL) OR (${t.scope} = 'user' AND ${t.userId} IS NOT NULL)`
+    ),
+  ]
 )
 
 // ─── State Enum ───
@@ -118,8 +162,10 @@ function baseColumns() {
 
 // ─── Domain Tables ───
 
+// `entries` TS export intentionally preserved; SQL table name is `raw_sources`.
+// The API and all internal code continue to use "entry" terminology.
 export const entries = pgTable(
-  'entries',
+  'raw_sources',
   {
     ...baseColumns(),
     title: text('title').notNull().default(''),
@@ -131,8 +177,8 @@ export const entries = pgTable(
     }),
   },
   (t) => [
-    index('entries_user_idx').on(t.userId),
-    uniqueIndex('entries_user_slug_uidx').on(t.userId, t.slug),
+    index('raw_sources_user_idx').on(t.userId),
+    uniqueIndex('raw_sources_user_slug_uidx').on(t.userId, t.slug),
   ]
 )
 
@@ -149,6 +195,8 @@ export const fragments = pgTable(
     vaultId: text('vault_id').references(() => vaults.id, {
       onDelete: 'set null',
     }),
+    embedding: vector('embedding', { dimensions: 1536 }),
+    searchVector: tsvector('search_vector'),
   },
   (t) => [
     index('fragments_user_idx').on(t.userId),
@@ -156,8 +204,8 @@ export const fragments = pgTable(
   ]
 )
 
-export const threads = pgTable(
-  'threads',
+export const wikis = pgTable(
+  'wikis',
   {
     ...baseColumns(),
     name: text('name').notNull(),
@@ -167,10 +215,12 @@ export const threads = pgTable(
       onDelete: 'set null',
     }),
     lastRebuiltAt: timestamp('last_rebuilt_at'),
+    embedding: vector('embedding', { dimensions: 1536 }),
+    searchVector: tsvector('search_vector'),
   },
   (t) => [
-    index('threads_user_idx').on(t.userId),
-    uniqueIndex('threads_user_slug_uidx').on(t.userId, t.slug),
+    index('wikis_user_idx').on(t.userId),
+    uniqueIndex('wikis_user_slug_uidx').on(t.userId, t.slug),
   ]
 )
 
@@ -182,6 +232,8 @@ export const people = pgTable(
     relationship: text('relationship').notNull().default(''),
     sections: jsonb('sections').notNull().default({}).$type<Record<string, unknown>>(),
     lastRebuiltAt: timestamp('last_rebuilt_at'),
+    embedding: vector('embedding', { dimensions: 1536 }),
+    searchVector: tsvector('search_vector'),
   },
   (t) => [
     index('people_user_idx').on(t.userId),
@@ -189,17 +241,16 @@ export const people = pgTable(
   ]
 )
 
-// ─── Thread Edits (user edit log for wiki regen) ───
+// ─── Edits (generalized user-edit log across any object type) ───
 
-export const threadEdits = pgTable(
-  'thread_edits',
+export const edits = pgTable(
+  'edits',
   {
     id: text('id')
       .primaryKey()
       .$defaultFn(() => nanoid()),
-    threadId: text('thread_id')
-      .notNull()
-      .references(() => threads.lookupKey, { onDelete: 'cascade' }),
+    objectType: text('object_type').notNull(), // 'wiki' | 'raw_source' | 'fragment' | 'person'
+    objectId: text('object_id').notNull(), // lookup_key of target
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
@@ -207,7 +258,7 @@ export const threadEdits = pgTable(
     type: text('type').notNull().default('addition'),
     content: text('content').notNull(),
   },
-  (t) => [index('thread_edits_thread_idx').on(t.threadId)]
+  (t) => [index('edits_object_idx').on(t.objectType, t.objectId)]
 )
 
 // ─── Edges ───
@@ -259,7 +310,7 @@ export const pipelineEvents = pgTable(
     entryKey: text('entry_key').notNull(),
     jobId: text('job_id').notNull(),
     stage: text('stage').notNull(),
-    status: text('status').notNull(), // 'started' | 'completed' | 'failed'
+    status: text('status').notNull(),
     fragmentKey: text('fragment_key'),
     metadata: jsonb('metadata').$type<Record<string, unknown>>(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -271,27 +322,7 @@ export const pipelineEvents = pgTable(
   ]
 )
 
-// ─── Operational Tables (preserved) ───
-
-export const configNotes = pgTable(
-  'config_notes',
-  {
-    id: text('id').primaryKey(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    key: text('key').notNull(),
-    title: text('title').notNull(),
-    content: text('content').notNull().default(''),
-    frontmatter: jsonb('frontmatter').notNull().default({}).$type<Record<string, unknown>>(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').defaultNow().notNull(),
-  },
-  (t) => [
-    index('config_notes_user_idx').on(t.userId),
-    uniqueIndex('config_notes_user_key_uidx').on(t.userId, t.key),
-  ]
-)
+// ─── Operational Tables ───
 
 export const auditLog = pgTable('audit_log', {
   id: text('id').primaryKey(),
