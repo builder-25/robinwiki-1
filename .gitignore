@@ -3,3 +3,7 @@
 node_modules
 dist
 .turbo
+.planning
+.uat
+*.rdb
+!.claude/skills
