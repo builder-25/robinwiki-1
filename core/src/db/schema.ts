@@ -213,10 +213,17 @@ export const wikis = pgTable(
       onDelete: 'set null',
     }),
     lastRebuiltAt: timestamp('last_rebuilt_at'),
+    published: boolean('published').notNull().default(false),
+    publishedSlug: text('published_slug'),
+    publishedAt: timestamp('published_at'),
+    regenerate: boolean('regenerate').notNull().default(true),
     embedding: vector('embedding', { dimensions: 1536 }),
     searchVector: tsvector('search_vector'),
   },
-  (t) => [uniqueIndex('wikis_slug_uidx').on(t.slug)]
+  (t) => [
+    uniqueIndex('wikis_slug_uidx').on(t.slug),
+    uniqueIndex('wikis_published_slug_uidx').on(t.publishedSlug),
+  ]
 )
 
 export const people = pgTable(

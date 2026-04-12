@@ -18,11 +18,14 @@
  ***********************************************************************/
 
 import { z } from 'zod/v4'
+import { eq } from 'drizzle-orm'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { listWikis, getThread, getFragment, findPersonById, findPersonByQuery, listWikiTypes } from './resolvers.js'
 import type { McpResolverDeps } from './resolvers.js'
 import { handleLogEntry, handleLogFragment, handleCreateWikiType, handleCreateWiki, handleEditWiki } from './handlers.js'
 import type { McpServerDeps } from './handlers.js'
+import { wikis } from '../db/schema.js'
+import { nanoid24 } from '../lib/id.js'
 
 export type { McpServerDeps }
 
@@ -307,6 +310,122 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     },
     async ({ slug, name, shortDescriptor, descriptor, prompt }) => {
       return handleCreateWikiType(deps, { slug, name, shortDescriptor, descriptor, prompt })
+    }
+  )
+
+  /***********************************************************************
+   * ## Publish tools
+   ***********************************************************************/
+
+  server.registerTool(
+    'publish_wiki',
+    {
+      description:
+        'Publish a wiki with a stable public URL. Generates a nanoid slug on first publish. ' +
+        'Wiki must have content before publishing.',
+      inputSchema: {
+        wikiKey: z.string().describe('Wiki lookupKey or slug'),
+      },
+    },
+    async ({ wikiKey }) => {
+      try {
+        const [wiki] = await deps.db
+          .select()
+          .from(wikis)
+          .where(eq(wikis.lookupKey, wikiKey))
+
+        if (!wiki) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Wiki not found' }) }],
+            isError: true as const,
+          }
+        }
+
+        if (!wiki.content) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Cannot publish a wiki with no content' }) }],
+            isError: true as const,
+          }
+        }
+
+        const slug = wiki.publishedSlug ?? nanoid24()
+        const [updated] = await deps.db
+          .update(wikis)
+          .set({
+            published: true,
+            publishedSlug: slug,
+            publishedAt: wiki.publishedAt ?? new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(wikis.lookupKey, wikiKey))
+          .returning()
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              published: updated.published,
+              publishedSlug: updated.publishedSlug,
+              publishedAt: updated.publishedAt,
+            }),
+          }],
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err)
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
+          isError: true as const,
+        }
+      }
+    }
+  )
+
+  server.registerTool(
+    'unpublish_wiki',
+    {
+      description:
+        'Unpublish a wiki. The slug is preserved so re-publishing restores the same URL.',
+      inputSchema: {
+        wikiKey: z.string().describe('Wiki lookupKey or slug'),
+      },
+    },
+    async ({ wikiKey }) => {
+      try {
+        const [wiki] = await deps.db
+          .select()
+          .from(wikis)
+          .where(eq(wikis.lookupKey, wikiKey))
+
+        if (!wiki) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Wiki not found' }) }],
+            isError: true as const,
+          }
+        }
+
+        const [updated] = await deps.db
+          .update(wikis)
+          .set({ published: false, updatedAt: new Date() })
+          .where(eq(wikis.lookupKey, wikiKey))
+          .returning()
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              published: updated.published,
+              publishedSlug: updated.publishedSlug,
+              publishedAt: updated.publishedAt,
+            }),
+          }],
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err)
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
+          isError: true as const,
+        }
+      }
     }
   )
 

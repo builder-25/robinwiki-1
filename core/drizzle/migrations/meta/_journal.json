@@ -22,6 +22,13 @@
       "when": 1781416800000,
       "tag": "0003_wiki_types",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781503200000,
+      "tag": "0004_public_wikis",
+      "breakpoints": true
     }
   ]
 }

@@ -7,10 +7,12 @@ import { db } from '../db/client.js'
 import { wikis } from '../db/schema.js'
 import { logger } from '../lib/logger.js'
 import { validationHook } from '../lib/validation.js'
+import { nanoid24 } from '../lib/id.js'
 import {
   threadResponseSchema,
   threadWithWikiResponseSchema,
   updateThreadBodySchema,
+  publishWikiResponseSchema,
 } from '../schemas/wikis.schema.js'
 
 const log = logger.child({ component: 'wikis' })
@@ -75,11 +77,72 @@ wikisRouter.put('/:id', zValidator('json', updateThreadBodySchema, validationHoo
   return c.json(threadResponseSchema.parse(prepareThread(thread)))
 })
 
-// POST /wikis/:id/regenerate — manual wiki regen
-// TODO(M3): regen worker is dormant in M2. Restore when regen pipeline lands.
+// POST /wikis/:id/publish — publish wiki with stable nanoid slug
+wikisRouter.post('/:id/publish', async (c) => {
+  const id = c.req.param('id')
+  const [wiki] = await db.select().from(wikis).where(eq(wikis.lookupKey, id))
+  if (!wiki) return c.json({ error: 'Not found' }, 404)
+
+  if (!wiki.content) {
+    return c.json({ error: 'Cannot publish a wiki with no content' }, 400)
+  }
+
+  const slug = wiki.publishedSlug ?? nanoid24()
+  const [updated] = await db
+    .update(wikis)
+    .set({
+      published: true,
+      publishedSlug: slug,
+      publishedAt: wiki.publishedAt ?? new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(wikis.lookupKey, id))
+    .returning()
+
+  return c.json(publishWikiResponseSchema.parse(updated))
+})
+
+// POST /wikis/:id/unpublish — unpublish wiki (preserves slug for re-publish)
+wikisRouter.post('/:id/unpublish', async (c) => {
+  const id = c.req.param('id')
+  const [wiki] = await db.select().from(wikis).where(eq(wikis.lookupKey, id))
+  if (!wiki) return c.json({ error: 'Not found' }, 404)
+
+  const [updated] = await db
+    .update(wikis)
+    .set({ published: false, updatedAt: new Date() })
+    .where(eq(wikis.lookupKey, id))
+    .returning()
+
+  return c.json(publishWikiResponseSchema.parse(updated))
+})
+
+// POST /wikis/:id/regenerate — on-demand wiki regen
 wikisRouter.post('/:id/regenerate', async (c) => {
-  log.warn('wiki regen requested but disabled in M2')
-  return c.json({ error: 'Wiki regen disabled in M2 — will be restored in M3' }, 503)
+  const id = c.req.param('id')
+  const [wiki] = await db.select().from(wikis).where(eq(wikis.lookupKey, id))
+  if (!wiki) return c.json({ error: 'Not found' }, 404)
+
+  if (!wiki.regenerate) {
+    return c.json({ error: 'Regeneration is disabled for this wiki' }, 400)
+  }
+
+  // TODO(regen): Insert LLM generation call here — load wiki generation spec,
+  // gather linked fragments, assemble prompt, call LLM, write output to
+  // wikis.content, and log the regen as an edit with source: 'regen'.
+
+  const [updated] = await db
+    .update(wikis)
+    .set({ lastRebuiltAt: new Date(), updatedAt: new Date() })
+    .where(eq(wikis.lookupKey, id))
+    .returning()
+
+  return c.json({
+    ok: true,
+    lookupKey: updated.lookupKey,
+    stub: true,
+    message: 'Regen endpoint wired — LLM call integration pending',
+  })
 })
 
 // POST /wikis/:targetId/merge — merge source thread into target

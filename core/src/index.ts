@@ -19,6 +19,7 @@ import { graphRoutes } from './routes/graph.js'
 import { relationshipsRoutes } from './routes/relationships.js'
 import { contentRoutes } from './routes/content.js'
 import { wikiTypesRoutes } from './routes/wiki-types.js'
+import { publishedRoutes } from './routes/published.js'
 // M2 dormant: internalRoutes is the git-sync webhook, preserved verbatim in
 // src/routes/internal.ts for M3/M4 refinement. Gateway is gone in M2 so the
 // route is not mounted. Restore when sync-back lands.
@@ -95,6 +96,7 @@ app.get('/openapi.json', (c) => c.json(openapiSpec))
 // M2 dormant: git-sync webhook. See import comment above.
 // app.route('/internal', internalRoutes)
 app.route('/admin', adminRoutes)
+app.route('/published', publishedRoutes)
 app.use('/api/auth/*', (c) => auth.handler(c.req.raw))
 app.route('/admin/queues', bullBoardApp)
 
