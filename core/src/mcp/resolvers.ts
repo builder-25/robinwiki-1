@@ -16,21 +16,21 @@
  * aliases, then fuzzy. When multiple candidates score within 5 points,
  * the response includes `alternatives` for disambiguation.
  *
- * **Git as source of truth:** wiki/fragment content is read from git
- * via gateway, not DB. Gateway down → empty content, not failure.
+ * **Content from DB:** wiki/fragment/person content is read from the
+ * `content` column on each domain table (populated by the ingest pipeline).
  *
  * @see {@link resolveSlug} — generic fuzzy slug matching (auto-resolve at 70+)
  * @see {@link resolveThreadBySlug} — strict exact-match for write paths
- * @see {@link listThreads} — thread listing with fragment counts
+ * @see {@link listWikis} — wiki listing with fragment counts
  * @see {@link getThread} — full thread detail with wiki body
  * @see {@link getFragment} — full fragment with content + frontmatter
- * @see {@link getPerson} — person detail with alias-aware matching
+ * @see {@link findPersonById} — exact PK lookup
+ * @see {@link findPersonByQuery} — fuzzy name/slug/alias search
  */
 
 import { eq, and, isNull, sql, inArray } from 'drizzle-orm'
 import type { DB } from '../db/client.js'
 import { wikis, fragments, people, edges } from '../db/schema.js'
-import type { gatewayClient as GatewayClient } from '../gateway/client.js'
 
 /***********************************************************************
  * ## Types
@@ -44,15 +44,14 @@ import type { gatewayClient as GatewayClient } from '../gateway/client.js'
  *
  * @remarks
  * Intentionally narrower than {@link McpServerDeps} — resolvers only
- * need read access to the database and gateway.
+ * need read access to the database.
  */
 export interface McpResolverDeps {
   db: DB
-  gatewayClient: typeof GatewayClient
 }
 
-/** Thread list item with fragment count and wiki preview. */
-interface ThreadSummary {
+/** Wiki list item with fragment count and wiki preview. */
+interface WikiSummary {
   lookupKey: string
   slug: string
   name: string
@@ -281,7 +280,7 @@ export function resolveSlug(
  * @remarks More aggressive than slug resolution — checks canonical
  * names, aliases, and fuzzy matches with ambiguity detection.
  *
- * @see {@link getPerson} — public resolver that uses this
+ * @see {@link findPersonByQuery} — public resolver that uses this
  ***********************************************************************/
 
 /**
@@ -291,22 +290,13 @@ export function resolveSlug(
  * **Resolution strategy:**
  * 1. Exact canonical name match (case-insensitive)
  * 2. Exact alias match (case-insensitive)
- * 3. Fuzzy match across names + aliases — best score wins if >= 70
+ * 3. Fuzzy match across names, aliases, AND slugs — best score wins if >= 70
  * 4. Ambiguity detection: multiple candidates within 5 points →
  *    `alternatives` returned so the MCP client can disambiguate
  *
  * @param nameInput  - The name to search for
  * @param candidates - All known people with their aliases
  * @returns Matched person (possibly with `alternatives`) or error
- *
- * @example
- * ```ts
- * resolvePerson('Sarah', [
- *   { name: 'Sarah Connor', slug: 'sarah-connor', aliases: [] },
- *   { name: 'Sarah Chen', slug: 'sarah-chen', aliases: ['SC'] },
- * ])
- * // → { match: { name: 'Sarah Connor', ... }, alternatives: ['Sarah Chen'] }
- * ```
  */
 function resolvePerson(
   nameInput: string,
@@ -328,10 +318,14 @@ function resolvePerson(
         ratio(lower, c.name.toLowerCase()),
         partialRatio(lower, c.name.toLowerCase())
       )
+      const slugScore = Math.max(
+        ratio(lower, c.slug.toLowerCase()),
+        partialRatio(lower, c.slug.toLowerCase())
+      )
       const aliasScores = c.aliases.map((a) =>
         Math.max(ratio(lower, a.toLowerCase()), partialRatio(lower, a.toLowerCase()))
       )
-      const best = Math.max(nameScore, ...aliasScores, 0)
+      const best = Math.max(nameScore, slugScore, ...aliasScores, 0)
       return { candidate: c, score: best }
     })
     .sort((a, b) => b.score - a.score)
@@ -368,18 +362,17 @@ function resolvePerson(
  ***********************************************************************/
 
 /**
- * List all wikis for a user with fragment counts and wiki previews.
+ * List all wikis with fragment counts and wiki previews.
  *
  * @remarks
  * Returns the 20 most recently updated wikis. Fragment counts are
  * computed via a LEFT JOIN on `FRAGMENT_IN_WIKI` edges. Wiki previews
- * are read from git (first 200 chars after frontmatter).
+ * are read from the `content` column (first 200 chars after frontmatter).
  *
- * @param deps   - Database and gateway client
- * @param userId - Authenticated user ID
- * @returns Array of {@link ThreadSummary} sorted by last update
+ * @param deps - Database client
+ * @returns Array of {@link WikiSummary} sorted by last update
  */
-export async function listThreads(deps: McpResolverDeps, userId: string): Promise<ThreadSummary[]> {
+export async function listWikis(deps: McpResolverDeps): Promise<WikiSummary[]> {
   const rows = await deps.db
     .select({
       lookupKey: wikis.lookupKey,
@@ -387,7 +380,7 @@ export async function listThreads(deps: McpResolverDeps, userId: string): Promis
       name: wikis.name,
       type: wikis.type,
       state: wikis.state,
-      repoPath: wikis.repoPath,
+      content: wikis.content,
       lastRebuiltAt: wikis.lastRebuiltAt,
       fragmentCount: sql<number>`count(${edges.id})::int`,
     })
@@ -400,55 +393,40 @@ export async function listThreads(deps: McpResolverDeps, userId: string): Promis
         isNull(edges.deletedAt)
       )
     )
-    .where(and(eq(wikis.userId, userId), isNull(wikis.deletedAt)))
+    .where(isNull(wikis.deletedAt))
     .groupBy(wikis.lookupKey)
     .orderBy(sql`${wikis.updatedAt} DESC`)
     .limit(20)
 
-  const results: ThreadSummary[] = await Promise.all(
-    rows.map(async (row) => {
-      let wikiPreview = ''
-      const path = row.repoPath || `wikis/${row.slug}.md`
-      try {
-        const file = await deps.gatewayClient.read(userId, path)
-        const body = stripFrontmatter(file.content)
-        wikiPreview = body.slice(0, 200).trim()
-      } catch {
-        // Gateway read failure or file doesn't exist
-      }
-      return {
-        lookupKey: row.lookupKey,
-        slug: row.slug,
-        name: row.name,
-        type: row.type,
-        state: row.state,
-        fragmentCount: row.fragmentCount,
-        lastRebuiltAt: row.lastRebuiltAt?.toISOString() ?? null,
-        wikiPreview,
-      }
-    })
-  )
-
-  return results
+  return rows.map((row) => {
+    const body = stripFrontmatter(row.content || '')
+    const wikiPreview = body.slice(0, 200).trim()
+    return {
+      lookupKey: row.lookupKey,
+      slug: row.slug,
+      name: row.name,
+      type: row.type,
+      state: row.state,
+      fragmentCount: row.fragmentCount,
+      lastRebuiltAt: row.lastRebuiltAt?.toISOString() ?? null,
+      wikiPreview,
+    }
+  })
 }
 
 /**
  * Get full thread detail by slug with fuzzy matching.
  *
  * @remarks
- * Reads the thread's wiki body from git (source of truth) and fetches
+ * Reads the thread's wiki body from the `content` column and fetches
  * all member fragments via `FRAGMENT_IN_WIKI` edges with 300-char snippets.
  *
- * @param deps      - Database and gateway client
- * @param userId    - Authenticated user ID
+ * @param deps      - Database client
  * @param slugInput - Thread slug (exact or fuzzy)
  * @returns {@link ThreadDetail} with wiki body and fragments, or {@link ErrorResult}
- *
- * @see {@link resolveSlug} — fuzzy matching strategy used here
  */
 export async function getThread(
   deps: McpResolverDeps,
-  userId: string,
   slugInput: string
 ): Promise<ThreadDetail | ErrorResult> {
   const allThreads = await deps.db
@@ -458,11 +436,11 @@ export async function getThread(
       name: wikis.name,
       type: wikis.type,
       state: wikis.state,
-      repoPath: wikis.repoPath,
+      content: wikis.content,
       lastRebuiltAt: wikis.lastRebuiltAt,
     })
     .from(wikis)
-    .where(and(eq(wikis.userId, userId), isNull(wikis.deletedAt)))
+    .where(isNull(wikis.deletedAt))
 
   const resolved = resolveSlug(
     slugInput,
@@ -473,15 +451,7 @@ export async function getThread(
   const thread = allThreads.find((t) => t.slug === resolved.match.slug)
   if (!thread) return { error: 'Thread not found', suggestions: [] }
 
-  // Read wiki body from git (source of truth, not DB)
-  let wikiBody = ''
-  const wikiPath = thread.repoPath || `wikis/${thread.slug}.md`
-  try {
-    const file = await deps.gatewayClient.read(userId, wikiPath)
-    wikiBody = stripFrontmatter(file.content)
-  } catch {
-    // Gateway read failure or file doesn't exist
-  }
+  const wikiBody = stripFrontmatter(thread.content || '')
 
   // Fetch member fragments via edge graph
   const fragEdges = await deps.db
@@ -489,7 +459,6 @@ export async function getThread(
     .from(edges)
     .where(
       and(
-        eq(edges.userId, userId),
         eq(edges.dstId, thread.lookupKey),
         eq(edges.edgeType, 'FRAGMENT_IN_WIKI'),
         isNull(edges.deletedAt)
@@ -504,26 +473,16 @@ export async function getThread(
             slug: fragments.slug,
             type: fragments.type,
             title: fragments.title,
-            repoPath: fragments.repoPath,
+            content: fragments.content,
           })
           .from(fragments)
           .where(and(inArray(fragments.lookupKey, fragKeys), isNull(fragments.deletedAt)))
       : []
 
-  const fragmentSnippets: FragmentSnippet[] = await Promise.all(
-    frags.map(async (f) => {
-      let snippet = ''
-      if (f.repoPath) {
-        try {
-          const file = await deps.gatewayClient.read(userId, f.repoPath)
-          snippet = stripFrontmatter(file.content).slice(0, 300).trim()
-        } catch {
-          // Gateway read failure
-        }
-      }
-      return { slug: f.slug, type: f.type, title: f.title, snippet }
-    })
-  )
+  const fragmentSnippets: FragmentSnippet[] = frags.map((f) => {
+    const snippet = stripFrontmatter(f.content || '').slice(0, 300).trim()
+    return { slug: f.slug, type: f.type, title: f.title, snippet }
+  })
 
   return {
     thread: {
@@ -543,20 +502,16 @@ export async function getThread(
  * Get full fragment detail by slug with fuzzy matching.
  *
  * @remarks
- * Returns the complete markdown content and raw frontmatter from git.
- * The `content` field has frontmatter stripped; the `frontmatter` field
- * has just the YAML block for structured parsing by MCP clients.
+ * Returns the complete markdown content and raw frontmatter from the
+ * `content` column. The `content` field has frontmatter stripped; the
+ * `frontmatter` field has just the YAML block for structured parsing.
  *
- * @param deps      - Database and gateway client
- * @param userId    - Authenticated user ID
+ * @param deps      - Database client
  * @param slugInput - Fragment slug (exact or fuzzy)
  * @returns {@link FragmentDetail} with content and frontmatter, or {@link ErrorResult}
- *
- * @see {@link resolveSlug} — fuzzy matching strategy used here
  */
 export async function getFragment(
   deps: McpResolverDeps,
-  userId: string,
   slugInput: string
 ): Promise<FragmentDetail | ErrorResult> {
   const allFrags = await deps.db
@@ -565,10 +520,10 @@ export async function getFragment(
       type: fragments.type,
       title: fragments.title,
       tags: fragments.tags,
-      repoPath: fragments.repoPath,
+      content: fragments.content,
     })
     .from(fragments)
-    .where(and(eq(fragments.userId, userId), isNull(fragments.deletedAt)))
+    .where(isNull(fragments.deletedAt))
 
   const resolved = resolveSlug(
     slugInput,
@@ -579,17 +534,8 @@ export async function getFragment(
   const frag = allFrags.find((f) => f.slug === resolved.match.slug)
   if (!frag) return { error: 'Fragment not found', suggestions: [] }
 
-  let content = ''
-  let frontmatter = ''
-  if (frag.repoPath) {
-    try {
-      const file = await deps.gatewayClient.read(userId, frag.repoPath)
-      content = stripFrontmatter(file.content)
-      frontmatter = extractFrontmatter(file.content)
-    } catch {
-      // Gateway read failure
-    }
-  }
+  const content = stripFrontmatter(frag.content || '')
+  const frontmatter = extractFrontmatter(frag.content || '')
 
   return {
     slug: frag.slug,
@@ -602,62 +548,32 @@ export async function getFragment(
 }
 
 /**
- * Get person detail by name with alias-aware fuzzy matching.
+ * Find a person by exact lookupKey (PK lookup).
  *
- * @remarks
- * Reads the person's profile body from git and fetches all fragments
- * that mention them via `FRAGMENT_MENTIONS_PERSON` edges. If multiple
- * people match closely, the response includes `alternatives` for
- * disambiguation.
- *
- * @param deps      - Database and gateway client
- * @param userId    - Authenticated user ID
- * @param nameInput - Person name to search for (exact or fuzzy)
- * @returns {@link PersonDetail} with profile and fragments, or {@link ErrorResult}
- *
- * @see {@link resolvePerson} — alias-aware matching strategy used here
+ * @param deps - Database client
+ * @param id   - Exact lookupKey (e.g. "person01ABCDEFGHIJKLMNOPQRSTUV")
+ * @returns {@link PersonDetail} with body and linked fragments, or {@link ErrorResult}
  */
-export async function getPerson(
+export async function findPersonById(
   deps: McpResolverDeps,
-  userId: string,
-  nameInput: string
+  id: string
 ): Promise<PersonDetail | ErrorResult> {
-  const allPeople = await deps.db
+  const [person] = await deps.db
     .select({
       lookupKey: people.lookupKey,
       slug: people.slug,
       name: people.name,
       relationship: people.relationship,
-      sections: people.sections,
-      repoPath: people.repoPath,
+      aliases: people.aliases,
+      content: people.content,
     })
     .from(people)
-    .where(and(eq(people.userId, userId), isNull(people.deletedAt)))
+    .where(and(eq(people.lookupKey, id), isNull(people.deletedAt)))
+    .limit(1)
 
-  const candidates = allPeople.map((p) => ({
-    name: p.name,
-    slug: p.slug,
-    aliases: Array.isArray((p.sections as Record<string, unknown>)?.aliases)
-      ? ((p.sections as Record<string, unknown>).aliases as string[])
-      : [],
-  }))
-
-  const resolved = resolvePerson(nameInput, candidates)
-  if ('error' in resolved) return resolved
-
-  const person = allPeople.find((p) => p.slug === resolved.match.slug)
   if (!person) return { error: 'Person not found', suggestions: [] }
 
-  // Read person profile from git
-  let body = ''
-  if (person.repoPath) {
-    try {
-      const file = await deps.gatewayClient.read(userId, person.repoPath)
-      body = stripFrontmatter(file.content)
-    } catch {
-      // Gateway read failure
-    }
-  }
+  const body = stripFrontmatter(person.content || '')
 
   // Fetch linked fragments via FRAGMENT_MENTIONS_PERSON edges
   const fragEdges = await deps.db
@@ -665,7 +581,6 @@ export async function getPerson(
     .from(edges)
     .where(
       and(
-        eq(edges.userId, userId),
         eq(edges.dstId, person.lookupKey),
         eq(edges.edgeType, 'FRAGMENT_MENTIONS_PERSON'),
         isNull(edges.deletedAt)
@@ -680,26 +595,102 @@ export async function getPerson(
             slug: fragments.slug,
             type: fragments.type,
             title: fragments.title,
-            repoPath: fragments.repoPath,
+            content: fragments.content,
           })
           .from(fragments)
           .where(and(inArray(fragments.lookupKey, fragKeys), isNull(fragments.deletedAt)))
       : []
 
-  const fragmentSnippets: FragmentSnippet[] = await Promise.all(
-    frags.map(async (f) => {
-      let snippet = ''
-      if (f.repoPath) {
-        try {
-          const file = await deps.gatewayClient.read(userId, f.repoPath)
-          snippet = stripFrontmatter(file.content).slice(0, 300).trim()
-        } catch {
-          // Gateway read failure
-        }
-      }
-      return { slug: f.slug, type: f.type, title: f.title, snippet }
+  const fragmentSnippets: FragmentSnippet[] = frags.map((f) => {
+    const snippet = stripFrontmatter(f.content || '').slice(0, 300).trim()
+    return { slug: f.slug, type: f.type, title: f.title, snippet }
+  })
+
+  return {
+    person: {
+      name: person.name,
+      slug: person.slug,
+      aliases: person.aliases ?? [],
+      relationship: person.relationship,
+    },
+    body,
+    fragments: fragmentSnippets,
+  }
+}
+
+/**
+ * Find a person by fuzzy name/slug/alias search.
+ *
+ * @remarks
+ * Reads all non-deleted people, scores against name, slug, and aliases
+ * using Levenshtein fuzzy matching. Returns the best match with optional
+ * alternatives when multiple candidates score within 5 points.
+ * Max 5 results.
+ *
+ * @param deps  - Database client
+ * @param query - Person name, slug, or alias to search for
+ * @returns {@link PersonDetail} with body and linked fragments, or {@link ErrorResult}
+ */
+export async function findPersonByQuery(
+  deps: McpResolverDeps,
+  query: string
+): Promise<PersonDetail | ErrorResult> {
+  const allPeople = await deps.db
+    .select({
+      lookupKey: people.lookupKey,
+      slug: people.slug,
+      name: people.name,
+      relationship: people.relationship,
+      aliases: people.aliases,
+      content: people.content,
     })
-  )
+    .from(people)
+    .where(isNull(people.deletedAt))
+
+  const candidates = allPeople.map((p) => ({
+    name: p.name,
+    slug: p.slug,
+    aliases: p.aliases ?? [],
+  }))
+
+  const resolved = resolvePerson(query, candidates)
+  if ('error' in resolved) return resolved
+
+  const person = allPeople.find((p) => p.slug === resolved.match.slug)
+  if (!person) return { error: 'Person not found', suggestions: [] }
+
+  const body = stripFrontmatter(person.content || '')
+
+  // Fetch linked fragments via FRAGMENT_MENTIONS_PERSON edges
+  const fragEdges = await deps.db
+    .select({ srcId: edges.srcId })
+    .from(edges)
+    .where(
+      and(
+        eq(edges.dstId, person.lookupKey),
+        eq(edges.edgeType, 'FRAGMENT_MENTIONS_PERSON'),
+        isNull(edges.deletedAt)
+      )
+    )
+
+  const fragKeys = fragEdges.map((e) => e.srcId)
+  const frags =
+    fragKeys.length > 0
+      ? await deps.db
+          .select({
+            slug: fragments.slug,
+            type: fragments.type,
+            title: fragments.title,
+            content: fragments.content,
+          })
+          .from(fragments)
+          .where(and(inArray(fragments.lookupKey, fragKeys), isNull(fragments.deletedAt)))
+      : []
+
+  const fragmentSnippets: FragmentSnippet[] = frags.map((f) => {
+    const snippet = stripFrontmatter(f.content || '').slice(0, 300).trim()
+    return { slug: f.slug, type: f.type, title: f.title, snippet }
+  })
 
   const result: PersonDetail = {
     person: {
@@ -737,16 +728,12 @@ export async function getPerson(
  * On miss, returns scored suggestions so the MCP client can present
  * "did you mean?" options without auto-resolving.
  *
- * @param deps      - Database and gateway client
- * @param userId    - Authenticated user ID
+ * @param deps      - Database client
  * @param slugInput - Exact thread slug to match
  * @returns Thread metadata or {@link ErrorResult} with suggestions
- *
- * @see {@link resolveSlug} — fuzzy alternative used by read-only resolvers
  */
 export async function resolveThreadBySlug(
   deps: McpResolverDeps,
-  userId: string,
   slugInput: string
 ): Promise<
   | { lookupKey: string; slug: string; name: string; state: string }
@@ -760,7 +747,7 @@ export async function resolveThreadBySlug(
       state: wikis.state,
     })
     .from(wikis)
-    .where(and(eq(wikis.userId, userId), isNull(wikis.deletedAt)))
+    .where(isNull(wikis.deletedAt))
 
   // Exact match only — log_fragment requires precision
   const exact = allThreads.find((t) => t.slug === slugInput)

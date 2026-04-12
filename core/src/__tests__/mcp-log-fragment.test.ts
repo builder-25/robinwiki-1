@@ -32,22 +32,13 @@ function makeDeps(overrides: Partial<McpServerDeps> = {}): McpServerDeps {
   return {
     db,
     producer: {
-      enqueueWrite: vi.fn().mockResolvedValue('job-id'),
-      enqueueReindex: vi.fn(),
-      enqueueProvision: vi.fn(),
-      enqueueExtraction: vi.fn(),
-      enqueueLinkJob: vi.fn(),
+      enqueueExtraction: vi.fn().mockResolvedValue('job-id'),
+      enqueueLink: vi.fn(),
       enqueueReclassify: vi.fn(),
-      enqueueSync: vi.fn(),
+      enqueueProvision: vi.fn(),
+      getQueue: vi.fn(),
+      close: vi.fn(),
     } as unknown as McpServerDeps['producer'],
-    gatewayClient: {
-      write: vi.fn().mockResolvedValue({ path: '', commitHash: 'abc', timestamp: '' }),
-      read: vi.fn(),
-      provision: vi.fn(),
-      search: vi.fn(),
-      reindex: vi.fn(),
-      batchWrite: vi.fn().mockResolvedValue({ commitHash: 'abc123' }),
-    } as unknown as McpServerDeps['gatewayClient'],
     spawnWriteWorker: vi.fn(),
     resolveDefaultVaultId: vi.fn().mockResolvedValue(testVaultId),
     entityExtractCall: vi.fn().mockResolvedValue({ people: [] }),
@@ -61,13 +52,12 @@ async function createTestThread() {
     .insert(threadsTable)
     .values({
       lookupKey: TEST_THREAD_KEY,
-      userId: testUserId,
       slug: TEST_THREAD_SLUG,
       name: 'Fitness',
       type: 'log',
       state: 'RESOLVED',
       vaultId: testVaultId,
-    } as any)
+    })
     .onConflictDoNothing()
 }
 
@@ -107,7 +97,7 @@ describe('handleLogFragment', () => {
     expect(parsed.threadSlug).toBe(TEST_THREAD_SLUG)
     expect(parsed.wikiKey).toBe(TEST_THREAD_KEY)
 
-    const rows = await db.select().from(fragmentsTable).where(eq(fragmentsTable.userId, testUserId))
+    const rows = await db.select().from(fragmentsTable)
     expect(rows).toHaveLength(1)
     expect(rows[0].state).toBe('RESOLVED')
     expect(rows[0].type).toBe('observation')
@@ -115,7 +105,7 @@ describe('handleLogFragment', () => {
     expect(rows[0].entryId).toBeNull()
   })
 
-  it('writes fragment file to gateway via batchWrite', async () => {
+  it('stores fragment content in DB', async () => {
     const deps = makeDeps()
     await handleLogFragment(
       deps,
@@ -123,14 +113,9 @@ describe('handleLogFragment', () => {
       testUserId
     )
 
-    expect(deps.gatewayClient.batchWrite).toHaveBeenCalledTimes(1)
-    const call = (deps.gatewayClient.batchWrite as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(call.userId).toBe(testUserId)
-    expect(call.files[0].path).toMatch(/^fragments\/\d{8}-morning-run-notes-[a-z0-9]+\.frag.+\.md$/)
-    expect(call.files[0].content).toContain('Morning run notes')
-    expect(call.files[0].content).toContain('status: RESOLVED')
-    expect(call.files[0].content).toContain(TEST_THREAD_KEY)
-    expect(call.branch).toBe('main')
+    const rows = await db.select().from(fragmentsTable)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].content).toContain('Morning run notes')
   })
 
   it('inserts FRAGMENT_IN_WIKI edge', async () => {
@@ -163,7 +148,7 @@ describe('handleLogFragment', () => {
       .select()
       .from(threadsTable)
       .where(eq(threadsTable.lookupKey, TEST_THREAD_KEY))
-    expect(thread.state).toBe('DIRTY')
+    expect(thread.state).toBe('PENDING')
   })
 
   it('uses provided title when given', async () => {
@@ -178,7 +163,7 @@ describe('handleLogFragment', () => {
       testUserId
     )
 
-    const rows = await db.select().from(fragmentsTable).where(eq(fragmentsTable.userId, testUserId))
+    const rows = await db.select().from(fragmentsTable)
     expect(rows[0].title).toBe('Custom Title')
   })
 
@@ -191,7 +176,7 @@ describe('handleLogFragment', () => {
       testUserId
     )
 
-    const rows = await db.select().from(fragmentsTable).where(eq(fragmentsTable.userId, testUserId))
+    const rows = await db.select().from(fragmentsTable)
     expect(rows[0].title).toBe('A'.repeat(80))
   })
 
@@ -207,7 +192,7 @@ describe('handleLogFragment', () => {
       testUserId
     )
 
-    const rows = await db.select().from(fragmentsTable).where(eq(fragmentsTable.userId, testUserId))
+    const rows = await db.select().from(fragmentsTable)
     expect(rows[0].tags).toEqual(['fitness', 'running'])
   })
 
@@ -250,27 +235,9 @@ describe('handleLogFragment', () => {
     )
 
     expect(result.isError).toBeUndefined()
-    const rows = await db.select().from(fragmentsTable).where(eq(fragmentsTable.userId, testUserId))
+    const rows = await db.select().from(fragmentsTable)
     expect(rows).toHaveLength(1)
     expect(rows[0].state).toBe('RESOLVED')
-  })
-
-  it('sets repoPath to empty string when gateway write fails', async () => {
-    const deps = makeDeps({
-      gatewayClient: {
-        batchWrite: vi.fn().mockRejectedValue(new Error('gateway down')),
-      } as unknown as McpServerDeps['gatewayClient'],
-    })
-
-    const result = await handleLogFragment(
-      deps,
-      { content: 'Content here', threadSlug: TEST_THREAD_SLUG },
-      testUserId
-    )
-
-    expect(result.isError).toBeUndefined()
-    const rows = await db.select().from(fragmentsTable).where(eq(fragmentsTable.userId, testUserId))
-    expect(rows[0].repoPath).toBe('')
   })
 
   it('returns error when threadSlug not found', async () => {
@@ -337,21 +304,9 @@ describe('handleLogFragment', () => {
     )
 
     expect(result.isError).toBeUndefined()
-    const personRows = await db.select().from(peopleTable).where(eq(peopleTable.userId, testUserId))
+    const personRows = await db.select().from(peopleTable)
     expect(personRows).toHaveLength(1)
     expect(personRows[0].name).toBe('Sarah Connor')
     expect(personRows[0].state).toBe('RESOLVED')
-  })
-
-  it('frontmatter omits entryKey field', async () => {
-    const deps = makeDeps()
-    await handleLogFragment(
-      deps,
-      { content: 'No entry parent', threadSlug: TEST_THREAD_SLUG },
-      testUserId
-    )
-
-    const call = (deps.gatewayClient.batchWrite as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(call.files[0].content).not.toContain('entryKey')
   })
 })

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import { eq } from 'drizzle-orm'
 import { handleLogEntry, type McpServerDeps } from '../mcp/handlers.js'
 import { entries as entriesTable, vaults } from '../db/schema.js'
-import type { WriteJob } from '@robin/queue'
+import type { ExtractionJob } from '@robin/queue'
 import {
   ensureTestDatabase,
   pushTestSchema,
@@ -25,24 +25,17 @@ function makeDeps(overrides: Partial<McpServerDeps> = {}): McpServerDeps {
   return {
     db,
     producer: {
-      enqueueWrite: vi.fn().mockResolvedValue('job-id'),
-      enqueueReindex: vi.fn(),
-      enqueueProvision: vi.fn(),
-      enqueueExtraction: vi.fn(),
-      enqueueLinkJob: vi.fn(),
+      enqueueExtraction: vi.fn().mockResolvedValue('job-id'),
+      enqueueLink: vi.fn(),
       enqueueReclassify: vi.fn(),
-      enqueueSync: vi.fn(),
+      enqueueProvision: vi.fn(),
+      getQueue: vi.fn(),
+      close: vi.fn(),
     } as unknown as McpServerDeps['producer'],
-    gatewayClient: {
-      write: vi.fn().mockResolvedValue({ path: '', commitHash: 'abc', timestamp: '' }),
-      read: vi.fn(),
-      provision: vi.fn(),
-      search: vi.fn(),
-      reindex: vi.fn(),
-      batchWrite: vi.fn(),
-    } as unknown as McpServerDeps['gatewayClient'],
     spawnWriteWorker: vi.fn(),
     resolveDefaultVaultId: vi.fn().mockResolvedValue(testVaultId),
+    entityExtractCall: vi.fn().mockResolvedValue({ people: [] }),
+    loadUserPeople: vi.fn().mockResolvedValue([]),
     ...overrides,
   }
 }
@@ -68,7 +61,7 @@ beforeEach(async () => {
 // ─── Tests ───
 
 describe('handleLogEntry', () => {
-  it('inserts entry row in PENDING state before enqueuing write job', async () => {
+  it('inserts entry row in PENDING state before enqueuing extraction job', async () => {
     const deps = makeDeps()
     const result = await handleLogEntry(deps, { content: 'Hello world' }, testUserId)
 
@@ -76,7 +69,7 @@ describe('handleLogEntry', () => {
     expect(result.content[0].text).toContain('Entry queued: entry')
 
     // Verify entry row exists in DB
-    const rows = await db.select().from(entriesTable).where(eq(entriesTable.userId, testUserId))
+    const rows = await db.select().from(entriesTable)
     expect(rows).toHaveLength(1)
     expect(rows[0].state).toBe('PENDING')
     expect(rows[0].content).toBe('Hello world')
@@ -86,58 +79,21 @@ describe('handleLogEntry', () => {
     expect(rows[0].vaultId).toBe(testVaultId)
 
     // Verify enqueue was called after insert
-    expect(deps.producer.enqueueWrite).toHaveBeenCalledTimes(1)
-    const job = (deps.producer.enqueueWrite as ReturnType<typeof vi.fn>).mock
-      .calls[0][1] as WriteJob
-    expect(job.payload.entryId).toBe(rows[0].lookupKey)
-    expect(job.payload.rawEntry.content).toBe('Hello world')
-    expect(job.payload.rawEntry.source).toBe('mcp')
+    expect(deps.producer.enqueueExtraction).toHaveBeenCalledTimes(1)
+    const job = (deps.producer.enqueueExtraction as ReturnType<typeof vi.fn>).mock
+      .calls[0][0] as ExtractionJob
+    expect(job.entryKey).toBe(rows[0].lookupKey)
+    expect(job.content).toBe('Hello world')
+    expect(job.source).toBe('mcp')
   })
 
-  it('writes verbatim note to git before inserting entry', async () => {
+  it('stores content in DB entry row', async () => {
     const deps = makeDeps()
     await handleLogEntry(deps, { content: 'My note content' }, testUserId)
 
-    expect(deps.gatewayClient.write).toHaveBeenCalledTimes(1)
-    const writeCall = (deps.gatewayClient.write as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(writeCall.userId).toBe(testUserId)
-    expect(writeCall.path).toMatch(/^var\/raw\/\d{4}-\d{2}-\d{2}-my-note-content\.entry.+\.md$/)
-    expect(writeCall.content).toContain('My note content')
-    expect(writeCall.content).toContain('source: mcp')
-    expect(writeCall.branch).toBe('main')
-
-    // Entry repoPath should reflect the note path
-    const rows = await db.select().from(entriesTable).where(eq(entriesTable.userId, testUserId))
-    expect(rows[0].repoPath).toMatch(/^var\/raw\//)
-  })
-
-  it('sets repoPath to empty string when git write fails (best-effort)', async () => {
-    const deps = makeDeps({
-      gatewayClient: {
-        write: vi.fn().mockRejectedValue(new Error('gateway down')),
-      } as unknown as McpServerDeps['gatewayClient'],
-    })
-
-    const result = await handleLogEntry(deps, { content: 'Content here' }, testUserId)
-
-    expect(result.isError).toBeUndefined()
-    const rows = await db.select().from(entriesTable).where(eq(entriesTable.userId, testUserId))
-    expect(rows[0].repoPath).toBe('')
-
-    // Job should still be enqueued
-    expect(deps.producer.enqueueWrite).toHaveBeenCalledTimes(1)
-    const job = (deps.producer.enqueueWrite as ReturnType<typeof vi.fn>).mock
-      .calls[0][1] as WriteJob
-    expect(job.payload.noteFilePath).toBeUndefined()
-  })
-
-  it('includes noteFilePath in job payload when git write succeeds', async () => {
-    const deps = makeDeps()
-    await handleLogEntry(deps, { content: 'A note' }, testUserId)
-
-    const job = (deps.producer.enqueueWrite as ReturnType<typeof vi.fn>).mock
-      .calls[0][1] as WriteJob
-    expect(job.payload.noteFilePath).toMatch(/^var\/raw\//)
+    const rows = await db.select().from(entriesTable)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].content).toBe('My note content')
   })
 
   it('sets title from first 80 chars of content', async () => {
@@ -145,7 +101,7 @@ describe('handleLogEntry', () => {
     const deps = makeDeps()
     await handleLogEntry(deps, { content: longContent }, testUserId)
 
-    const rows = await db.select().from(entriesTable).where(eq(entriesTable.userId, testUserId))
+    const rows = await db.select().from(entriesTable)
     expect(rows[0].title).toBe('A'.repeat(80))
   })
 
@@ -153,7 +109,7 @@ describe('handleLogEntry', () => {
     const deps = makeDeps()
     await handleLogEntry(deps, { content: '  spaced content  ' }, testUserId)
 
-    const rows = await db.select().from(entriesTable).where(eq(entriesTable.userId, testUserId))
+    const rows = await db.select().from(entriesTable)
     expect(rows[0].content).toBe('spaced content')
   })
 
@@ -163,7 +119,7 @@ describe('handleLogEntry', () => {
 
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toContain('content is required')
-    expect(deps.producer.enqueueWrite).not.toHaveBeenCalled()
+    expect(deps.producer.enqueueExtraction).not.toHaveBeenCalled()
   })
 
   it('returns error for whitespace-only content', async () => {
@@ -180,26 +136,26 @@ describe('handleLogEntry', () => {
 
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toContain('not authenticated')
-    expect(deps.producer.enqueueWrite).not.toHaveBeenCalled()
+    expect(deps.producer.enqueueExtraction).not.toHaveBeenCalled()
   })
 
   it('respects source parameter override', async () => {
     const deps = makeDeps()
     await handleLogEntry(deps, { content: 'From web', source: 'web' }, testUserId)
 
-    const rows = await db.select().from(entriesTable).where(eq(entriesTable.userId, testUserId))
+    const rows = await db.select().from(entriesTable)
     expect(rows[0].source).toBe('web')
 
-    const job = (deps.producer.enqueueWrite as ReturnType<typeof vi.fn>).mock
-      .calls[0][1] as WriteJob
-    expect(job.payload.rawEntry.source).toBe('web')
+    const job = (deps.producer.enqueueExtraction as ReturnType<typeof vi.fn>).mock
+      .calls[0][0] as ExtractionJob
+    expect(job.source).toBe('web')
   })
 
   it('defaults source to mcp when not specified', async () => {
     const deps = makeDeps()
     await handleLogEntry(deps, { content: 'No source' }, testUserId)
 
-    const rows = await db.select().from(entriesTable).where(eq(entriesTable.userId, testUserId))
+    const rows = await db.select().from(entriesTable)
     expect(rows[0].source).toBe('mcp')
   })
 
@@ -209,7 +165,7 @@ describe('handleLogEntry', () => {
     })
     await handleLogEntry(deps, { content: 'No vault' }, testUserId)
 
-    const rows = await db.select().from(entriesTable).where(eq(entriesTable.userId, testUserId))
+    const rows = await db.select().from(entriesTable)
     expect(rows[0].vaultId).toBeNull()
   })
 
@@ -224,13 +180,11 @@ describe('handleLogEntry', () => {
     // Insert an entry that will claim the slug 'hello'
     await db.insert(entriesTable).values({
       lookupKey: 'conflict-key',
-      userId: testUserId,
       slug: 'hello',
       title: 'Hello',
       content: 'Hello',
       type: 'thought',
       source: 'mcp',
-      repoPath: '',
     })
 
     // A second entry with the same content should get slug 'hello-2'
@@ -239,10 +193,7 @@ describe('handleLogEntry', () => {
 
     expect(result.isError).toBeUndefined()
 
-    const rows = await db
-      .select()
-      .from(entriesTable)
-      .where(eq(entriesTable.userId, testUserId))
+    const rows = await db.select().from(entriesTable)
     const slugs = rows.map((r) => r.slug).sort()
     expect(slugs).toContain('hello')
     expect(slugs).toContain('hello-2')

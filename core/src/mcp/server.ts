@@ -19,7 +19,7 @@
 
 import { z } from 'zod/v4'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { listThreads, getThread, getFragment, getPerson } from './resolvers.js'
+import { listWikis, getThread, getFragment, findPersonById, findPersonByQuery } from './resolvers.js'
 import type { McpResolverDeps } from './resolvers.js'
 import { handleLogEntry, handleLogFragment } from './handlers.js'
 import type { McpServerDeps } from './handlers.js'
@@ -44,14 +44,10 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
 
   const resolverDeps: McpResolverDeps = {
     db: deps.db,
-    gatewayClient: deps.gatewayClient,
   }
 
   /***********************************************************************
    * ## Tools — Write operations
-   *
-   * @remarks Mutating tools that create entries, fragments, or search.
-   * Business logic in {@link handleLogEntry} and {@link handleLogFragment}.
    ***********************************************************************/
 
   server.registerTool(
@@ -93,53 +89,19 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     }
   )
 
-  server.registerTool(
-    'search',
-    {
-      description: 'Search your Robin knowledge base',
-      inputSchema: {
-        query: z.string().describe('Search query'),
-        limit: z.number().optional().describe('Max results to return (default 10)'),
-      },
-    },
-    async ({ query, limit }, extra) => {
-      const userId = extra.authInfo?.clientId as string
-      try {
-        const results = await deps.gatewayClient.search(userId, query, limit ?? 10)
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify(results) }],
-        }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify({ error: message }),
-            },
-          ],
-        }
-      }
-    }
-  )
-
   /***********************************************************************
    * ## Resources
-   *
-   * @remarks Static MCP resources exposed via `robin://` URIs.
-   * @see {@link listThreads} — resolver backing this resource
    ***********************************************************************/
 
   server.registerResource(
     'list_threads',
     'robin://wikis',
     {
-      description: 'All wikis for the authenticated user with fragment counts and wiki previews',
+      description: 'All wikis with fragment counts and wiki previews',
     },
-    async (_uri, extra) => {
-      const userId = extra.authInfo?.clientId as string
+    async () => {
       try {
-        const data = await listThreads(resolverDeps, userId)
+        const data = await listWikis(resolverDeps)
         return {
           contents: [
             {
@@ -166,11 +128,6 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
 
   /***********************************************************************
    * ## Read tools
-   *
-   * @remarks Non-mutating tools with fuzzy slug/name matching.
-   * @see {@link getThread} — thread detail resolver
-   * @see {@link getFragment} — fragment detail resolver
-   * @see {@link getPerson} — person detail resolver
    ***********************************************************************/
 
   server.registerTool(
@@ -181,10 +138,9 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         slug: z.string().describe('Thread slug or partial slug for fuzzy matching'),
       },
     },
-    async ({ slug }, extra) => {
-      const userId = extra.authInfo?.clientId as string
+    async ({ slug }) => {
       try {
-        const result = await getThread(resolverDeps, userId, slug)
+        const result = await getThread(resolverDeps, slug)
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
         }
@@ -210,10 +166,9 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         slug: z.string().describe('Fragment slug or partial slug'),
       },
     },
-    async ({ slug }, extra) => {
-      const userId = extra.authInfo?.clientId as string
+    async ({ slug }) => {
       try {
-        const result = await getFragment(resolverDeps, userId, slug)
+        const result = await getFragment(resolverDeps, slug)
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
         }
@@ -232,29 +187,47 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
   )
 
   server.registerTool(
-    'get_person',
+    'find_person',
     {
-      description: 'Find a person by name with fuzzy matching on canonical name and aliases',
+      description:
+        'Find a person by ID or name. ' +
+        'If the input matches the pattern person{ULID} (e.g. "person01ABC..."), it routes to an exact ID lookup. ' +
+        'Otherwise it performs fuzzy search across slug, name, and aliases. ' +
+        'Pass id for guaranteed exact lookup; pass query for name-based search.',
       inputSchema: {
-        name: z.string().describe('Person name to search for'),
+        id: z.string().optional().describe(
+          'Exact person lookupKey (e.g. "person01ABCDEFGHIJKLMNOPQRS"). Use for precise lookup when you have the ID.'
+        ),
+        query: z.string().optional().describe(
+          'Person name, slug, or alias to search for. Fuzzy-matched across all three fields.'
+        ),
       },
     },
-    async ({ name }, extra) => {
-      const userId = extra.authInfo?.clientId as string
+    async ({ id, query }) => {
       try {
-        const result = await getPerson(resolverDeps, userId, name)
+        // Auto-detect: if input looks like a lookupKey, route to id lookup
+        const input = id ?? query ?? ''
+        const isLookupKey = /^person[0-9A-Z]{26}$/i.test(input)
+
+        if (isLookupKey) {
+          const result = await findPersonById(resolverDeps, input)
+          return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] }
+        }
+
+        if (query) {
+          const result = await findPersonByQuery(resolverDeps, query)
+          return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] }
+        }
+
         return {
-          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Provide id or query' }) }],
+          isError: true as const,
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err)
         return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify({ error: message }),
-            },
-          ],
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
+          isError: true as const,
         }
       }
     }

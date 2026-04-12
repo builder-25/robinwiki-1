@@ -89,7 +89,6 @@ export async function createTestVault(
     .insert(schema.vaults)
     .values({
       id: TEST_VAULT_ID,
-      userId: TEST_USER_ID,
       name: 'Test Vault',
       slug: 'test-vault',
     })

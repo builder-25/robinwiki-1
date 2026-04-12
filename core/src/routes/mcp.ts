@@ -1,21 +1,24 @@
 /***********************************************************************
  * @module routes/mcp
  *
- * @summary MCP HTTP bridge.
+ * @summary MCP HTTP bridge — routes MCP JSON-RPC over Streamable HTTP.
  *
  * @remarks
- * M2 disables the MCP tool surface — no log_entry/log_fragment/search tools
- * during the ingest pipeline rebuild. The endpoint stays mounted so clients
- * receive a structured 503 instead of a connection error, and so the JWT
- * auth path keeps marking onboardedAt on first connect.
+ * Each request creates a fresh stateless transport + MCP server,
+ * authenticates via JWT query param, and delegates to the transport.
+ * The transport uses Web Standard Request/Response (works with Hono).
  ***********************************************************************/
 
 import { Hono } from 'hono'
 import { eq, and, isNull } from 'drizzle-orm'
+import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { verifyMcpToken } from '../mcp/jwt.js'
+import { createMcpServer } from '../mcp/server.js'
+import type { McpServerDeps } from '../mcp/server.js'
 import { db } from '../db/client.js'
 import { users } from '../db/schema.js'
 import { logger } from '../lib/logger.js'
+import { producer } from '../queue/producer.js'
 
 const log = logger.child({ component: 'mcp' })
 
@@ -40,8 +43,34 @@ mcp.use('*', async (c, next) => {
   }
 })
 
-mcp.all('/', (c) =>
-  c.json({ error: 'MCP tools are disabled during M2 ingest pipeline rebuild' }, 503)
-)
+mcp.all('/', async (c) => {
+  const userId = c.get('userId')
+
+  const deps: McpServerDeps = {
+    db,
+    producer,
+    spawnWriteWorker: () => {},
+    resolveDefaultVaultId: async () => null,
+    entityExtractCall: async () => ({ people: [] }),
+    loadUserPeople: async () => [],
+  }
+
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+  })
+
+  const server = createMcpServer(deps)
+  await server.connect(transport)
+
+  try {
+    const response = await transport.handleRequest(c.req.raw, {
+      authInfo: { clientId: userId, token: '', scopes: [] },
+    })
+    return response
+  } finally {
+    await transport.close()
+    await server.close()
+  }
+})
 
 export { mcp }
