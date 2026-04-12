@@ -21,7 +21,7 @@ import { z } from 'zod/v4'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { listWikis, getThread, getFragment, findPersonById, findPersonByQuery, listWikiTypes } from './resolvers.js'
 import type { McpResolverDeps } from './resolvers.js'
-import { handleLogEntry, handleLogFragment, handleCreateWikiType } from './handlers.js'
+import { handleLogEntry, handleLogFragment, handleCreateWikiType, handleCreateWiki, handleEditWiki } from './handlers.js'
 import type { McpServerDeps } from './handlers.js'
 
 export type { McpServerDeps }
@@ -86,6 +86,42 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         { content, threadSlug, title, tags },
         extra.authInfo?.clientId as string
       )
+    }
+  )
+
+  server.registerTool(
+    'create_wiki',
+    {
+      description:
+        'Create a new wiki in the knowledge base. Robin infers the wiki type from the description.',
+      inputSchema: {
+        title: z.string().describe('Wiki title (becomes the slug)'),
+        description: z
+          .string()
+          .optional()
+          .describe('What this wiki is for — used to infer the wiki type'),
+      },
+    },
+    async ({ title, description }, extra) => {
+      return handleCreateWiki(deps, { title, description }, extra.authInfo?.clientId as string)
+    }
+  )
+
+  server.registerTool(
+    'edit_wiki',
+    {
+      description:
+        'Write content to a wiki. The full content is stored as an edit record and will be ' +
+        'incorporated during the next regeneration cycle. Use list_wikis to get valid slugs.',
+      inputSchema: {
+        wikiSlug: z.string().describe('Exact wiki slug (from list_wikis)'),
+        content: z
+          .string()
+          .describe('The content to add or replace. Full text is preserved for regen context.'),
+      },
+    },
+    async ({ wikiSlug, content }, extra) => {
+      return handleEditWiki(deps, { wikiSlug, content }, extra.authInfo?.clientId as string)
     }
   )
 

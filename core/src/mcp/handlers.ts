@@ -33,7 +33,7 @@ import {
 } from '@robin/shared'
 import type { PeopleExtractionOutput } from '@robin/shared'
 import type { BullMQProducer, ExtractionJob } from '@robin/queue'
-import { resolveEntrySlug } from '../db/slug.js'
+import { resolveEntrySlug, resolveWikiSlug } from '../db/slug.js'
 import { computeContentHash, findDuplicateEntry } from '../db/dedup.js'
 import type { DB } from '../db/client.js'
 import {
@@ -43,12 +43,15 @@ import {
   edges as edgesTable,
   people as peopleTable,
   wikiTypes as wikiTypesTable,
+  edits as editsTable,
 } from '../db/schema.js'
 import { resolveThreadBySlug } from './resolvers.js'
 import type { McpResolverDeps } from './resolvers.js'
+import { inferWikiType } from './wiki-type-inference.js'
 import { resolvePerson, DEFAULT_RESOLUTION_CONFIG } from '@robin/agent'
 import type { KnownPerson } from '@robin/agent'
-import { eq } from 'drizzle-orm'
+import { eq, and, isNull } from 'drizzle-orm'
+import { nanoid } from '../lib/id.js'
 import { logger } from '../lib/logger.js'
 
 const log = logger.child({ component: 'mcp' })
@@ -438,6 +441,154 @@ export async function handleCreateWikiType(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     log.error({ err }, 'mcp create_wiki_type failed')
+    return {
+      content: [{ type: 'text' as const, text: `Error: ${message}` }],
+      isError: true as const,
+    }
+  }
+}
+
+/**
+ * Handle the `create_wiki` MCP tool call.
+ *
+ * @summary Creates a new wiki with an inferred type based on description.
+ * Slug collisions are resolved with a nanoid(6) suffix.
+ */
+export async function handleCreateWiki(
+  deps: McpServerDeps,
+  input: { title: string; description?: string },
+  userId: string | undefined
+) {
+  if (!userId) {
+    return {
+      content: [{ type: 'text' as const, text: 'Error: not authenticated' }],
+      isError: true as const,
+    }
+  }
+
+  if (!input.title?.trim()) {
+    return {
+      content: [{ type: 'text' as const, text: 'Error: title is required' }],
+      isError: true as const,
+    }
+  }
+
+  try {
+    const slug = generateSlug(input.title.trim())
+    const finalSlug = await resolveWikiSlug(deps.db, slug)
+    const lookupKey = makeLookupKey('wiki')
+    const inferredType = inferWikiType(input.description ?? '')
+
+    await deps.db.insert(threadsTable).values({
+      lookupKey,
+      slug: finalSlug,
+      name: input.title.trim(),
+      type: inferredType,
+      state: 'PENDING',
+      prompt: '',
+    })
+
+    const result = { slug: finalSlug, lookupKey, inferredType }
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    log.error({ err, userId }, 'mcp create_wiki failed')
+    return {
+      content: [{ type: 'text' as const, text: `Error: ${message}` }],
+      isError: true as const,
+    }
+  }
+}
+
+/**
+ * Handle the `edit_wiki` MCP tool call.
+ *
+ * @summary Updates a wiki's canonical content and stores the previous
+ * content as an edit record tagged `source: 'mcp'`.
+ */
+export async function handleEditWiki(
+  deps: McpServerDeps,
+  input: { wikiSlug: string; content: string },
+  userId: string | undefined
+) {
+  if (!userId) {
+    return {
+      content: [{ type: 'text' as const, text: 'Error: not authenticated' }],
+      isError: true as const,
+    }
+  }
+
+  if (!input.wikiSlug?.trim()) {
+    return {
+      content: [{ type: 'text' as const, text: 'Error: wikiSlug is required' }],
+      isError: true as const,
+    }
+  }
+
+  if (!input.content?.trim()) {
+    return {
+      content: [{ type: 'text' as const, text: 'Error: content is required' }],
+      isError: true as const,
+    }
+  }
+
+  try {
+    // Resolve wiki by exact slug match (exclude soft-deleted)
+    const [wiki] = await deps.db
+      .select({
+        lookupKey: threadsTable.lookupKey,
+        slug: threadsTable.slug,
+        content: threadsTable.content,
+      })
+      .from(threadsTable)
+      .where(and(eq(threadsTable.slug, input.wikiSlug.trim()), isNull(threadsTable.deletedAt)))
+      .limit(1)
+
+    if (!wiki) {
+      // Provide suggestions via resolveThreadBySlug
+      const resolverDeps: McpResolverDeps = { db: deps.db }
+      const resolved = await resolveThreadBySlug(resolverDeps, input.wikiSlug.trim())
+      if ('error' in resolved) {
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(resolved) }],
+          isError: true as const,
+        }
+      }
+      // Shouldn't reach here if resolveThreadBySlug returned an error
+      return {
+        content: [{ type: 'text' as const, text: `Error: wiki "${input.wikiSlug}" not found` }],
+        isError: true as const,
+      }
+    }
+
+    const previousContent = wiki.content || ''
+
+    // Update canonical content
+    await deps.db
+      .update(threadsTable)
+      .set({ content: input.content, updatedAt: new Date() })
+      .where(eq(threadsTable.lookupKey, wiki.lookupKey))
+
+    // Store previous content as edit record (diff computation deferred)
+    await deps.db.insert(editsTable).values({
+      id: nanoid(),
+      objectType: 'wiki',
+      objectId: wiki.lookupKey,
+      type: 'addition',
+      content: previousContent,
+      diff: '',
+      source: 'mcp',
+    })
+
+    const result = { wikiSlug: wiki.slug, lookupKey: wiki.lookupKey, recorded: true }
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    log.error({ err, userId }, 'mcp edit_wiki failed')
     return {
       content: [{ type: 'text' as const, text: `Error: ${message}` }],
       isError: true as const,
