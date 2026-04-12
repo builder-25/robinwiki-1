@@ -60,8 +60,7 @@ contentRoutes.get('/:type/:key', async (c) => {
     return c.json({ error: 'Not found' }, 404)
   }
 
-  // Only entry rows currently store the source content directly.
-  const raw = type === 'entry' ? ((row as { content?: string }).content ?? '') : ''
+  const raw = (row as { content?: string }).content ?? ''
   const format = c.req.query('format')
 
   if (format === 'structured') {
@@ -130,6 +129,7 @@ contentRoutes.put('/:type/:key', async (c) => {
       .set({
         title: data.frontmatter.title as string,
         tags: (data.frontmatter.tags as string[]) ?? [],
+        content: body,
         updatedAt: now,
       })
       .where(eq(fragments.lookupKey, key))
@@ -142,24 +142,33 @@ contentRoutes.put('/:type/:key', async (c) => {
       })
       .where(eq(entries.lookupKey, key))
   } else if (type === 'wiki') {
+    const [currentWiki] = await db
+      .select({ content: wikis.content })
+      .from(wikis)
+      .where(eq(wikis.lookupKey, key))
+      .limit(1)
+    const previousContent = currentWiki?.content ?? ''
+
     await db
       .update(wikis)
       .set({
         name: data.frontmatter.name as string,
         type: (data.frontmatter.type as string) ?? 'log',
         prompt: (data.frontmatter.prompt as string) ?? '',
+        content: body,
         updatedAt: now,
       })
       .where(eq(wikis.lookupKey, key))
 
-    // Log thread body edit as a single addition (no diff vs git anymore)
-    if (body) {
+    if (body && body !== previousContent) {
       await db.insert(edits).values({
         id: nanoid(),
         objectType: 'wiki',
         objectId: key,
         type: 'addition',
-        content: body,
+        content: previousContent,
+        source: 'user',
+        diff: '',
       })
       log.info({ wikiKey: key }, 'logged wiki edit')
     }
@@ -169,6 +178,7 @@ contentRoutes.put('/:type/:key', async (c) => {
       .set({
         name: data.frontmatter.name as string,
         relationship: (data.frontmatter.relationship as string) ?? '',
+        content: body,
         updatedAt: now,
       })
       .where(eq(people.lookupKey, key))

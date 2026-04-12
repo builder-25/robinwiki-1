@@ -134,6 +134,7 @@ function baseColumns() {
     lookupKey: text('lookup_key').primaryKey(),
     slug: text('slug').notNull(),
     state: objectStateEnum('state').notNull().default('PENDING'),
+    content: text('content').notNull().default(''),
     dedupHash: text('dedup_hash'),
     lockedBy: text('locked_by'),
     lockedAt: timestamp('locked_at'),
@@ -152,7 +153,6 @@ export const entries = pgTable(
   {
     ...baseColumns(),
     title: text('title').notNull().default(''),
-    content: text('content').notNull().default(''),
     type: text('type').notNull().default('thought'),
     source: text('source').notNull().default('api'),
     vaultId: text('vault_id').references(() => vaults.id, {
@@ -237,6 +237,8 @@ export const edits = pgTable(
     timestamp: timestamp('timestamp').defaultNow().notNull(),
     type: text('type').notNull().default('addition'),
     content: text('content').notNull(),
+    source: text('source').notNull().default('user'),
+    diff: text('diff').notNull().default(''),
   },
   (t) => [index('edits_object_idx').on(t.objectType, t.objectId)]
 )
