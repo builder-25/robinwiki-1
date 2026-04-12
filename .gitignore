@@ -6,4 +6,5 @@ dist
 .planning
 .uat
 *.rdb
+.claude
 !.claude/skills
