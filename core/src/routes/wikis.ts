@@ -1,16 +1,15 @@
 import { Hono } from 'hono'
-import { eq, ne, and, inArray, desc, isNull } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
-import { generateSlug, loadWikiGenerationSpec } from '@robin/shared'
-import type { WikiType } from '@robin/shared'
-import { createIngestAgents, createStringCaller, NoOpenRouterKeyError, embedText } from '@robin/agent'
+import { generateSlug } from '@robin/shared'
+import { NoOpenRouterKeyError } from '@robin/agent'
 import { sessionMiddleware } from '../middleware/session.js'
 import { db } from '../db/client.js'
-import { wikis, edges, fragments, edits } from '../db/schema.js'
+import { wikis } from '../db/schema.js'
 import { logger } from '../lib/logger.js'
 import { validationHook } from '../lib/validation.js'
-import { nanoid24, nanoid } from '../lib/id.js'
-import { loadOpenRouterConfigFromDb } from '../lib/openrouter-config.js'
+import { nanoid24 } from '../lib/id.js'
+import { regenerateWiki } from '../lib/regen.js'
 import {
   threadResponseSchema,
   threadWithWikiResponseSchema,
@@ -130,113 +129,10 @@ wikisRouter.post('/:id/regenerate', async (c) => {
     return c.json({ error: 'Regeneration is disabled for this wiki' }, 400)
   }
 
-  const previousContent = wiki.content
-
   try {
-    const orConfig = await loadOpenRouterConfigFromDb(db)
-    const agents = createIngestAgents(orConfig)
-    const callLlm = createStringCaller(agents.wikiClassifier)
-
-    // Gather linked fragments via FRAGMENT_IN_WIKI edges
-    const fragmentEdges = await db
-      .select({ srcId: edges.srcId })
-      .from(edges)
-      .where(
-        and(
-          eq(edges.dstId, id),
-          eq(edges.edgeType, 'FRAGMENT_IN_WIKI'),
-          isNull(edges.deletedAt)
-        )
-      )
-
-    const fragmentKeys = fragmentEdges.map((e) => e.srcId)
-    let fragmentsText = ''
-    let fragmentCount = 0
-
-    if (fragmentKeys.length > 0) {
-      const fragRows = await db
-        .select({ title: fragments.title, content: fragments.content })
-        .from(fragments)
-        .where(and(inArray(fragments.lookupKey, fragmentKeys), isNull(fragments.deletedAt)))
-
-      fragmentCount = fragRows.length
-      fragmentsText = fragRows
-        .map((f) => `### ${f.title}\n${f.content}`)
-        .join('\n\n')
-    }
-
-    // Gather recent user edits for the {{edits}} template variable
-    const userEdits = await db
-      .select({ content: edits.content })
-      .from(edits)
-      .where(
-        and(
-          eq(edits.objectType, 'wiki'),
-          eq(edits.objectId, id),
-          eq(edits.source, 'user')
-        )
-      )
-      .orderBy(desc(edits.timestamp))
-      .limit(10)
-
-    const editsSummary = userEdits.length > 0
-      ? userEdits.map((e) => e.content).join('\n---\n')
-      : undefined
-
-    // Gather related wikis for cross-linking context
-    const otherWikis = await db
-      .select({ name: wikis.name, slug: wikis.slug, type: wikis.type })
-      .from(wikis)
-      .where(and(ne(wikis.lookupKey, id), isNull(wikis.deletedAt)))
-      .limit(20)
-
-    const relatedWikisText = otherWikis.length > 0
-      ? otherWikis.map((w) => `- ${w.slug} (${w.type}): ${w.name}`).join('\n')
-      : undefined
-
-    // Load prompt spec and call LLM
-    const spec = loadWikiGenerationSpec(wiki.type as WikiType, {
-      fragments: fragmentsText,
-      title: wiki.name,
-      date: new Date().toISOString().split('T')[0],
-      count: fragmentCount,
-      existingWiki: previousContent || undefined,
-      edits: editsSummary,
-      relatedWikis: relatedWikisText,
-    })
-
-    const markdown = await callLlm(spec.system, spec.user)
-
-    // Update wiki content and log edit
-    const now = new Date()
-    const [updated] = await db
-      .update(wikis)
-      .set({ content: markdown, lastRebuiltAt: now, updatedAt: now })
-      .where(eq(wikis.lookupKey, id))
-      .returning()
-
-    // Compute and store embedding for the new content
-    const vec = await embedText(markdown, {
-      apiKey: orConfig.apiKey,
-      model: orConfig.embeddingModel,
-    })
-    if (vec) {
-      await db.update(wikis).set({ embedding: vec }).where(eq(wikis.lookupKey, id))
-    }
-
-    await db.insert(edits).values({
-      id: nanoid(),
-      objectType: 'wiki',
-      objectId: id,
-      type: 'addition',
-      content: previousContent,
-      source: 'regen',
-      diff: '',
-    })
-
-    log.info({ wikiKey: id, fragmentCount, hasEmbedding: !!vec }, 'wiki regenerated via Quill')
-
-    return c.json({ ok: true, lookupKey: updated.lookupKey, lastRebuiltAt: updated.lastRebuiltAt })
+    const result = await regenerateWiki(db, id)
+    log.info({ wikiKey: id, ...result }, 'wiki regenerated via on-demand endpoint')
+    return c.json({ ok: true, lookupKey: id, fragmentCount: result.fragmentCount })
   } catch (err) {
     if (err instanceof NoOpenRouterKeyError) {
       return c.json({ error: 'OpenRouter API key not configured' }, 500)

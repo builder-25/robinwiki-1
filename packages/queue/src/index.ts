@@ -18,6 +18,7 @@ export const QUEUE_NAMES = {
   link: 'link-queue',
   reclassify: 'reclassify-queue',
   provision: 'provision-queue',
+  regen: 'regen-queue',
   scheduler: 'regen-scheduler-queue',
   dlq: 'ingest-dlq',
 } as const
@@ -115,6 +116,7 @@ export interface QueueProducer {
   enqueueExtraction(job: ExtractionJob): Promise<string>
   enqueueLink(job: LinkJob): Promise<string>
   enqueueReclassify(job: ReclassifyJob): Promise<string>
+  enqueueRegen(job: RegenJob): Promise<string>
   enqueueProvision(job: ProvisionJob): Promise<string>
   getQueue(name: string): Queue
   close(): Promise<void>
@@ -126,6 +128,7 @@ export interface QueueWorker {
   startExtractionWorker(processor: (job: ExtractionJob) => Promise<JobResult>): Worker
   startLinkWorker(processor: (job: LinkJob) => Promise<JobResult>): Worker
   startReclassifyWorker(processor: (job: ReclassifyJob) => Promise<JobResult>): Worker
+  startRegenWorker(processor: (job: RegenJob) => Promise<JobResult>): Worker
   startProvisionWorker(processor: (job: ProvisionJob) => Promise<JobResult>): Worker
 }
 
@@ -176,6 +179,16 @@ export class BullMQProducer implements QueueProducer {
     return bullJob.id ?? job.jobId
   }
 
+  async enqueueRegen(job: RegenJob): Promise<string> {
+    const queue = this.getQueue(QUEUE_NAMES.regen)
+    // Use wiki key as jobId for deduplication — BullMQ skips if a job
+    // with the same id is already waiting, so rapid fragment links to the
+    // same wiki only produce one regen job.
+    const dedupeId = `regen-${job.objectKey}`
+    const bullJob = await queue.add('regen', job, { jobId: dedupeId })
+    return bullJob.id ?? job.jobId
+  }
+
   async enqueueProvision(job: ProvisionJob): Promise<string> {
     const queue = this.getQueue(QUEUE_NAMES.provision)
     const bullJob = await queue.add('provision', job, { jobId: job.jobId })
@@ -215,6 +228,14 @@ export class BullMQWorker implements QueueWorker {
     return new Worker(
       QUEUE_NAMES.reclassify,
       async (job: Job<ReclassifyJob>) => processor(job.data),
+      { connection: this.connection, concurrency: 1, autorun: true }
+    )
+  }
+
+  startRegenWorker(processor: (job: RegenJob) => Promise<JobResult>): Worker {
+    return new Worker(
+      QUEUE_NAMES.regen,
+      async (job: Job<RegenJob>) => processor(job.data),
       { connection: this.connection, concurrency: 1, autorun: true }
     )
   }

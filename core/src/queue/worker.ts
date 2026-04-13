@@ -1,13 +1,11 @@
 /**
- * BullMQ workers for the M2 ingest pipeline.
+ * BullMQ workers for the ingest + regen pipeline.
  *
- * Two long-lived workers run for the single user: extraction and link.
+ * Three long-lived workers run for the single user: extraction, link, and regen.
  * Extraction loads OpenRouter creds per-call, builds fresh Mastra agents,
  * and dispatches to runExtraction. Link does the same for runLinking.
+ * Regen rebuilds wiki content when new fragments are linked.
  * Retries, backoff, and DLQ are handled by BullMQ via RETRY_CONFIG.
- *
- * Regen, reclassify, and provision are dormant or stubbed in M2. See the
- * TODO(M3) comments in startWorkers().
  */
 
 import {
@@ -53,6 +51,7 @@ import { resolveFragmentSlug } from '../db/slug.js'
 import { computeContentHash } from '../db/dedup.js'
 import { emitPipelineEvent } from '../db/pipeline-events.js'
 import { producer } from './producer.js'
+import { processRegenJob } from './regen-worker.js'
 import { loadOpenRouterConfigFromDb } from '../lib/openrouter-config.js'
 import { logger } from '../lib/logger.js'
 
@@ -391,7 +390,29 @@ async function processLinkJob(job: LinkJob): Promise<JobResult> {
       llmCall: createTypedCaller(agents.fragScorer, fragmentRelevanceSchema),
       emitEvent,
     },
-    insertEdge: insertEdgeRow,
+    insertEdge: async (edge: Record<string, unknown>) => {
+      await insertEdgeRow(edge)
+
+      // After creating a FRAGMENT_IN_WIKI edge, enqueue a regen job for the
+      // target wiki. BullMQ deduplicates by jobId (`regen-<wikiKey>`), so
+      // rapid fragment links to the same wiki collapse into a single regen.
+      if (edge.edgeType === 'FRAGMENT_IN_WIKI' && typeof edge.dstId === 'string') {
+        try {
+          await producer.enqueueRegen({
+            type: 'regen',
+            jobId: crypto.randomUUID(),
+            objectKey: edge.dstId,
+            objectType: 'wiki',
+            triggeredBy: 'scheduler',
+            enqueuedAt: new Date().toISOString(),
+          })
+          log.info({ wikiKey: edge.dstId }, 'regen job enqueued for wiki')
+        } catch (err) {
+          // Non-fatal: wiki will be picked up by the next batch scan
+          log.warn({ wikiKey: edge.dstId, err }, 'failed to enqueue regen job')
+        }
+      }
+    },
   }
 
   await runLinking(deps, {
@@ -412,12 +433,12 @@ async function processLinkJob(job: LinkJob): Promise<JobResult> {
 
 let extractionWorker: ReturnType<typeof bullWorker.startExtractionWorker> | null = null
 let linkWorker: ReturnType<typeof bullWorker.startLinkWorker> | null = null
+let regenWorker: ReturnType<typeof bullWorker.startRegenWorker> | null = null
 
 /**
  * Start global ingest workers. Single-user — one worker per queue, no per-user fan-out.
- *
- * TODO(M3): re-register the regen worker, regen scheduler, and reclassify worker
- * once those pipelines come back online.
+ * Extraction and link workers handle ingest; regen worker rebuilds wikis when
+ * new fragments are linked via FRAGMENT_IN_WIKI edges.
  */
 export function startWorkers(): void {
   if (extractionWorker || linkWorker) {
@@ -434,6 +455,10 @@ export function startWorkers(): void {
   linkWorker = bullWorker.startLinkWorker(processLinkJob)
   linkWorker.on('completed', (job) => log.info({ jobId: job.id }, 'link completed'))
   linkWorker.on('failed', (job, err) => log.error({ jobId: job?.id, err }, 'link failed'))
+
+  regenWorker = bullWorker.startRegenWorker(processRegenJob)
+  regenWorker.on('completed', (job) => log.info({ jobId: job.id }, 'regen completed'))
+  regenWorker.on('failed', (job, err) => log.error({ jobId: job?.id, err }, 'regen failed'))
 
   log.info('ingest workers started')
 }
