@@ -26,6 +26,8 @@ import { handleLogEntry, handleLogFragment, handleCreateWikiType, handleCreateWi
 import type { McpServerDeps } from './handlers.js'
 import { wikis } from '../db/schema.js'
 import { nanoid24 } from '../lib/id.js'
+import { hybridSearch } from '../lib/search.js'
+import { loadOpenRouterConfigFromDb } from '../lib/openrouter-config.js'
 
 export type { McpServerDeps }
 
@@ -254,6 +256,68 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Provide id or query' }) }],
           isError: true as const,
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err)
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
+          isError: true as const,
+        }
+      }
+    }
+  )
+
+  /***********************************************************************
+   * ## Search
+   ***********************************************************************/
+
+  server.registerTool(
+    'search',
+    {
+      description:
+        'Search the knowledge base across wikis, fragments, and people. ' +
+        'Returns ranked results using hybrid BM25 + semantic search with RRF fusion. ' +
+        'Use mode=bm25 for keyword search, mode=vector for semantic, mode=hybrid (default) for both.',
+      inputSchema: {
+        query: z.string().describe('Search query text'),
+        tables: z.string().optional().describe('Comma-separated: fragments,wikis,people (default: all)'),
+        mode: z.enum(['hybrid', 'bm25', 'vector']).optional().describe('Search mode (default: hybrid)'),
+        limit: z.number().optional().describe('Max results (default: 10)'),
+      },
+    },
+    async ({ query, tables, mode, limit }) => {
+      try {
+        const parsedTables = tables
+          ? (tables.split(',').map((t) => t.trim()).filter(Boolean) as ('fragment' | 'wiki' | 'person')[])
+          : undefined
+
+        let embedConfig: { apiKey: string; model: string } | undefined
+        if (mode !== 'bm25') {
+          try {
+            const orConfig = await loadOpenRouterConfigFromDb(deps.db)
+            embedConfig = { apiKey: orConfig.apiKey, model: orConfig.embeddingModel }
+          } catch {
+            // No OpenRouter key — fall back to BM25-only
+            if (mode === 'vector') {
+              return {
+                content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Vector search requires an OpenRouter API key' }) }],
+                isError: true as const,
+              }
+            }
+          }
+        }
+
+        const effectiveMode = (!embedConfig && mode !== 'bm25') ? 'bm25' : (mode ?? 'hybrid')
+
+        const results = await hybridSearch(deps.db, query, {
+          limit: limit ?? 10,
+          tables: parsedTables,
+          mode: effectiveMode,
+          embedConfig,
+        })
+
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(results) }],
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err)
