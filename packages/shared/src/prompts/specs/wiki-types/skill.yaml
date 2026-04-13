@@ -66,6 +66,15 @@ template: |
   {{edits}}
   {{/if}}
 
+  {{#if relatedWikis}}
+  [RELATED WIKIS]
+  The following wikis exist in the knowledge base. If this document
+  references content that belongs to another wiki, link to it using
+  [[wiki-slug]] syntax instead of reproducing the content.
+
+  {{relatedWikis}}
+  {{/if}}
+
   [RULES — READ CAREFULLY]
   1. Output ONLY markdown. No YAML frontmatter. No code fences around the output.
   2. Follow the document structure exactly.
@@ -123,6 +132,9 @@ input_variables:
     required: false
   - name: edits
     description: User edit log entries to preserve across regeneration
+    required: false
+  - name: relatedWikis
+    description: Other wikis in the knowledge base for cross-linking
     required: false
 
 output:

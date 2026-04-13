@@ -32,7 +32,7 @@ export const threadListResponseSchema = z.object({
 // ── Request schemas ─────────────────────────────────────────────────────────
 
 export const createThreadBodySchema = z.object({
-  name: z.string().min(1, 'name is required'),
+  name: z.string().min(3, 'name must be at least 3 characters'),
   type: z.string().default('log'),
   prompt: z.string().optional(),
 })

@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
-import { eq, and, inArray, desc, isNull } from 'drizzle-orm'
+import { eq, ne, and, inArray, desc, isNull } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
 import { generateSlug, loadWikiGenerationSpec } from '@robin/shared'
 import type { WikiType } from '@robin/shared'
-import { createIngestAgents, createStringCaller, NoOpenRouterKeyError } from '@robin/agent'
+import { createIngestAgents, createStringCaller, NoOpenRouterKeyError, embedText } from '@robin/agent'
 import { sessionMiddleware } from '../middleware/session.js'
 import { db } from '../db/client.js'
 import { wikis, edges, fragments, edits } from '../db/schema.js'
@@ -183,6 +183,17 @@ wikisRouter.post('/:id/regenerate', async (c) => {
       ? userEdits.map((e) => e.content).join('\n---\n')
       : undefined
 
+    // Gather related wikis for cross-linking context
+    const otherWikis = await db
+      .select({ name: wikis.name, slug: wikis.slug, type: wikis.type })
+      .from(wikis)
+      .where(and(ne(wikis.lookupKey, id), isNull(wikis.deletedAt)))
+      .limit(20)
+
+    const relatedWikisText = otherWikis.length > 0
+      ? otherWikis.map((w) => `- ${w.slug} (${w.type}): ${w.name}`).join('\n')
+      : undefined
+
     // Load prompt spec and call LLM
     const spec = loadWikiGenerationSpec(wiki.type as WikiType, {
       fragments: fragmentsText,
@@ -191,6 +202,7 @@ wikisRouter.post('/:id/regenerate', async (c) => {
       count: fragmentCount,
       existingWiki: previousContent || undefined,
       edits: editsSummary,
+      relatedWikis: relatedWikisText,
     })
 
     const markdown = await callLlm(spec.system, spec.user)
@@ -203,6 +215,15 @@ wikisRouter.post('/:id/regenerate', async (c) => {
       .where(eq(wikis.lookupKey, id))
       .returning()
 
+    // Compute and store embedding for the new content
+    const vec = await embedText(markdown, {
+      apiKey: orConfig.apiKey,
+      model: orConfig.embeddingModel,
+    })
+    if (vec) {
+      await db.update(wikis).set({ embedding: vec }).where(eq(wikis.lookupKey, id))
+    }
+
     await db.insert(edits).values({
       id: nanoid(),
       objectType: 'wiki',
@@ -213,7 +234,7 @@ wikisRouter.post('/:id/regenerate', async (c) => {
       diff: '',
     })
 
-    log.info({ wikiKey: id, fragmentCount }, 'wiki regenerated via Quill')
+    log.info({ wikiKey: id, fragmentCount, hasEmbedding: !!vec }, 'wiki regenerated via Quill')
 
     return c.json({ ok: true, lookupKey: updated.lookupKey, lastRebuiltAt: updated.lastRebuiltAt })
   } catch (err) {

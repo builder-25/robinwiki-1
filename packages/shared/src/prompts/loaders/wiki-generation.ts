@@ -22,6 +22,7 @@ const inputSchema = z.object({
   people: z.string().optional(),
   existingWiki: z.string().optional(),
   edits: z.string().optional(),
+  relatedWikis: z.string().optional(),
 })
 
 const schemaMap: Record<WikiType, z.ZodType> = {
@@ -48,6 +49,7 @@ export function loadWikiGenerationSpec(
     people?: string
     existingWiki?: string
     edits?: string
+    relatedWikis?: string
   }
 ): PromptResult {
   const validated = inputSchema.parse(vars)
