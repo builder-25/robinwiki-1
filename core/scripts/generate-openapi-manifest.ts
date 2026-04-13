@@ -179,7 +179,7 @@ const routes: RouteSpec[] = [
   { method: 'POST', path: '/people/{id}/regenerate', operationId: 'regeneratePerson', summary: 'Trigger person body regeneration', tags: ['People'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '202': { description: 'Job queued', schemaName: 'queuedResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
 
   // Search
-  { method: 'GET', path: '/search', operationId: 'search', summary: 'Search fragments (BM25 + vector)', tags: ['Search'], auth: 'session', request: { query: { schemaName: 'searchQuerySchema' } }, responses: { '200': { description: 'Search results', schemaName: 'searchResponseSchema' }, '400': { description: 'Missing query', schemaName: 'errorResponseSchema' } } },
+  { method: 'GET', path: '/search', operationId: 'search', summary: 'Hybrid search across fragments, wikis, and people', tags: ['Search'], auth: 'session', request: { query: { schemaName: 'searchQuerySchema' } }, responses: { '200': { description: 'Search results', schemaName: 'searchResponseSchema' }, '400': { description: 'Missing query', schemaName: 'errorResponseSchema' } } },
 
   // Graph
   { method: 'GET', path: '/graph', operationId: 'getGraph', summary: 'Get the knowledge graph', tags: ['Graph'], auth: 'session', responses: { '200': { description: 'Graph nodes and edges', schemaName: 'graphResponseSchema' } } },

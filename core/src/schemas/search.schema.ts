@@ -2,23 +2,32 @@ import { z } from 'zod'
 
 // ── Query schemas ───────────────────────────────────────────────────────────
 
+const searchTableEnum = z.enum(['fragment', 'wiki', 'person'])
+const searchModeEnum = z.enum(['hybrid', 'bm25', 'vector'])
+
 export const searchQuerySchema = z.object({
   q: z.string().min(1, 'q is required'),
   limit: z.coerce.number().int().min(1).max(100).default(10),
-  minScore: z.coerce.number().optional(),
+  tables: z
+    .string()
+    .optional()
+    .transform((v) => {
+      if (!v) return ['fragment', 'wiki', 'person'] as const
+      return v.split(',').map((s) => s.trim()) as Array<'fragment' | 'wiki' | 'person'>
+    })
+    .pipe(z.array(searchTableEnum).min(1)),
+  mode: searchModeEnum.default('hybrid'),
   vaultId: z.string().optional(),
 })
 
 // ── Response schemas ────────────────────────────────────────────────────────
 
 export const searchResultSchema = z.object({
-  score: z.number(),
-  fragmentId: z.string(),
+  id: z.string(),
+  type: searchTableEnum,
   title: z.string(),
-  fragment: z.string(),
-  tags: z.array(z.string()),
-  vaultId: z.string().nullable().optional(),
-  threadId: z.string().nullable().optional(),
+  snippet: z.string(),
+  score: z.number(),
 })
 
 export const searchResponseSchema = z.object({
