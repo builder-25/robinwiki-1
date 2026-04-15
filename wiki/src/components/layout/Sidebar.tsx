@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useMemo, useState, type CSSProperties } from "react";
+import { useWikis } from "@/hooks/useWikis";
+import { useWikiTypes } from "@/hooks/useWikiTypes";
 
 type ArrowState = "none" | "right" | "down";
 
@@ -47,36 +49,52 @@ const navigationData: SidebarSectionData = {
     { label: "Main page", arrow: "none", href: "/wiki" },
     {
       label: "Recent Fragments",
-      arrow: "down",
-      children: [{ label: "The Berlin years", href: "/wiki/article" }],
+      arrow: "right",
+      href: "/wiki?view=fragments",
     },
     { label: "Knowledge Graph", arrow: "none", href: "/wiki" },
     { label: "Search", arrow: "none", href: "/wiki/search" },
   ],
 };
 
-const contentsData: SidebarSectionData = {
-  title: "Wiki Types",
-  items: [
-    { label: "(Top)", arrow: "none", bold: true, href: "/wiki" },
-    { label: "Log", arrow: "none", href: "#" },
-    { label: "Research", arrow: "none", href: "/wiki/research" },
-    { label: "Belief", arrow: "right", count: 12 },
-    {
-      label: "Decision",
-      arrow: "down",
-      count: 7,
-      children: [{ label: "The Berlin years", href: "/wiki/article" }],
-    },
-    { label: "Goal", arrow: "right", count: 7, href: "/wiki/goal" },
-    { label: "Project", arrow: "none", href: "/wiki/project" },
-    { label: "Principles", arrow: "right", href: "/wiki/principle" },
-    { label: "Skill", arrow: "right", href: "/wiki/skill" },
-    { label: "Agent", arrow: "right", href: "/wiki/agents" },
-    { label: "Voice", arrow: "none", href: "/wiki/voice" },
-    { label: "Works", arrow: "right", href: "#" },
-  ],
-};
+function useWikiTypesSection(): SidebarSectionData {
+  const { data: wikiTypes } = useWikiTypes();
+  const { data: wikis } = useWikis();
+
+  return useMemo(() => {
+    const topItem: NavItem = { label: "(Top)", arrow: "none", bold: true, href: "/wiki" };
+
+    if (!wikiTypes?.wikiTypes) {
+      return { title: "Wiki Types", items: [topItem] };
+    }
+
+    const wikisByType = new Map<string, Array<{ name: string; id: string }>>();
+    if (wikis?.threads) {
+      for (const wiki of wikis.threads) {
+        const existing = wikisByType.get(wiki.type) ?? [];
+        existing.push({ name: wiki.name, id: wiki.id });
+        wikisByType.set(wiki.type, existing);
+      }
+    }
+
+    const typeItems: NavItem[] = wikiTypes.wikiTypes.map((wt) => {
+      const typeWikis = wikisByType.get(wt.slug) ?? [];
+      const children: NavChild[] = typeWikis.slice(0, 5).map((w) => ({
+        label: w.name,
+        href: `/wiki/${w.id}`,
+      }));
+      return {
+        label: wt.name,
+        arrow: children.length > 0 ? ("right" as const) : ("none" as const),
+        count: typeWikis.length || undefined,
+        href: `/wiki?type=${wt.slug}`,
+        children: children.length > 0 ? children : undefined,
+      };
+    });
+
+    return { title: "Wiki Types", items: [topItem, ...typeItems] };
+  }, [wikiTypes, wikis]);
+}
 
 const linkStyle: CSSProperties = {
   fontFamily: "var(--font-inter), Inter, sans-serif",
@@ -394,6 +412,8 @@ function SidebarSection({
 }
 
 export default function Sidebar() {
+  const contentsData = useWikiTypesSection();
+
   return (
     <nav>
       <SidebarSection

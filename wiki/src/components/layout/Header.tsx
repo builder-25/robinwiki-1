@@ -122,6 +122,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
               whiteSpace: "nowrap",
             }}
           >
+            {/* TODO: read from session data when auth is wired */}
             antellopia
           </span>
           </div>
