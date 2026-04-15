@@ -1,5 +1,10 @@
 "use client";
 
+import Link from "next/link";
+import { useWikis } from "@/hooks/useWikis";
+import { useWikiTypes } from "@/hooks/useWikiTypes";
+import { useMemo } from "react";
+
 const BadgeIcon = () => (
   <svg
     width="14"
@@ -38,37 +43,20 @@ const BulletDot = () => (
 );
 
 interface WikiItem {
+  id: string;
   title: string;
   date: string;
 }
 
 interface WikiCategory {
   name: string;
+  slug: string;
   items: WikiItem[];
 }
-
-const placeholderItems: WikiItem[] = [
-  { title: "The April 18 Medical Check list", date: "2026-04-07" },
-  { title: "The June 28 Sprint Memo", date: "2026-04-07" },
-];
-
-const categories: WikiCategory[] = [
-  { name: "Log", items: placeholderItems },
-  { name: "Research", items: placeholderItems },
-  { name: "Belief", items: placeholderItems },
-  { name: "Decision", items: placeholderItems },
-  { name: "Goal", items: placeholderItems },
-  { name: "Project", items: placeholderItems },
-  { name: "Principles", items: placeholderItems },
-  { name: "Skill", items: placeholderItems },
-  { name: "Agent", items: placeholderItems },
-  { name: "Voice", items: placeholderItems },
-];
 
 function CategorySection({ category }: { category: WikiCategory }) {
   return (
     <div>
-      {/* Category header */}
       <div
         style={{
           display: "flex",
@@ -92,7 +80,7 @@ function CategorySection({ category }: { category: WikiCategory }) {
         <p
           style={{
             fontFamily:
-              "var(--font-source-serif-4), 'Source Serif 4', serif",
+              "var(--font-source-serif-4), \'Source Serif 4\', serif",
             fontSize: 16,
             fontWeight: 400,
             lineHeight: "29px",
@@ -103,11 +91,24 @@ function CategorySection({ category }: { category: WikiCategory }) {
         </p>
       </div>
 
-      {/* Items */}
       <div style={{ display: "flex", flexDirection: "column" }}>
-        {category.items.map((item, i) => (
+        {category.items.length === 0 && (
+          <div style={{ padding: "4px 12px 4px 38px" }}>
+            <span
+              style={{
+                fontFamily: "var(--font-inter), Inter, sans-serif",
+                fontSize: 12,
+                color: "var(--wiki-item-date)",
+                fontStyle: "italic",
+              }}
+            >
+              No wikis yet
+            </span>
+          </div>
+        )}
+        {category.items.map((item) => (
           <div
-            key={i}
+            key={item.id}
             style={{
               display: "flex",
               alignItems: "flex-start",
@@ -137,11 +138,10 @@ function CategorySection({ category }: { category: WikiCategory }) {
                 lineHeight: "20px",
               }}
             >
-              <a
-                href="#"
+              <Link
+                href={`/wiki/${item.id}`}
                 style={{
-                  fontFamily:
-                    "var(--font-inter), Inter, sans-serif",
+                  fontFamily: "var(--font-inter), Inter, sans-serif",
                   fontSize: 14,
                   fontWeight: 400,
                   lineHeight: "20px",
@@ -153,11 +153,10 @@ function CategorySection({ category }: { category: WikiCategory }) {
                 }}
               >
                 {item.title}
-              </a>
+              </Link>
               <span
                 style={{
-                  fontFamily:
-                    "var(--font-inter), Inter, sans-serif",
+                  fontFamily: "var(--font-inter), Inter, sans-serif",
                   fontSize: 10,
                   fontWeight: 400,
                   lineHeight: "20px",
@@ -176,6 +175,34 @@ function CategorySection({ category }: { category: WikiCategory }) {
 }
 
 export default function BrowseByType() {
+  const { data: wikiTypesData, isLoading: typesLoading } = useWikiTypes();
+  const { data: wikisData, isLoading: wikisLoading } = useWikis();
+
+  const categories = useMemo<WikiCategory[]>(() => {
+    if (!wikiTypesData?.wikiTypes) return [];
+
+    const wikisByType = new Map<string, WikiItem[]>();
+    if (wikisData?.threads) {
+      for (const wiki of wikisData.threads) {
+        const items = wikisByType.get(wiki.type) ?? [];
+        items.push({
+          id: wiki.id,
+          title: wiki.name,
+          date: wiki.lastUpdated?.slice(0, 10) ?? "",
+        });
+        wikisByType.set(wiki.type, items);
+      }
+    }
+
+    return wikiTypesData.wikiTypes.map((wt) => ({
+      name: wt.name,
+      slug: wt.slug,
+      items: (wikisByType.get(wt.slug) ?? []).slice(0, 3),
+    }));
+  }, [wikiTypesData, wikisData]);
+
+  const isLoading = typesLoading || wikisLoading;
+
   return (
     <div
       style={{
@@ -183,7 +210,6 @@ export default function BrowseByType() {
         width: "100%",
       }}
     >
-      {/* Header */}
       <div
         style={{
           borderBottom: "1px solid var(--wiki-card-border)",
@@ -203,10 +229,21 @@ export default function BrowseByType() {
         </p>
       </div>
 
-      {/* 2-column grid */}
       <div className="wiki-browse-grid">
-        {categories.map((cat, i) => (
-          <CategorySection key={i} category={cat} />
+        {isLoading && (
+          <div style={{ padding: 16 }}>
+            <p style={{ color: "var(--wiki-item-date)", fontSize: 12 }}>Loading types...</p>
+          </div>
+        )}
+        {!isLoading && categories.length === 0 && (
+          <div style={{ padding: 16 }}>
+            <p style={{ color: "var(--wiki-item-date)", fontSize: 12, fontStyle: "italic" }}>
+              No wiki types configured
+            </p>
+          </div>
+        )}
+        {categories.map((cat) => (
+          <CategorySection key={cat.slug} category={cat} />
         ))}
       </div>
     </div>

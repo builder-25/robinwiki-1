@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { useWikis } from "@/hooks/useWikis";
+
 const ExternalLinkIcon = () => (
   <svg
     width="10"
@@ -18,6 +21,62 @@ const ExternalLinkIcon = () => (
 );
 
 export default function FeaturedArticle() {
+  const { data, isLoading, error } = useWikis({ limit: 1 });
+  const wiki = data?.threads?.[0];
+
+  if (isLoading) {
+    return (
+      <div
+        style={{
+          border: "1px solid var(--wiki-card-border)",
+          width: "100%",
+          height: "100%",
+          padding: 16,
+        }}
+      >
+        <p style={{ color: "var(--wiki-featured-meta)", fontSize: 12 }}>
+          Loading featured wiki...
+        </p>
+      </div>
+    );
+  }
+
+  if (error || !wiki) {
+    return (
+      <div
+        style={{
+          border: "1px solid var(--wiki-card-border)",
+          width: "100%",
+          height: "100%",
+        }}
+      >
+        <div
+          style={{
+            borderBottom: "1px solid var(--wiki-card-border)",
+            padding: "10px 16px",
+          }}
+        >
+          <p
+            style={{
+              fontFamily: "var(--font-inter), Inter, sans-serif",
+              fontSize: 16,
+              fontWeight: 600,
+              lineHeight: "20px",
+              color: "var(--wiki-card-header)",
+            }}
+          >
+            Featured Wiki
+          </p>
+        </div>
+        <div style={{ padding: "21px 16px 16px" }}>
+          <p style={{ color: "var(--wiki-featured-meta)", fontSize: 12, fontStyle: "italic" }}>
+            {error ? "Failed to load" : "No wikis yet"}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -26,7 +85,6 @@ export default function FeaturedArticle() {
         height: "100%",
       }}
     >
-      {/* Header */}
       <div
         style={{
           borderBottom: "1px solid var(--wiki-card-border)",
@@ -46,9 +104,7 @@ export default function FeaturedArticle() {
         </p>
       </div>
 
-      {/* Content */}
       <div style={{ padding: "21px 16px 16px" }}>
-        {/* Article link + chip */}
         <div
           style={{
             display: "flex",
@@ -57,11 +113,10 @@ export default function FeaturedArticle() {
             flexWrap: "wrap",
           }}
         >
-          <a
-            href="#"
+          <Link
+            href={`/wiki/${wiki.id}`}
             style={{
-              fontFamily:
-                "'Helvetica Neue', Helvetica, Arial, sans-serif",
+              fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
               fontSize: 12.4,
               fontWeight: 400,
               lineHeight: "17.3px",
@@ -69,8 +124,8 @@ export default function FeaturedArticle() {
               textDecoration: "none",
             }}
           >
-            Design Systems as Living Documents
-          </a>
+            {wiki.name}
+          </Link>
           <span
             style={{
               background: "var(--wiki-chip-bg)",
@@ -85,36 +140,13 @@ export default function FeaturedArticle() {
               whiteSpace: "nowrap",
             }}
           >
-            Belief
+            {wiki.type}
           </span>
         </div>
 
-        {/* Description */}
         <p
           style={{
-            marginTop: 6,
-            fontFamily:
-              "'Helvetica Neue', Helvetica, Arial, sans-serif",
-            fontSize: 12.4,
-            fontWeight: 400,
-            lineHeight: "17.3px",
-            color: "var(--wiki-featured-desc)",
-            maxWidth: "100%",
-          }}
-        >
-          Design systems should evolve with usage patterns rather than
-          be prescribed top-down. The strongest systems emerge from
-          observing how teams actually build, not from how architects
-          imagine they should build. This belief has shaped three major
-          product decisions in the last year and continues to inform
-          how the component library grows.
-        </p>
-
-        {/* Metadata */}
-        <p
-          style={{
-            fontFamily:
-              "'Helvetica Neue', Helvetica, Arial, sans-serif",
+            fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
             fontWeight: 300,
             fontStyle: "italic",
             fontSize: 10,
@@ -122,12 +154,12 @@ export default function FeaturedArticle() {
             color: "var(--wiki-featured-meta)",
             whiteSpace: "pre-wrap",
             wordBreak: "break-word",
+            marginTop: 6,
           }}
         >
-          {"14 fragments       6 backlinks       Updated 2026-04-06"}
+          {`${wiki.noteCount ?? 0} fragments       Updated ${wiki.lastUpdated?.slice(0, 10) ?? "unknown"}`}
         </p>
 
-        {/* Read more */}
         <div
           style={{
             display: "flex",
@@ -137,8 +169,8 @@ export default function FeaturedArticle() {
             borderRadius: 1.4,
           }}
         >
-          <a
-            href="#"
+          <Link
+            href={`/wiki/${wiki.id}`}
             style={{
               fontFamily: "var(--font-inter), Inter, sans-serif",
               fontSize: 9.86,
@@ -149,7 +181,7 @@ export default function FeaturedArticle() {
             }}
           >
             Read more
-          </a>
+          </Link>
           <ExternalLinkIcon />
         </div>
       </div>

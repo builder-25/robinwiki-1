@@ -1,18 +1,22 @@
 "use client";
 
-/** Figma 237:37091 — Fragments section (home wiki column) */
-const FRAGMENT_LINK_TEXT =
-  "Andrew Tate Biography | The Real World Portal";
+import Link from "next/link";
+import { useFragments } from "@/hooks/useFragments";
 
 const IBM = "var(--font-ibm-plex-sans), 'IBM Plex Sans', sans-serif";
 
 function FragmentListItem({
+  fragment,
   index,
-  indexColorVar,
 }: {
-  index: "1." | "2.";
-  indexColorVar: string;
+  fragment: { id: string; title: string };
+  index: number;
 }) {
+  const indexColorVar =
+    index % 2 === 0
+      ? "var(--wiki-fragment-index-1)"
+      : "var(--wiki-fragment-index-2)";
+
   return (
     <div
       style={{
@@ -28,7 +32,7 @@ function FragmentListItem({
       <span
         style={{
           flexShrink: 0,
-          width: 13,
+          width: 20,
           alignSelf: "stretch",
           fontFamily: IBM,
           fontSize: 14,
@@ -38,12 +42,11 @@ function FragmentListItem({
           color: indexColorVar,
         }}
       >
-        {index}
+        {index + 1}.
       </span>
-      <a
-        href="#"
+      <Link
+        href={`/wiki/fragment/${fragment.id}`}
         style={{
-          flexShrink: 0,
           fontFamily: IBM,
           fontSize: 16,
           fontWeight: 400,
@@ -53,37 +56,26 @@ function FragmentListItem({
           textDecoration: "underline",
           textDecorationSkipInk: "none",
           whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
         }}
       >
-        {FRAGMENT_LINK_TEXT}
-      </a>
-    </div>
-  );
-}
-
-function FragmentRow() {
-  return (
-    <div
-      style={{
-        display: "flex",
-        width: "100%",
-        alignItems: "center",
-        justifyContent: "space-between",
-      }}
-    >
-      <FragmentListItem
-        index="1."
-        indexColorVar="var(--wiki-fragment-index-1)"
-      />
-      <FragmentListItem
-        index="2."
-        indexColorVar="var(--wiki-fragment-index-2)"
-      />
+        {fragment.title}
+      </Link>
     </div>
   );
 }
 
 export default function WikiFragments() {
+  const { data, isLoading, error } = useFragments({ limit: 12 });
+  const fragments = data?.fragments ?? [];
+
+  // Pair fragments into rows of 2
+  const rows: Array<[typeof fragments[0], typeof fragments[0] | undefined]> = [];
+  for (let i = 0; i < fragments.length; i += 2) {
+    rows.push([fragments[i], fragments[i + 1]]);
+  }
+
   return (
     <section
       style={{
@@ -129,6 +121,23 @@ export default function WikiFragments() {
           alignItems: "flex-start",
         }}
       >
+        {isLoading && (
+          <div style={{ padding: "0 16px" }}>
+            <p style={{ color: "var(--wiki-item-date)", fontSize: 12 }}>Loading fragments...</p>
+          </div>
+        )}
+        {error && (
+          <div style={{ padding: "0 16px" }}>
+            <p style={{ color: "var(--wiki-item-date)", fontSize: 12 }}>Failed to load fragments</p>
+          </div>
+        )}
+        {!isLoading && !error && fragments.length === 0 && (
+          <div style={{ padding: "0 16px" }}>
+            <p style={{ color: "var(--wiki-item-date)", fontSize: 12, fontStyle: "italic" }}>
+              No fragments yet
+            </p>
+          </div>
+        )}
         <div
           style={{
             display: "flex",
@@ -138,8 +147,19 @@ export default function WikiFragments() {
             gap: 13,
           }}
         >
-          {Array.from({ length: 6 }, (_, i) => (
-            <FragmentRow key={i} />
+          {rows.map(([left, right], rowIdx) => (
+            <div
+              key={rowIdx}
+              style={{
+                display: "flex",
+                width: "100%",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <FragmentListItem fragment={left} index={rowIdx * 2} />
+              {right && <FragmentListItem fragment={right} index={rowIdx * 2 + 1} />}
+            </div>
           ))}
         </div>
       </div>

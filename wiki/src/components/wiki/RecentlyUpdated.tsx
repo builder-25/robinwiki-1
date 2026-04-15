@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { useWikis } from "@/hooks/useWikis";
+
 const BulletDot = () => (
   <svg
     width="8"
@@ -17,15 +20,10 @@ const BulletDot = () => (
   </svg>
 );
 
-const items = [
-  { title: "Ship Weekly Review Monthly", date: "2026-04-07" },
-  { title: "Migrate Auth to Passkeys", date: "2026-04-07" },
-  { title: "Launch Robin v1 by April 10", date: "2026-04-07" },
-  { title: "Delete Robin v0 by April 1e", date: "2026-04-07" },
-  { title: "Launch Robin v1 by April 10", date: "2026-04-07" },
-];
-
 export default function RecentlyUpdated() {
+  const { data, isLoading, error } = useWikis({ limit: 5 });
+  const wikis = data?.threads ?? [];
+
   return (
     <div
       className="wiki-recently-updated"
@@ -33,7 +31,6 @@ export default function RecentlyUpdated() {
         border: "1px solid var(--wiki-card-border)",
       }}
     >
-      {/* Header */}
       <div
         style={{
           borderBottom: "1px solid var(--wiki-card-border)",
@@ -54,11 +51,27 @@ export default function RecentlyUpdated() {
         </p>
       </div>
 
-      {/* Items */}
       <div style={{ display: "flex", flexDirection: "column" }}>
-        {items.map((item, i) => (
+        {isLoading && (
+          <div style={{ padding: "8px 12px" }}>
+            <p style={{ color: "var(--wiki-item-date)", fontSize: 12 }}>Loading...</p>
+          </div>
+        )}
+        {error && (
+          <div style={{ padding: "8px 12px" }}>
+            <p style={{ color: "var(--wiki-item-date)", fontSize: 12 }}>Failed to load</p>
+          </div>
+        )}
+        {wikis.length === 0 && !isLoading && !error && (
+          <div style={{ padding: "8px 12px" }}>
+            <p style={{ color: "var(--wiki-item-date)", fontSize: 12, fontStyle: "italic" }}>
+              No wikis yet
+            </p>
+          </div>
+        )}
+        {wikis.map((wiki) => (
           <div
-            key={i}
+            key={wiki.id}
             style={{
               display: "flex",
               alignItems: "flex-start",
@@ -88,11 +101,10 @@ export default function RecentlyUpdated() {
                 lineHeight: "20px",
               }}
             >
-              <a
-                href="#"
+              <Link
+                href={`/wiki/${wiki.id}`}
                 style={{
-                  fontFamily:
-                    "var(--font-inter), Inter, sans-serif",
+                  fontFamily: "var(--font-inter), Inter, sans-serif",
                   fontSize: 14,
                   fontWeight: 400,
                   lineHeight: "20px",
@@ -103,12 +115,11 @@ export default function RecentlyUpdated() {
                   textOverflow: "ellipsis",
                 }}
               >
-                {item.title}
-              </a>
+                {wiki.name}
+              </Link>
               <span
                 style={{
-                  fontFamily:
-                    "var(--font-inter), Inter, sans-serif",
+                  fontFamily: "var(--font-inter), Inter, sans-serif",
                   fontSize: 10,
                   fontWeight: 400,
                   lineHeight: "20px",
@@ -117,7 +128,7 @@ export default function RecentlyUpdated() {
                   marginLeft: 8,
                 }}
               >
-                ({item.date})
+                ({wiki.lastUpdated?.slice(0, 10) ?? ""})
               </span>
             </div>
           </div>
