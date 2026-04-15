@@ -7,6 +7,8 @@ Robin is an AI-powered second brain that captures thoughts through conversation 
 
 This repo is a migration from the original `stateful-robin-impl` monorepo. The Go gateway is being removed — its functionality will be stubbed via a facade in the gateway client that returns expected empty/default objects. The server app is the sole application, owning all intelligence, auth, API, MCP, and AI pipeline responsibilities.
 
+The `wiki/` workspace (`@robin/wiki`) is the web frontend — a Next.js 16 application with shadcn/ui. Currently a UI prototype with hardcoded data; will be wired to the core API in a future phase.
+
 **Core Value:** Users can capture raw thoughts and have them automatically structured into searchable, interconnected knowledge — without manual organization.
 
 ### Constraints
@@ -15,6 +17,7 @@ This repo is a migration from the original `stateful-robin-impl` monorepo. The G
 - **Gateway facade**: Gateway client must return structurally valid responses so the server doesn't crash on gateway-dependent code paths
 - **Single source**: Migration from existing working code, not a rewrite
 - **Workspace layout**: `core/` and `packages/*` are top-level workspace entries, no `apps/` subdirectory
+- **Wiki independence**: `wiki/` has its own tsconfig (bundler resolution) and eslint config (eslint-config-next). It does NOT extend tsconfig.base.json or use Biome.
 <!-- GSD:project-end -->
 
 <!-- GSD:stack-start source:STACK.md -->
