@@ -19,6 +19,7 @@ import { graphRoutes } from './routes/graph.js'
 import { relationshipsRoutes } from './routes/relationships.js'
 import { contentRoutes } from './routes/content.js'
 import { wikiTypesRoutes } from './routes/wiki-types.js'
+import { auditRoutes } from './routes/audit.js'
 import { publishedRoutes } from './routes/published.js'
 // M2 dormant: internalRoutes is the git-sync webhook, preserved verbatim in
 // src/routes/internal.ts for M3/M4 refinement. Gateway is gone in M2 so the
@@ -116,6 +117,7 @@ app.route('/graph', graphRoutes)
 app.route('/relationships', relationshipsRoutes)
 app.route('/api/content', contentRoutes)
 app.route('/wiki-types', wikiTypesRoutes)
+app.route('/audit-log', auditRoutes)
 
 /***********************************************************************
  * ## Boot

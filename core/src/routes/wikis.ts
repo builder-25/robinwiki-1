@@ -5,7 +5,7 @@ import { generateSlug } from '@robin/shared'
 import { NoOpenRouterKeyError } from '@robin/agent'
 import { sessionMiddleware } from '../middleware/session.js'
 import { db } from '../db/client.js'
-import { wikis, edges, wikiTypes, fragments, people } from '../db/schema.js'
+import { wikis, edges, wikiTypes, fragments, people, auditLog } from '../db/schema.js'
 import { logger } from '../lib/logger.js'
 import { validationHook } from '../lib/validation.js'
 import { nanoid24 } from '../lib/id.js'
@@ -22,6 +22,7 @@ import {
   toggleRegenerateResponseSchema,
 } from '../schemas/wikis.schema.js'
 import { emitAuditEvent } from '../db/audit.js'
+import { timelineQuerySchema } from '../schemas/audit.schema.js'
 
 const log = logger.child({ component: 'wikis' })
 
@@ -163,6 +164,47 @@ wikisRouter.get('/:id', async (c) => {
       })),
     })
   )
+})
+
+// GET /wikis/:id/timeline — audit events related to this wiki and its fragments
+wikisRouter.get('/:id/timeline', async (c) => {
+  const id = c.req.param('id')
+  const query = timelineQuerySchema.safeParse({
+    limit: c.req.query('limit'),
+    offset: c.req.query('offset'),
+  })
+  const params = query.success ? query.data : { limit: 50, offset: 0 }
+
+  const [wiki] = await db.select({ lookupKey: wikis.lookupKey }).from(wikis).where(eq(wikis.lookupKey, id))
+  if (!wiki) return c.json({ error: 'Not found' }, 404)
+
+  const fragmentEdges = await db
+    .select({ srcId: edges.srcId })
+    .from(edges)
+    .where(
+      and(
+        eq(edges.dstId, id),
+        eq(edges.edgeType, 'FRAGMENT_IN_WIKI'),
+        isNull(edges.deletedAt)
+      )
+    )
+
+  const relatedIds = [id, ...fragmentEdges.map(e => e.srcId)]
+
+  const events = await db
+    .select()
+    .from(auditLog)
+    .where(inArray(auditLog.entityId, relatedIds))
+    .orderBy(sql`${auditLog.createdAt} DESC`)
+    .limit(params.limit)
+    .offset(params.offset)
+
+  return c.json({
+    events: events.map((e) => ({
+      ...e,
+      createdAt: e.createdAt.toISOString(),
+    })),
+  })
 })
 
 // PUT /wikis/:id — update thread

@@ -18,13 +18,13 @@
  ***********************************************************************/
 
 import { z } from 'zod/v4'
-import { eq } from 'drizzle-orm'
+import { eq, and, isNull, inArray, sql } from 'drizzle-orm'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { listWikis, getThread, getFragment, findPersonById, findPersonByQuery, listWikiTypes } from './resolvers.js'
+import { listWikis, getThread, getFragment, findPersonById, findPersonByQuery, listWikiTypes, resolveThreadBySlug } from './resolvers.js'
 import type { McpResolverDeps } from './resolvers.js'
 import { handleLogEntry, handleLogFragment, handleCreateWikiType, handleCreateWiki, handleEditWiki } from './handlers.js'
 import type { McpServerDeps } from './handlers.js'
-import { wikis } from '../db/schema.js'
+import { wikis, edges, auditLog } from '../db/schema.js'
 import { nanoid24 } from '../lib/id.js'
 import { hybridSearch } from '../lib/search.js'
 import { loadOpenRouterConfigFromDb } from '../lib/openrouter-config.js'
@@ -506,6 +506,74 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         const message = err instanceof Error ? err.message : String(err)
         return {
           content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
+          isError: true as const,
+        }
+      }
+    }
+  )
+
+  /***********************************************************************
+   * ## Timeline
+   ***********************************************************************/
+
+  server.registerTool(
+    'get_timeline',
+    {
+      description:
+        'Get the audit timeline for a wiki — shows all events related to the wiki and its linked fragments, ' +
+        'ordered newest first. Useful for understanding the history of a wiki.',
+      inputSchema: {
+        wikiSlug: z.string().describe('Wiki slug (fuzzy-matched)'),
+        limit: z.number().optional().default(20).describe('Max events to return'),
+      },
+    },
+    async ({ wikiSlug, limit }) => {
+      try {
+        const resolverDeps: McpResolverDeps = { db: deps.db }
+        const resolved = await resolveThreadBySlug(resolverDeps, wikiSlug)
+        if ('error' in resolved) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify(resolved) }],
+            isError: true as const,
+          }
+        }
+
+        const wikiKey = resolved.lookupKey
+
+        const fragmentEdges = await deps.db
+          .select({ srcId: edges.srcId })
+          .from(edges)
+          .where(
+            and(
+              eq(edges.dstId, wikiKey),
+              eq(edges.edgeType, 'FRAGMENT_IN_WIKI'),
+              isNull(edges.deletedAt)
+            )
+          )
+
+        const relatedIds = [wikiKey, ...fragmentEdges.map(e => e.srcId)]
+
+        const events = await deps.db
+          .select()
+          .from(auditLog)
+          .where(inArray(auditLog.entityId, relatedIds))
+          .orderBy(sql`${auditLog.createdAt} DESC`)
+          .limit(limit ?? 20)
+
+        const formatted = events.map(e =>
+          `[${e.createdAt.toISOString()}] ${e.entityType}.${e.eventType} — ${e.summary}`
+        ).join('\n')
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: formatted || 'No timeline events found for this wiki.',
+          }],
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err)
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${message}` }],
           isError: true as const,
         }
       }
