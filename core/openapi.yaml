@@ -344,6 +344,12 @@ paths:
             type: integer
             minimum: 0
             default: 0
+        - name: type
+          in: query
+          description: Filter by wiki type slug (e.g. belief, log, project)
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: List of wikis

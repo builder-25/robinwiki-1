@@ -47,6 +47,14 @@ export const threadListResponseSchema = z.object({
   wikis: z.array(threadResponseSchema),
 })
 
+// ── Query schemas ──────────────────────────────────────────────────────────
+
+export const wikiListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+  type: z.string().optional(),
+})
+
 // ── Request schemas ─────────────────────────────────────────────────────────
 
 export const createThreadBodySchema = z.object({

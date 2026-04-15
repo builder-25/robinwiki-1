@@ -15,6 +15,7 @@ import {
   threadResponseSchema,
   threadListResponseSchema,
   wikiDetailResponseSchema,
+  wikiListQuerySchema,
   updateThreadBodySchema,
   publishWikiResponseSchema,
   bouncerModeBodySchema,
@@ -52,9 +53,11 @@ const wikisRouter = new Hono()
 wikisRouter.use('*', sessionMiddleware)
 
 // GET /wikis — cross-vault wiki listing with fragment counts + descriptors
-wikisRouter.get('/', async (c) => {
-  const limit = Math.min(Number(c.req.query('limit') ?? 50), 200)
-  const offset = Number(c.req.query('offset') ?? 0)
+wikisRouter.get('/', zValidator('query', wikiListQuerySchema, validationHook), async (c) => {
+  const { limit, offset, type } = c.req.valid('query')
+
+  const conditions = [isNull(wikis.deletedAt)]
+  if (type) conditions.push(eq(wikis.type, type))
 
   const rows = await db
     .select({
@@ -73,7 +76,7 @@ wikisRouter.get('/', async (c) => {
         isNull(edges.deletedAt)
       )
     )
-    .where(isNull(wikis.deletedAt))
+    .where(and(...conditions))
     .groupBy(wikis.lookupKey, wikiTypes.shortDescriptor, wikiTypes.descriptor)
     .orderBy(sql`${wikis.updatedAt} DESC`)
     .limit(limit)
