@@ -7,6 +7,7 @@ import { wikis, wikiTypes, edges, fragments, edits } from '../db/schema.js'
 import { loadOpenRouterConfigFromDb } from './openrouter-config.js'
 import { nanoid } from './id.js'
 import { logger } from './logger.js'
+import { emitAuditEvent } from '../db/audit.js'
 
 const log = logger.child({ component: 'regen' })
 
@@ -147,6 +148,15 @@ export async function regenerateWiki(
     content: previousContent,
     source: 'regen',
     diff: '',
+  })
+
+  await emitAuditEvent(database, {
+    entityType: 'wiki',
+    entityId: wikiKey,
+    eventType: 'composed',
+    source: 'system',
+    summary: `Wiki regenerated from ${fragmentCount} fragments`,
+    detail: { wikiKey, fragmentCount, hasEmbedding },
   })
 
   log.info({ wikiKey, fragmentCount, hasEmbedding }, 'wiki regenerated')

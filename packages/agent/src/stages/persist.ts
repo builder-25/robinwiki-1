@@ -115,13 +115,16 @@ export async function persist(
   const personKeyRemap = new Map<string, string>()
   if (input.newPeople && input.newPeople.length > 0) {
     for (const person of input.newPeople) {
-      const { personKey } = await deps.upsertPerson({
+      const { personKey, isNew } = await deps.upsertPerson({
         personKey: person.personKey,
         canonicalName: person.canonicalName,
         verified: person.verified,
       })
       if (personKey !== person.personKey) {
         personKeyRemap.set(person.personKey, personKey)
+      }
+      if (isNew && deps.onPersonCreated) {
+        deps.onPersonCreated(personKey, person.canonicalName)
       }
     }
   }

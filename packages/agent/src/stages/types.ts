@@ -127,6 +127,8 @@ export interface PersistDeps {
   }) => Promise<{ personKey: string; isNew: boolean }>
   /** Merge new aliases into an existing person row. Case-insensitive dedup. */
   mergePersonAliases: (personKey: string, newAliases: string[]) => Promise<void>
+  /** Optional callback fired after a new person is created (for audit logging). */
+  onPersonCreated?: (personKey: string, name: string) => void
   emitEvent: EmitEvent
   openRouterConfig: OpenRouterConfig
 }

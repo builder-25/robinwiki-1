@@ -50,6 +50,7 @@ import { entryLock, fragmentLock } from '../db/locks.js'
 import { resolveFragmentSlug } from '../db/slug.js'
 import { computeContentHash } from '../db/dedup.js'
 import { emitPipelineEvent } from '../db/pipeline-events.js'
+import { emitAuditEvent } from '../db/audit.js'
 import { producer } from './producer.js'
 import { processRegenJob } from './regen-worker.js'
 import { loadOpenRouterConfigFromDb } from '../lib/openrouter-config.js'
@@ -260,6 +261,16 @@ async function processExtractionJob(job: ExtractionJob): Promise<JobResult> {
 
         return { personKey: input.personKey, isNew: true }
       },
+      onPersonCreated: (personKey, name) => {
+        emitAuditEvent(db as never, {
+          entityType: 'person',
+          entityId: personKey,
+          eventType: 'created',
+          source: 'system',
+          summary: `Person created: ${name}`,
+          detail: { personKey, canonicalName: name },
+        })
+      },
       mergePersonAliases: async (personKey, newAliases) => {
         if (newAliases.length === 0) return
         const [row] = await db
@@ -301,6 +312,26 @@ async function processExtractionJob(job: ExtractionJob): Promise<JobResult> {
       })
       .where(eq(entries.lookupKey, job.entryKey))
 
+    await emitAuditEvent(db as never, {
+      entityType: 'raw_source',
+      entityId: job.entryKey,
+      eventType: 'processed',
+      source: 'system',
+      summary: `Entry processed: ${result.fragmentKeys.length} fragments`,
+      detail: { entryKey: job.entryKey, jobId: job.jobId, fragmentCount: result.fragmentKeys.length },
+    })
+
+    for (const fk of result.fragmentKeys) {
+      await emitAuditEvent(db as never, {
+        entityType: 'fragment',
+        entityId: fk,
+        eventType: 'created',
+        source: 'system',
+        summary: 'Fragment created by extraction',
+        detail: { fragmentKey: fk, entryKey: job.entryKey, jobId: job.jobId },
+      })
+    }
+
     const elapsed = (performance.now() - t0).toFixed(0)
     log.info(
       { jobId: job.jobId, ms: Number(elapsed), fragmentCount: result.fragmentKeys.length },
@@ -319,6 +350,16 @@ async function processExtractionJob(job: ExtractionJob): Promise<JobResult> {
         attemptCount: sql`${entries.attemptCount} + 1`,
       })
       .where(eq(entries.lookupKey, job.entryKey))
+
+    await emitAuditEvent(db as never, {
+      entityType: 'raw_source',
+      entityId: job.entryKey,
+      eventType: 'failed',
+      source: 'system',
+      summary: 'Entry processing failed',
+      detail: { entryKey: job.entryKey, jobId: job.jobId, error: message },
+    })
+
     throw err
   }
 }
@@ -421,6 +462,15 @@ async function processLinkJob(job: LinkJob): Promise<JobResult> {
     entryKey: job.entryKey,
     vaultId: job.vaultId,
     jobId: job.jobId,
+  })
+
+  await emitAuditEvent(db as never, {
+    entityType: 'fragment',
+    entityId: job.fragmentKey,
+    eventType: 'classified',
+    source: 'system',
+    summary: 'Fragment classified into wiki(s)',
+    detail: { fragmentKey: job.fragmentKey, entryKey: job.entryKey, jobId: job.jobId },
   })
 
   const elapsed = (performance.now() - t0).toFixed(0)
