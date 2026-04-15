@@ -227,6 +227,10 @@ export const wikis = pgTable(
     bouncerMode: text('bouncer_mode').notNull().default('auto'), // 'auto' | 'review'
     embedding: vector('embedding', { dimensions: 1536 }),
     searchVector: tsvector('search_vector'),
+    progress: jsonb('progress').$type<{
+      milestones: { label: string; completed: boolean }[]
+      percentage: number
+    } | null>(),
   },
   (t) => [
     uniqueIndex('wikis_slug_uidx').on(t.slug),

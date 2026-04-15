@@ -1,6 +1,26 @@
 import { z } from 'zod'
 import { lookupKeySchema, objectStateSchema, queuedResponseSchema } from './base.schema.js'
 
+// ── Progress schemas ───────────────────────────────────────────────────────
+
+export const wikiMilestoneSchema = z.object({
+  label: z.string().min(1, 'milestone label must not be empty'),
+  completed: z.boolean(),
+})
+
+export const wikiProgressSchema = z.object({
+  milestones: z.array(wikiMilestoneSchema).min(1).max(50),
+  percentage: z.number().min(0).max(100),
+})
+
+export const updateProgressBodySchema = z.object({
+  milestones: z.array(wikiMilestoneSchema).min(1).max(50),
+})
+
+export const updateProgressResponseSchema = z.object({
+  progress: wikiProgressSchema,
+})
+
 // ── Response schemas ────────────────────────────────────────────────────────
 
 export const threadResponseSchema = z.object({
@@ -19,6 +39,7 @@ export const threadResponseSchema = z.object({
   lastUpdated: z.string(),
   shortDescriptor: z.string().default(''),
   descriptor: z.string().default(''),
+  progress: wikiProgressSchema.nullable().default(null),
 })
 
 export const threadWithWikiResponseSchema = threadResponseSchema.extend({

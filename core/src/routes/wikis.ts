@@ -23,6 +23,8 @@ import {
   toggleRegenerateResponseSchema,
   spawnWikiBodySchema,
   spawnWikiResponseSchema,
+  updateProgressBodySchema,
+  updateProgressResponseSchema,
 } from '../schemas/wikis.schema.js'
 import { emitAuditEvent } from '../db/audit.js'
 import { timelineQuerySchema } from '../schemas/audit.schema.js'
@@ -45,6 +47,7 @@ function prepareThread(
     lastUpdated: t.lastUpdated ?? t.updatedAt.toISOString(),
     shortDescriptor: t.shortDescriptor ?? '',
     descriptor: t.descriptor ?? '',
+    progress: t.progress ?? null,
   }
 }
 
@@ -380,6 +383,39 @@ wikisRouter.patch('/:id/bouncer', zValidator('json', bouncerModeBodySchema, vali
 
   return c.json(bouncerModeResponseSchema.parse({ id, bouncerMode: mode }))
 })
+
+// PUT /wikis/:id/progress — update progress milestones
+wikisRouter.put(
+  '/:id/progress',
+  zValidator('json', updateProgressBodySchema, validationHook),
+  async (c) => {
+    const id = c.req.param('id')
+    const { milestones } = c.req.valid('json')
+
+    const [wiki] = await db.select().from(wikis).where(eq(wikis.lookupKey, id))
+    if (!wiki) return c.json({ error: 'Not found' }, 404)
+
+    const completed = milestones.filter((m) => m.completed).length
+    const percentage = Math.round((completed / milestones.length) * 100)
+    const progress = { milestones, percentage }
+
+    await db
+      .update(wikis)
+      .set({ progress, updatedAt: new Date() })
+      .where(eq(wikis.lookupKey, id))
+
+    await emitAuditEvent(db, {
+      entityType: 'wiki',
+      entityId: id,
+      eventType: 'progress_updated',
+      source: 'api',
+      summary: `Wiki progress updated: ${wiki.name} (${percentage}%)`,
+      detail: { wikiKey: id, percentage, totalMilestones: milestones.length, completedMilestones: completed },
+    })
+
+    return c.json(updateProgressResponseSchema.parse({ progress }))
+  }
+)
 
 // POST /wikis/:id/spawn — create a related child wiki with a WIKI_RELATED_TO_WIKI edge
 wikisRouter.post(
