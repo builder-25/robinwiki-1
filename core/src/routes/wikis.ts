@@ -397,7 +397,7 @@ wikisRouter.put(
 
     const completed = milestones.filter((m) => m.completed).length
     const percentage = Math.round((completed / milestones.length) * 100)
-    const progress = { milestones, percentage }
+    const progress = { milestones: milestones.map((m) => ({ label: m.label, completed: m.completed })), percentage }
 
     await db
       .update(wikis)
