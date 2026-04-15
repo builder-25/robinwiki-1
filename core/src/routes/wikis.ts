@@ -18,6 +18,8 @@ import {
   publishWikiResponseSchema,
   bouncerModeBodySchema,
   bouncerModeResponseSchema,
+  toggleRegenerateBodySchema,
+  toggleRegenerateResponseSchema,
 } from '../schemas/wikis.schema.js'
 
 const log = logger.child({ component: 'wikis' })
@@ -254,6 +256,32 @@ wikisRouter.post('/:id/regenerate', async (c) => {
     return c.json({ error: 'Regeneration failed', detail: message }, 500)
   }
 })
+
+// PATCH /wikis/:id/regenerate — toggle regenerate boolean
+wikisRouter.patch(
+  '/:id/regenerate',
+  zValidator('json', toggleRegenerateBodySchema, validationHook),
+  async (c) => {
+    const id = c.req.param('id')
+    const { regenerate } = c.req.valid('json')
+
+    const [wiki] = await db.select().from(wikis).where(eq(wikis.lookupKey, id))
+    if (!wiki) return c.json({ error: 'Not found' }, 404)
+
+    const [updated] = await db
+      .update(wikis)
+      .set({ regenerate, updatedAt: new Date() })
+      .where(eq(wikis.lookupKey, id))
+      .returning()
+
+    return c.json(
+      toggleRegenerateResponseSchema.parse({
+        id,
+        regenerate: updated.regenerate,
+      })
+    )
+  }
+)
 
 // PATCH /wikis/:id/bouncer — toggle bouncer mode (auto/review)
 wikisRouter.patch('/:id/bouncer', zValidator('json', bouncerModeBodySchema, validationHook), async (c) => {

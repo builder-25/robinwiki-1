@@ -89,3 +89,14 @@ export const publicWikiResponseSchema = z.object({
   publishedAt: z.coerce.date(),
   content: z.string(),
 })
+
+// ── Regenerate toggle schemas ─────────────────────────────────────────────
+
+export const toggleRegenerateBodySchema = z.object({
+  regenerate: z.boolean(),
+})
+
+export const toggleRegenerateResponseSchema = z.object({
+  id: lookupKeySchema,
+  regenerate: z.boolean(),
+})
