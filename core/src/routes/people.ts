@@ -12,6 +12,7 @@ import {
   updatePersonBodySchema,
   personListQuerySchema,
 } from '../schemas/people.schema.js'
+import { emitAuditEvent } from '../db/audit.js'
 
 const log = logger.child({ component: 'people' })
 
@@ -97,6 +98,15 @@ peopleRouter.put('/:id', zValidator('json', updatePersonBodySchema, validationHo
     .set(updates)
     .where(eq(people.lookupKey, id))
     .returning()
+
+  await emitAuditEvent(db, {
+    entityType: 'person',
+    entityId: id,
+    eventType: 'edited',
+    source: 'api',
+    summary: `Person edited: ${person.name}`,
+    detail: { personKey: id, changedFields: Object.keys(updates).filter(k => k !== 'updatedAt') },
+  })
 
   return c.json(
     personDetailResponseSchema.parse({

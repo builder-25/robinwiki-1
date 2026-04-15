@@ -18,6 +18,7 @@ import {
   fragmentListQuerySchema,
   fragmentReviewBodySchema,
 } from '../schemas/fragments.schema.js'
+import { emitAuditEvent } from '../db/audit.js'
 
 const fragmentsRouter = new Hono()
 fragmentsRouter.use('*', sessionMiddleware)
@@ -144,6 +145,15 @@ fragmentsRouter.post('/', zValidator('json', createFragmentBodySchema, validatio
     })
     .returning()
 
+  await emitAuditEvent(db, {
+    entityType: 'fragment',
+    entityId: fragKey,
+    eventType: 'created',
+    source: 'api',
+    summary: `Fragment created: ${title}`,
+    detail: { fragmentKey: fragKey, entryId, vaultId: parentEntry.vaultId },
+  })
+
   return c.json(
     fragmentWithContentResponseSchema.parse({
       ...fragment,
@@ -172,6 +182,15 @@ fragmentsRouter.put('/:id', zValidator('json', updateFragmentBodySchema, validat
     .set(updates)
     .where(eq(fragments.lookupKey, id))
     .returning()
+
+  await emitAuditEvent(db, {
+    entityType: 'fragment',
+    entityId: id,
+    eventType: 'edited',
+    source: 'api',
+    summary: 'Fragment updated',
+    detail: { fragmentKey: id, changedFields: Object.keys(updates).filter(k => k !== 'updatedAt') },
+  })
 
   return c.json(fragmentResponseSchema.parse({ ...fragment, id: fragment.lookupKey }))
 })
@@ -211,6 +230,15 @@ fragmentsRouter.post('/:id/accept', zValidator('json', fragmentReviewBodySchema,
     .set({ deletedAt: null })
     .where(eq(edges.id, edge.id))
 
+  await emitAuditEvent(db, {
+    entityType: 'fragment',
+    entityId: id,
+    eventType: 'accepted',
+    source: 'api',
+    summary: `Fragment accepted into ${wiki.name ?? wikiId}`,
+    detail: { fragmentKey: id, wikiKey: wikiId },
+  })
+
   return c.json({ ok: true, fragmentId: id, wikiId })
 })
 
@@ -248,6 +276,15 @@ fragmentsRouter.post('/:id/reject', zValidator('json', fragmentReviewBodySchema,
     .update(edges)
     .set({ deletedAt: new Date() })
     .where(eq(edges.id, edge.id))
+
+  await emitAuditEvent(db, {
+    entityType: 'fragment',
+    entityId: id,
+    eventType: 'rejected',
+    source: 'api',
+    summary: `Fragment rejected from ${wiki.name ?? wikiId}`,
+    detail: { fragmentKey: id, wikiKey: wikiId },
+  })
 
   return c.json({ ok: true, fragmentId: id, wikiId })
 })

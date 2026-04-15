@@ -13,6 +13,7 @@ import {
   createWikiTypeBodySchema,
   updateWikiTypeBodySchema,
 } from '../schemas/wiki-types.schema.js'
+import { emitAuditEvent } from '../db/audit.js'
 
 const log = logger.child({ component: 'wiki-types' })
 
@@ -23,6 +24,16 @@ wikiTypesRouter.use('*', sessionMiddleware)
 wikiTypesRouter.post('/setup', async (c) => {
   try {
     const result = await seedWikiTypes()
+
+    await emitAuditEvent(db, {
+      entityType: 'wiki_type',
+      entityId: 'system',
+      eventType: 'seeded',
+      source: 'system',
+      summary: 'Wiki types seeded',
+      detail: { result },
+    })
+
     return c.json(result)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -71,6 +82,15 @@ wikiTypesRouter.put(
       .where(eq(wikiTypes.slug, slug))
       .returning()
 
+    await emitAuditEvent(db, {
+      entityType: 'wiki_type',
+      entityId: slug,
+      eventType: 'edited',
+      source: 'api',
+      summary: `Wiki type updated: ${slug}`,
+      detail: { slug, changedFields: Object.keys(updates).filter(k => k !== 'updatedAt' && k !== 'userModified') },
+    })
+
     return c.json(wikiTypeResponseSchema.parse(updated))
   }
 )
@@ -100,6 +120,15 @@ wikiTypesRouter.post(
         userModified: true,
       })
       .returning()
+
+    await emitAuditEvent(db, {
+      entityType: 'wiki_type',
+      entityId: body.slug,
+      eventType: 'created',
+      source: 'api',
+      summary: `Wiki type created: ${body.name}`,
+      detail: { slug: body.slug, name: body.name },
+    })
 
     return c.json(wikiTypeResponseSchema.parse(created), 201)
   }

@@ -24,6 +24,7 @@ import {
   updateVaultProfileBodySchema,
 } from '../schemas/vaults.schema.js'
 import { createThreadBodySchema } from '../schemas/wikis.schema.js'
+import { emitAuditEvent } from '../db/audit.js'
 
 const log = logger.child({ component: 'vaults' })
 
@@ -76,6 +77,15 @@ vaultsRouter.post('/', zValidator('json', createVaultBodySchema, validationHook)
     })
     .returning()
 
+  await emitAuditEvent(db, {
+    entityType: 'vault',
+    entityId: id,
+    eventType: 'created',
+    source: 'api',
+    summary: `Vault created: ${name}`,
+    detail: { vaultId: id },
+  })
+
   return c.json(vaultResponseSchema.parse({ ...vault, threadCount: 0, noteCount: 0 }), 201)
 })
 
@@ -98,6 +108,16 @@ vaultsRouter.put('/:id', zValidator('json', updateVaultBodySchema, validationHoo
   if (body.color != null) updates.color = body.color
 
   const [vault] = await db.update(vaults).set(updates).where(eq(vaults.id, id)).returning()
+
+  await emitAuditEvent(db, {
+    entityType: 'vault',
+    entityId: id,
+    eventType: 'edited',
+    source: 'api',
+    summary: `Vault updated: ${vault.name}`,
+    detail: { vaultId: id, changedFields: Object.keys(updates).filter(k => k !== 'updatedAt') },
+  })
+
   return c.json(vaultResponseSchema.parse({ ...vault, threadCount: 0, noteCount: 0 }))
 })
 
@@ -194,6 +214,15 @@ vaultsRouter.post('/:vaultId/wikis', zValidator('json', createThreadBodySchema, 
   }
   await producer.enqueueReclassify(reclassifyJob)
   log.info({ wikiKey: thread.lookupKey }, 'enqueued reclassify job for new thread')
+
+  await emitAuditEvent(db, {
+    entityType: 'wiki',
+    entityId: thread.lookupKey,
+    eventType: 'created',
+    source: 'api',
+    summary: `Wiki created: ${name}`,
+    detail: { wikiKey: thread.lookupKey, type, vaultId },
+  })
 
   return c.json(threadResponseSchema.parse(prepareThread(thread)), 201)
 })

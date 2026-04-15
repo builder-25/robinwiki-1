@@ -11,6 +11,7 @@ import {
 import { okResponseSchema } from '../schemas/base.schema.js'
 import { logger } from '../lib/logger.js'
 import { nanoid } from '../lib/id.js'
+import { emitAuditEvent } from '../db/audit.js'
 
 const log = logger.child({ component: 'content' })
 
@@ -183,6 +184,15 @@ contentRoutes.put('/:type/:key', async (c) => {
       })
       .where(eq(people.lookupKey, key))
   }
+
+  await emitAuditEvent(db, {
+    entityType: type,
+    entityId: key,
+    eventType: 'edited',
+    source: 'api',
+    summary: `${type} content updated`,
+    detail: { key, contentType: type },
+  })
 
   return c.json(okResponseSchema.parse({ ok: true }))
 })

@@ -21,6 +21,7 @@ import {
   toggleRegenerateBodySchema,
   toggleRegenerateResponseSchema,
 } from '../schemas/wikis.schema.js'
+import { emitAuditEvent } from '../db/audit.js'
 
 const log = logger.child({ component: 'wikis' })
 
@@ -190,6 +191,15 @@ wikisRouter.put('/:id', zValidator('json', updateThreadBodySchema, validationHoo
     .where(eq(wikis.lookupKey, id))
     .returning()
 
+  await emitAuditEvent(db, {
+    entityType: 'wiki',
+    entityId: id,
+    eventType: 'edited',
+    source: 'api',
+    summary: `Wiki edited: ${thread.name}`,
+    detail: { wikiKey: id, changedFields: Object.keys(updates).filter(k => k !== 'updatedAt') },
+  })
+
   return c.json(threadResponseSchema.parse(prepareThread(thread)))
 })
 
@@ -215,6 +225,15 @@ wikisRouter.post('/:id/publish', async (c) => {
     .where(eq(wikis.lookupKey, id))
     .returning()
 
+  await emitAuditEvent(db, {
+    entityType: 'wiki',
+    entityId: id,
+    eventType: 'published',
+    source: 'api',
+    summary: `Wiki published: ${wiki.name}`,
+    detail: { wikiKey: id, publishedSlug: slug },
+  })
+
   return c.json(publishWikiResponseSchema.parse(updated))
 })
 
@@ -229,6 +248,15 @@ wikisRouter.post('/:id/unpublish', async (c) => {
     .set({ published: false, updatedAt: new Date() })
     .where(eq(wikis.lookupKey, id))
     .returning()
+
+  await emitAuditEvent(db, {
+    entityType: 'wiki',
+    entityId: id,
+    eventType: 'unpublished',
+    source: 'api',
+    summary: `Wiki unpublished: ${wiki.name}`,
+    detail: { wikiKey: id },
+  })
 
   return c.json(publishWikiResponseSchema.parse(updated))
 })
@@ -295,6 +323,15 @@ wikisRouter.patch('/:id/bouncer', zValidator('json', bouncerModeBodySchema, vali
     .update(wikis)
     .set({ bouncerMode: mode, updatedAt: new Date() })
     .where(eq(wikis.lookupKey, id))
+
+  await emitAuditEvent(db, {
+    entityType: 'wiki',
+    entityId: id,
+    eventType: 'edited',
+    source: 'api',
+    summary: `Wiki bouncer mode set to ${mode}`,
+    detail: { wikiKey: id, changedFields: ['bouncerMode'] },
+  })
 
   return c.json(bouncerModeResponseSchema.parse({ id, bouncerMode: mode }))
 })

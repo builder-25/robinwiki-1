@@ -18,6 +18,7 @@ import {
   entryListQuerySchema,
 } from '../schemas/entries.schema.js'
 import { fragmentListResponseSchema } from '../schemas/fragments.schema.js'
+import { emitAuditEvent } from '../db/audit.js'
 
 const entries = new Hono()
 entries.use('*', sessionMiddleware)
@@ -79,6 +80,15 @@ entries.post('/', zValidator('json', createEntryBodySchema, validationHook), asy
   }
 
   await producer.enqueueExtraction(job)
+
+  await emitAuditEvent(db, {
+    entityType: 'raw_source',
+    entityId: entryKey,
+    eventType: 'ingested',
+    source: 'api',
+    summary: `Entry ingested: ${(title ?? content.slice(0, 80)).slice(0, 80)}`,
+    detail: { entryKey, source: source ?? 'api', vaultId: vaultId ?? null },
+  })
 
   return c.json(
     entryCreatedResponseSchema.parse({
