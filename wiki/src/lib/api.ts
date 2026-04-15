@@ -1,4 +1,4 @@
-import { client } from './generated/client.gen.js'
+import { client } from './generated/client.gen'
 
 export class ApiError extends Error {
   constructor(
@@ -32,4 +32,4 @@ client.interceptors.response.use(async (response) => {
   return response
 })
 
-export * from './generated/index.js'
+export * from './generated/index'
