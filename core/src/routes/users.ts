@@ -130,7 +130,7 @@ usersRouter.get('/activity', async (c) => {
   return c.json(
     userActivityResponseSchema.parse({
       activity: rows.map((r) => ({
-        action: r.operation,
+        action: `${r.entityType}.${r.eventType}`,
         time: r.createdAt?.toISOString() ?? '',
       })),
     })

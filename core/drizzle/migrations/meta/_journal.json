@@ -36,6 +36,13 @@
       "when": 1781589600000,
       "tag": "0005_bouncer_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781676000000,
+      "tag": "0006_audit_trust",
+      "breakpoints": true
     }
   ]
 }

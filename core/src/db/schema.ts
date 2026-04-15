@@ -327,10 +327,18 @@ export const pipelineEvents = pgTable(
 
 export const auditLog = pgTable('audit_log', {
   id: text('id').primaryKey(),
-  operation: text('operation').notNull(),
-  metadata: jsonb('metadata'),
+  entityType: text('entity_type').notNull(),
+  entityId: text('entity_id').notNull(),
+  eventType: text('event_type').notNull(),
+  source: text('source'),
+  summary: text('summary').notNull(),
+  detail: jsonb('detail'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-})
+}, (t) => [
+  index('audit_log_entity_idx').on(t.entityType, t.entityId),
+  index('audit_log_event_type_idx').on(t.eventType),
+  index('audit_log_created_at_idx').on(t.createdAt),
+])
 
 export const apiKeys = pgTable('api_keys', {
   id: text('id').primaryKey(),
