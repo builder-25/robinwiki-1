@@ -9,7 +9,7 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "format": "biome format --write .",
-    "clean": "find core packages -type d \\( -name dist -o -name node_modules -o -name .turbo \\) -prune -exec rm -rf {} + && rm -rf node_modules .turbo",
+    "clean": "find core wiki packages -type d \\( -name dist -o -name node_modules -o -name .turbo -o -name .next \\) -prune -exec rm -rf {} + && rm -rf node_modules .turbo",
     "seed-openrouter-key": "tsx core/scripts/seed-openrouter-key.ts"
   },
   "devDependencies": {
