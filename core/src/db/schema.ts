@@ -6,6 +6,7 @@ import {
   jsonb,
   integer,
   boolean,
+  real,
   index,
   uniqueIndex,
   vector,
@@ -169,6 +170,11 @@ export const entries = pgTable(
     title: text('title').notNull().default(''),
     type: text('type').notNull().default('thought'),
     source: text('source').notNull().default('api'),
+    sourceMetadata: jsonb('source_metadata').$type<{
+      displayName?: string
+      channel?: string
+      sessionId?: string
+    }>(),
     vaultId: text('vault_id').references(() => vaults.id, {
       onDelete: 'set null',
     }),
@@ -190,6 +196,7 @@ export const fragments = pgTable(
     title: text('title').notNull(),
     type: text('type'),
     tags: jsonb('tags').notNull().default([]).$type<string[]>(),
+    confidence: real('confidence'),
     entryId: text('entry_id').references(() => entries.lookupKey, {
       onDelete: 'cascade',
     }),
@@ -232,6 +239,7 @@ export const people = pgTable(
   {
     ...baseColumns(),
     name: text('name').notNull(),
+    summary: text('summary').notNull().default(''),
     relationship: text('relationship').notNull().default(''),
     canonicalName: text('canonical_name').notNull().default(''),
     aliases: text('aliases').array().notNull().default(sql`'{}'::text[]`),

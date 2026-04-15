@@ -10,6 +10,7 @@ export const fragmentResponseSchema = z.object({
   title: z.string(),
   type: z.string().nullable(),
   tags: z.array(z.string()),
+  confidence: z.number().nullable().optional(),
   entryId: z.string().nullable(),
   vaultId: z.string().nullable(),
   state: objectStateSchema,

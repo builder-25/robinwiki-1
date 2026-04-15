@@ -1,0 +1,4645 @@
+{
+  "_meta": {
+    "generatedAt": "2026-04-15T10:38:05.692Z",
+    "description": "Route + JSON Schema manifest for OpenAPI generation. Feed to /apidoc.",
+    "schemaCount": 67,
+    "routeCount": 61
+  },
+  "info": {
+    "title": "Robin API",
+    "version": "0.3.0",
+    "description": "REST API for Robin.OS — a personal knowledge management system."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development"
+    }
+  ],
+  "securitySchemes": {
+    "cookieAuth": {
+      "type": "apiKey",
+      "in": "cookie",
+      "name": "better-auth.session_token",
+      "description": "Session cookie set by better-auth after sign-in"
+    },
+    "hmacAuth": {
+      "type": "apiKey",
+      "in": "header",
+      "name": "X-Signature",
+      "description": "HMAC-SHA256 signature of request body"
+    },
+    "mcpToken": {
+      "type": "apiKey",
+      "in": "query",
+      "name": "token",
+      "description": "JWT token for MCP access"
+    }
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "operationId": "getHealth",
+      "summary": "Health check",
+      "tags": [
+        "System"
+      ],
+      "auth": "none",
+      "responses": {
+        "200": {
+          "description": "Server is running"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/openapi.json",
+      "operationId": "getOpenApiSpec",
+      "summary": "OpenAPI specification",
+      "tags": [
+        "System"
+      ],
+      "auth": "none",
+      "responses": {
+        "200": {
+          "description": "The OpenAPI spec"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/entries",
+      "operationId": "createEntry",
+      "summary": "Create a new entry (queues async processing)",
+      "tags": [
+        "Entries"
+      ],
+      "auth": "session",
+      "request": {
+        "body": {
+          "schemaName": "createEntryBodySchema"
+        }
+      },
+      "responses": {
+        "202": {
+          "description": "Entry created and queued",
+          "schemaName": "entryCreatedResponseSchema"
+        },
+        "400": {
+          "description": "Invalid input",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/entries",
+      "operationId": "listEntries",
+      "summary": "List recent entries",
+      "tags": [
+        "Entries"
+      ],
+      "auth": "session",
+      "request": {
+        "query": {
+          "schemaName": "entryListQuerySchema"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "List of entries",
+          "schemaName": "entryListResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/entries/{id}",
+      "operationId": "getEntry",
+      "summary": "Get an entry by ID",
+      "tags": [
+        "Entries"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "The entry",
+          "schemaName": "entryResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/entries/{id}/fragments",
+      "operationId": "listEntryFragments",
+      "summary": "Get all fragments derived from an entry",
+      "tags": [
+        "Entries"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Fragments for this entry",
+          "schemaName": "fragmentListResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/fragments",
+      "operationId": "listFragments",
+      "summary": "List fragments",
+      "tags": [
+        "Fragments"
+      ],
+      "auth": "session",
+      "request": {
+        "query": {
+          "schemaName": "fragmentListQuerySchema"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "List of fragments",
+          "schemaName": "fragmentListResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/fragments/{id}",
+      "operationId": "getFragment",
+      "summary": "Get a fragment by ID (includes content and backlinks)",
+      "tags": [
+        "Fragments"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Fragment with content and backlinks",
+          "schemaName": "fragmentDetailResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/fragments",
+      "operationId": "createFragment",
+      "summary": "Create a new fragment",
+      "tags": [
+        "Fragments"
+      ],
+      "auth": "session",
+      "request": {
+        "body": {
+          "schemaName": "createFragmentBodySchema"
+        }
+      },
+      "responses": {
+        "201": {
+          "description": "Created fragment",
+          "schemaName": "fragmentWithContentResponseSchema"
+        },
+        "400": {
+          "description": "Invalid input",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/fragments/{id}",
+      "operationId": "updateFragment",
+      "summary": "Update a fragment",
+      "tags": [
+        "Fragments"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        },
+        "body": {
+          "schemaName": "updateFragmentBodySchema"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Updated fragment",
+          "schemaName": "fragmentResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/fragments/{id}/accept",
+      "operationId": "acceptFragment",
+      "summary": "Accept fragment into a review-mode wiki",
+      "tags": [
+        "Fragments"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        },
+        "body": {
+          "schemaName": "fragmentReviewBodySchema"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Fragment accepted",
+          "schemaName": "okResponseSchema"
+        },
+        "400": {
+          "description": "Wiki not in review mode",
+          "schemaName": "errorResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/fragments/{id}/reject",
+      "operationId": "rejectFragment",
+      "summary": "Reject fragment from a review-mode wiki",
+      "tags": [
+        "Fragments"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        },
+        "body": {
+          "schemaName": "fragmentReviewBodySchema"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Fragment rejected",
+          "schemaName": "okResponseSchema"
+        },
+        "400": {
+          "description": "Wiki not in review mode",
+          "schemaName": "errorResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/wikis",
+      "operationId": "listWikis",
+      "summary": "List wikis with pagination and fragment counts",
+      "tags": [
+        "Wikis"
+      ],
+      "auth": "session",
+      "responses": {
+        "200": {
+          "description": "List of wikis",
+          "schemaName": "threadListResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/wikis/{id}",
+      "operationId": "getWiki",
+      "summary": "Get wiki detail with fragments and people",
+      "tags": [
+        "Wikis"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Wiki detail with fragments and people",
+          "schemaName": "wikiDetailResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/wikis/{id}",
+      "operationId": "updateWiki",
+      "summary": "Update a wiki",
+      "tags": [
+        "Wikis"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        },
+        "body": {
+          "schemaName": "updateThreadBodySchema"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Updated wiki",
+          "schemaName": "threadResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/wikis/{id}/timeline",
+      "operationId": "getWikiTimeline",
+      "summary": "Audit timeline for a wiki and its fragments",
+      "tags": [
+        "Wikis"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        },
+        "query": {
+          "schemaName": "timelineQuerySchema"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Timeline events",
+          "schemaName": "auditLogResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/wikis/{id}/bouncer",
+      "operationId": "toggleBouncerMode",
+      "summary": "Toggle bouncer mode (auto/review)",
+      "tags": [
+        "Wikis"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        },
+        "body": {
+          "schemaName": "bouncerModeBodySchema"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Updated bouncer mode",
+          "schemaName": "bouncerModeResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/wikis/{id}/regenerate",
+      "operationId": "toggleRegenerate",
+      "summary": "Toggle regenerate flag on a wiki",
+      "tags": [
+        "Wikis"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        },
+        "body": {
+          "schemaName": "toggleRegenerateBodySchema"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Updated regenerate flag",
+          "schemaName": "toggleRegenerateResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/wikis/{id}/regenerate",
+      "operationId": "regenerateWiki",
+      "summary": "Trigger on-demand wiki regeneration",
+      "tags": [
+        "Wikis"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Regeneration result",
+          "schemaName": "okResponseSchema"
+        },
+        "400": {
+          "description": "Regeneration disabled",
+          "schemaName": "errorResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/wikis/{id}/publish",
+      "operationId": "publishWiki",
+      "summary": "Publish a wiki with a stable nanoid slug",
+      "tags": [
+        "Wikis"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Publish status",
+          "schemaName": "publishWikiResponseSchema"
+        },
+        "400": {
+          "description": "No content to publish",
+          "schemaName": "errorResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/wikis/{id}/unpublish",
+      "operationId": "unpublishWiki",
+      "summary": "Unpublish a wiki (preserves slug for re-publish)",
+      "tags": [
+        "Wikis"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Unpublish status",
+          "schemaName": "publishWikiResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/wikis/{targetId}/merge",
+      "operationId": "mergeWikis",
+      "summary": "Merge wikis (not implemented)",
+      "tags": [
+        "Wikis"
+      ],
+      "auth": "session",
+      "responses": {
+        "501": {
+          "description": "Not implemented",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/wiki-types",
+      "operationId": "listWikiTypes",
+      "summary": "List all wiki types",
+      "tags": [
+        "Wiki Types"
+      ],
+      "auth": "session",
+      "responses": {
+        "200": {
+          "description": "List of wiki types",
+          "schemaName": "wikiTypeListResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/wiki-types/{slug}",
+      "operationId": "getWikiType",
+      "summary": "Get a wiki type by slug",
+      "tags": [
+        "Wiki Types"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "slug": "string"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "The wiki type",
+          "schemaName": "wikiTypeResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/wiki-types",
+      "operationId": "createWikiType",
+      "summary": "Create a new user-defined wiki type",
+      "tags": [
+        "Wiki Types"
+      ],
+      "auth": "session",
+      "request": {
+        "body": {
+          "schemaName": "createWikiTypeBodySchema"
+        }
+      },
+      "responses": {
+        "201": {
+          "description": "Created wiki type",
+          "schemaName": "wikiTypeResponseSchema"
+        },
+        "409": {
+          "description": "Slug conflict",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/wiki-types/setup",
+      "operationId": "setupWikiTypes",
+      "summary": "Seed default wiki types from YAML configs (idempotent)",
+      "tags": [
+        "Wiki Types"
+      ],
+      "auth": "session",
+      "responses": {
+        "200": {
+          "description": "Seed result"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/wiki-types/{slug}",
+      "operationId": "updateWikiType",
+      "summary": "Update a wiki type",
+      "tags": [
+        "Wiki Types"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "slug": "string"
+        },
+        "body": {
+          "schemaName": "updateWikiTypeBodySchema"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Updated wiki type",
+          "schemaName": "wikiTypeResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/published/wiki/{nanoid}",
+      "operationId": "getPublishedWiki",
+      "summary": "Get a published wiki by nanoid slug (no auth)",
+      "tags": [
+        "Published"
+      ],
+      "auth": "none",
+      "request": {
+        "params": {
+          "nanoid": "string"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Published wiki content",
+          "schemaName": "publicWikiResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/audit-log",
+      "operationId": "getAuditLog",
+      "summary": "Query the audit log with filters",
+      "tags": [
+        "Audit"
+      ],
+      "auth": "session",
+      "request": {
+        "query": {
+          "schemaName": "auditLogQuerySchema"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Audit events with total count",
+          "schemaName": "auditLogResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/threads/{id}",
+      "operationId": "getThread",
+      "summary": "Get a thread by ID (includes wiki content)",
+      "tags": [
+        "Threads"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Thread with wiki content",
+          "schemaName": "threadWithWikiResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/threads/{id}",
+      "operationId": "updateThread",
+      "summary": "Update a thread",
+      "tags": [
+        "Threads"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        },
+        "body": {
+          "schemaName": "updateThreadBodySchema"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Updated thread",
+          "schemaName": "threadResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/threads/{id}/regenerate",
+      "operationId": "regenerateThread",
+      "summary": "Trigger thread wiki regeneration",
+      "tags": [
+        "Threads"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        }
+      },
+      "responses": {
+        "202": {
+          "description": "Job queued",
+          "schemaName": "queuedResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/threads/{targetId}/merge",
+      "operationId": "mergeThreads",
+      "summary": "Merge threads (not implemented)",
+      "tags": [
+        "Threads"
+      ],
+      "auth": "session",
+      "responses": {
+        "501": {
+          "description": "Not implemented",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/vaults",
+      "operationId": "listVaults",
+      "summary": "List all vaults",
+      "tags": [
+        "Vaults"
+      ],
+      "auth": "session",
+      "responses": {
+        "200": {
+          "description": "List of vaults",
+          "schemaName": "vaultListResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/vaults/{id}",
+      "operationId": "getVault",
+      "summary": "Get a vault by ID",
+      "tags": [
+        "Vaults"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "string"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "The vault",
+          "schemaName": "vaultResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/vaults",
+      "operationId": "createVault",
+      "summary": "Create a new vault",
+      "tags": [
+        "Vaults"
+      ],
+      "auth": "session",
+      "request": {
+        "body": {
+          "schemaName": "createVaultBodySchema"
+        }
+      },
+      "responses": {
+        "201": {
+          "description": "Created vault",
+          "schemaName": "vaultResponseSchema"
+        },
+        "400": {
+          "description": "Invalid input",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/vaults/{id}",
+      "operationId": "updateVault",
+      "summary": "Update a vault",
+      "tags": [
+        "Vaults"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "string"
+        },
+        "body": {
+          "schemaName": "updateVaultBodySchema"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Updated vault",
+          "schemaName": "vaultResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/vaults/{id}/profile",
+      "operationId": "updateVaultProfile",
+      "summary": "Update vault profile text",
+      "tags": [
+        "Vaults"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "string"
+        },
+        "body": {
+          "schemaName": "updateVaultProfileBodySchema"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Updated vault",
+          "schemaName": "vaultResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/vaults/{vaultId}/threads",
+      "operationId": "listVaultThreads",
+      "summary": "List threads in a vault",
+      "tags": [
+        "Vaults"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "vaultId": "string"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "List of threads",
+          "schemaName": "threadListResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/vaults/{vaultId}/threads",
+      "operationId": "createVaultThread",
+      "summary": "Create a thread in a vault",
+      "tags": [
+        "Vaults"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "vaultId": "string"
+        },
+        "body": {
+          "schemaName": "createThreadBodySchema"
+        }
+      },
+      "responses": {
+        "201": {
+          "description": "Created thread",
+          "schemaName": "threadResponseSchema"
+        },
+        "400": {
+          "description": "Invalid input",
+          "schemaName": "errorResponseSchema"
+        },
+        "404": {
+          "description": "Vault not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/people",
+      "operationId": "listPeople",
+      "summary": "List all people with pagination",
+      "tags": [
+        "People"
+      ],
+      "auth": "session",
+      "request": {
+        "query": {
+          "schemaName": "personListQuerySchema"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "List of people",
+          "schemaName": "personListResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/people/{id}",
+      "operationId": "getPerson",
+      "summary": "Get a person by ID (includes content and backlinks)",
+      "tags": [
+        "People"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Person with content and backlinks",
+          "schemaName": "personDetailResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/people/{id}",
+      "operationId": "updatePerson",
+      "summary": "Update a person",
+      "tags": [
+        "People"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        },
+        "body": {
+          "schemaName": "updatePersonBodySchema"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Updated person",
+          "schemaName": "personDetailResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/people/{id}/regenerate",
+      "operationId": "regeneratePerson",
+      "summary": "Trigger person body regeneration",
+      "tags": [
+        "People"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        }
+      },
+      "responses": {
+        "202": {
+          "description": "Job queued",
+          "schemaName": "queuedResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/search",
+      "operationId": "search",
+      "summary": "Hybrid search across fragments, wikis, and people",
+      "tags": [
+        "Search"
+      ],
+      "auth": "session",
+      "request": {
+        "query": {
+          "schemaName": "searchQuerySchema"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Search results",
+          "schemaName": "searchResponseSchema"
+        },
+        "400": {
+          "description": "Missing query",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/graph",
+      "operationId": "getGraph",
+      "summary": "Get the knowledge graph",
+      "tags": [
+        "Graph"
+      ],
+      "auth": "session",
+      "responses": {
+        "200": {
+          "description": "Graph nodes and edges",
+          "schemaName": "graphResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/relationships/{type}/{id}",
+      "operationId": "getRelationships",
+      "summary": "Get all relationships for an object",
+      "tags": [
+        "Relationships"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "type": "enum: entry, fragment, thread, vault, person",
+          "id": "lookupKey"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Relationships grouped by edge type",
+          "schemaName": "relationshipsResponseSchema"
+        },
+        "400": {
+          "description": "Invalid type",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/content/{type}/{key}",
+      "operationId": "getContent",
+      "summary": "Read raw or structured content",
+      "tags": [
+        "Content"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "type": "enum: fragment, entry, thread, person",
+          "key": "lookupKey"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Content (raw or structured)",
+          "schemaName": "contentRawResponseSchema"
+        },
+        "400": {
+          "description": "Invalid type",
+          "schemaName": "errorResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/api/content/{type}/{key}",
+      "operationId": "updateContent",
+      "summary": "Write structured content",
+      "tags": [
+        "Content"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "type": "enum: fragment, entry, thread, person",
+          "key": "lookupKey"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Content updated",
+          "schemaName": "okResponseSchema"
+        },
+        "400": {
+          "description": "Validation failed",
+          "schemaName": "errorResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/users/profile",
+      "operationId": "getUserProfile",
+      "summary": "Get current user's profile",
+      "tags": [
+        "Users"
+      ],
+      "auth": "session",
+      "responses": {
+        "200": {
+          "description": "User profile",
+          "schemaName": "userProfileResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/users/onboard",
+      "operationId": "markOnboarded",
+      "summary": "Mark onboarding complete",
+      "tags": [
+        "Users"
+      ],
+      "auth": "session",
+      "responses": {
+        "200": {
+          "description": "Onboarding marked",
+          "schemaName": "okResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/users/keypair",
+      "operationId": "getUserKeypair",
+      "summary": "Get user's Ed25519 keypair",
+      "tags": [
+        "Users"
+      ],
+      "auth": "session",
+      "responses": {
+        "200": {
+          "description": "Keypair details",
+          "schemaName": "keypairResponseSchema"
+        },
+        "404": {
+          "description": "No keypair",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/users/stats",
+      "operationId": "getUserStats",
+      "summary": "Get user's stats",
+      "tags": [
+        "Users"
+      ],
+      "auth": "session",
+      "responses": {
+        "200": {
+          "description": "User stats",
+          "schemaName": "userStatsResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/users/activity",
+      "operationId": "getUserActivity",
+      "summary": "Get user's recent activity",
+      "tags": [
+        "Users"
+      ],
+      "auth": "session",
+      "responses": {
+        "200": {
+          "description": "Recent activity",
+          "schemaName": "userActivityResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/users/export",
+      "operationId": "exportUserData",
+      "summary": "Export all user data",
+      "tags": [
+        "Users"
+      ],
+      "auth": "session",
+      "responses": {
+        "200": {
+          "description": "Full data export",
+          "schemaName": "exportDataResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/users/regenerate-mcp",
+      "operationId": "regenerateMcpEndpoint",
+      "summary": "Regenerate MCP endpoint URL",
+      "tags": [
+        "Users"
+      ],
+      "auth": "session",
+      "responses": {
+        "200": {
+          "description": "New MCP endpoint",
+          "schemaName": "mcpEndpointResponseSchema"
+        },
+        "400": {
+          "description": "No keypair",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/data",
+      "operationId": "deleteUserData",
+      "summary": "Delete all user data (keeps account)",
+      "tags": [
+        "Users"
+      ],
+      "auth": "session",
+      "responses": {
+        "200": {
+          "description": "Data deleted",
+          "schemaName": "okResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/account",
+      "operationId": "deleteUserAccount",
+      "summary": "Delete user account entirely",
+      "tags": [
+        "Users"
+      ],
+      "auth": "session",
+      "responses": {
+        "200": {
+          "description": "Account deleted",
+          "schemaName": "okResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/retry-stuck",
+      "operationId": "retryStuckFragments",
+      "summary": "Re-enqueue stuck PENDING fragments",
+      "tags": [
+        "Admin"
+      ],
+      "auth": "none",
+      "responses": {
+        "200": {
+          "description": "Re-enqueue results",
+          "schemaName": "retryStuckResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/internal/sync-notify",
+      "operationId": "syncNotify",
+      "summary": "Gateway sync notification (HMAC)",
+      "tags": [
+        "Internal"
+      ],
+      "auth": "hmac",
+      "request": {
+        "body": {
+          "schemaName": "syncNotifyPayloadSchema"
+        }
+      },
+      "responses": {
+        "202": {
+          "description": "Sync job accepted",
+          "schemaName": "syncAcceptedResponseSchema"
+        },
+        "400": {
+          "description": "Invalid payload",
+          "schemaName": "errorResponseSchema"
+        },
+        "401": {
+          "description": "Invalid HMAC",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/mcp",
+      "operationId": "mcpTransport",
+      "summary": "MCP Streamable HTTP transport (JWT)",
+      "tags": [
+        "MCP"
+      ],
+      "auth": "jwt",
+      "responses": {
+        "200": {
+          "description": "MCP protocol response"
+        },
+        "401": {
+          "description": "Invalid token",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    }
+  ],
+  "schemas": {
+    "errorResponseSchema": {
+      "$ref": "#/definitions/errorResponseSchema",
+      "definitions": {
+        "errorResponseSchema": {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string"
+            },
+            "fields": {}
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "okResponseSchema": {
+      "$ref": "#/definitions/okResponseSchema",
+      "definitions": {
+        "okResponseSchema": {
+          "type": "object",
+          "properties": {
+            "ok": {
+              "type": "boolean",
+              "enum": [
+                true
+              ]
+            }
+          },
+          "required": [
+            "ok"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "queuedResponseSchema": {
+      "$ref": "#/definitions/queuedResponseSchema",
+      "definitions": {
+        "queuedResponseSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "queued"
+              ]
+            },
+            "jobId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "status",
+            "jobId"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "createEntryBodySchema": {
+      "$ref": "#/definitions/createEntryBodySchema",
+      "definitions": {
+        "createEntryBodySchema": {
+          "type": "object",
+          "properties": {
+            "content": {
+              "type": "string",
+              "minLength": 1
+            },
+            "title": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string",
+              "default": "api"
+            },
+            "type": {
+              "type": "string",
+              "default": "thought"
+            },
+            "vaultId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "content"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "entryListQuerySchema": {
+      "$ref": "#/definitions/entryListQuerySchema",
+      "definitions": {
+        "entryListQuerySchema": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "entryResponseSchema": {
+      "$ref": "#/definitions/entryResponseSchema",
+      "definitions": {
+        "entryResponseSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "lookupKey": {
+              "$ref": "#/definitions/entryResponseSchema/properties/id"
+            },
+            "slug": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "content": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "vaultId": {
+              "type": "string",
+              "nullable": true
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "RESOLVED",
+                "LINKING",
+                "DIRTY"
+              ]
+            },
+            "ingestStatus": {
+              "type": "string"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "id",
+            "lookupKey",
+            "slug",
+            "title",
+            "content",
+            "type",
+            "source",
+            "vaultId",
+            "state",
+            "ingestStatus",
+            "createdAt",
+            "updatedAt"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "entryCreatedResponseSchema": {
+      "$ref": "#/definitions/entryCreatedResponseSchema",
+      "definitions": {
+        "entryCreatedResponseSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "lookupKey": {
+              "$ref": "#/definitions/entryCreatedResponseSchema/properties/id"
+            },
+            "slug": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "content": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "vaultId": {
+              "type": "string",
+              "nullable": true
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "RESOLVED",
+                "LINKING",
+                "DIRTY"
+              ]
+            },
+            "ingestStatus": {
+              "type": "string"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "jobId": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "queued",
+                "duplicate"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "lookupKey",
+            "slug",
+            "title",
+            "content",
+            "type",
+            "source",
+            "vaultId",
+            "state",
+            "ingestStatus",
+            "createdAt",
+            "updatedAt",
+            "jobId",
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "entryListResponseSchema": {
+      "$ref": "#/definitions/entryListResponseSchema",
+      "definitions": {
+        "entryListResponseSchema": {
+          "type": "object",
+          "properties": {
+            "entries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "lookupKey": {
+                    "$ref": "#/definitions/entryListResponseSchema/properties/entries/items/properties/id"
+                  },
+                  "slug": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "content": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "string"
+                  },
+                  "vaultId": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "PENDING",
+                      "RESOLVED",
+                      "LINKING",
+                      "DIRTY"
+                    ]
+                  },
+                  "ingestStatus": {
+                    "type": "string"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "id",
+                  "lookupKey",
+                  "slug",
+                  "title",
+                  "content",
+                  "type",
+                  "source",
+                  "vaultId",
+                  "state",
+                  "ingestStatus",
+                  "createdAt",
+                  "updatedAt"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "entries"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "createFragmentBodySchema": {
+      "$ref": "#/definitions/createFragmentBodySchema",
+      "definitions": {
+        "createFragmentBodySchema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "content": {
+              "type": "string"
+            },
+            "entryId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            }
+          },
+          "required": [
+            "title",
+            "entryId"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "updateFragmentBodySchema": {
+      "$ref": "#/definitions/updateFragmentBodySchema",
+      "definitions": {
+        "updateFragmentBodySchema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string"
+            },
+            "content": {
+              "type": "string"
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "fragmentListQuerySchema": {
+      "$ref": "#/definitions/fragmentListQuerySchema",
+      "definitions": {
+        "fragmentListQuerySchema": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "vaultId": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "fragmentResponseSchema": {
+      "$ref": "#/definitions/fragmentResponseSchema",
+      "definitions": {
+        "fragmentResponseSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "lookupKey": {
+              "$ref": "#/definitions/fragmentResponseSchema/properties/id"
+            },
+            "slug": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "nullable": true
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "confidence": {
+              "type": "number",
+              "nullable": true
+            },
+            "entryId": {
+              "type": "string",
+              "nullable": true
+            },
+            "vaultId": {
+              "type": "string",
+              "nullable": true
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "RESOLVED",
+                "LINKING",
+                "DIRTY"
+              ]
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "id",
+            "lookupKey",
+            "slug",
+            "title",
+            "type",
+            "tags",
+            "entryId",
+            "vaultId",
+            "state",
+            "createdAt",
+            "updatedAt"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "fragmentWithContentResponseSchema": {
+      "$ref": "#/definitions/fragmentWithContentResponseSchema",
+      "definitions": {
+        "fragmentWithContentResponseSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "lookupKey": {
+              "$ref": "#/definitions/fragmentWithContentResponseSchema/properties/id"
+            },
+            "slug": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "nullable": true
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "confidence": {
+              "type": "number",
+              "nullable": true
+            },
+            "entryId": {
+              "type": "string",
+              "nullable": true
+            },
+            "vaultId": {
+              "type": "string",
+              "nullable": true
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "RESOLVED",
+                "LINKING",
+                "DIRTY"
+              ]
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "content": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "lookupKey",
+            "slug",
+            "title",
+            "type",
+            "tags",
+            "entryId",
+            "vaultId",
+            "state",
+            "createdAt",
+            "updatedAt",
+            "content"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "fragmentDetailResponseSchema": {
+      "$ref": "#/definitions/fragmentDetailResponseSchema",
+      "definitions": {
+        "fragmentDetailResponseSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "lookupKey": {
+              "$ref": "#/definitions/fragmentDetailResponseSchema/properties/id"
+            },
+            "slug": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "nullable": true
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "confidence": {
+              "type": "number",
+              "nullable": true
+            },
+            "entryId": {
+              "type": "string",
+              "nullable": true
+            },
+            "vaultId": {
+              "type": "string",
+              "nullable": true
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "RESOLVED",
+                "LINKING",
+                "DIRTY"
+              ]
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "content": {
+              "type": "string"
+            },
+            "backlinks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "type"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "id",
+            "lookupKey",
+            "slug",
+            "title",
+            "type",
+            "tags",
+            "entryId",
+            "vaultId",
+            "state",
+            "createdAt",
+            "updatedAt",
+            "content",
+            "backlinks"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "fragmentListResponseSchema": {
+      "$ref": "#/definitions/fragmentListResponseSchema",
+      "definitions": {
+        "fragmentListResponseSchema": {
+          "type": "object",
+          "properties": {
+            "fragments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "lookupKey": {
+                    "$ref": "#/definitions/fragmentListResponseSchema/properties/fragments/items/properties/id"
+                  },
+                  "slug": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "confidence": {
+                    "type": "number",
+                    "nullable": true
+                  },
+                  "entryId": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "vaultId": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "PENDING",
+                      "RESOLVED",
+                      "LINKING",
+                      "DIRTY"
+                    ]
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "id",
+                  "lookupKey",
+                  "slug",
+                  "title",
+                  "type",
+                  "tags",
+                  "entryId",
+                  "vaultId",
+                  "state",
+                  "createdAt",
+                  "updatedAt"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "fragments"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "fragmentReviewBodySchema": {
+      "$ref": "#/definitions/fragmentReviewBodySchema",
+      "definitions": {
+        "fragmentReviewBodySchema": {
+          "type": "object",
+          "properties": {
+            "wikiId": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "wikiId"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "createThreadBodySchema": {
+      "$ref": "#/definitions/createThreadBodySchema",
+      "definitions": {
+        "createThreadBodySchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 3
+            },
+            "type": {
+              "type": "string",
+              "default": "log"
+            },
+            "prompt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "updateThreadBodySchema": {
+      "$ref": "#/definitions/updateThreadBodySchema",
+      "definitions": {
+        "updateThreadBodySchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "prompt": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "threadResponseSchema": {
+      "$ref": "#/definitions/threadResponseSchema",
+      "definitions": {
+        "threadResponseSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "lookupKey": {
+              "$ref": "#/definitions/threadResponseSchema/properties/id"
+            },
+            "slug": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "prompt": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "RESOLVED",
+                "LINKING",
+                "DIRTY"
+              ]
+            },
+            "vaultId": {
+              "type": "string",
+              "nullable": true
+            },
+            "lastRebuiltAt": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "noteCount": {
+              "type": "number",
+              "default": 0
+            },
+            "lastUpdated": {
+              "type": "string"
+            },
+            "shortDescriptor": {
+              "type": "string",
+              "default": ""
+            },
+            "descriptor": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          "required": [
+            "id",
+            "lookupKey",
+            "slug",
+            "name",
+            "type",
+            "prompt",
+            "state",
+            "vaultId",
+            "lastRebuiltAt",
+            "createdAt",
+            "updatedAt",
+            "lastUpdated"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "threadWithWikiResponseSchema": {
+      "$ref": "#/definitions/threadWithWikiResponseSchema",
+      "definitions": {
+        "threadWithWikiResponseSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "lookupKey": {
+              "$ref": "#/definitions/threadWithWikiResponseSchema/properties/id"
+            },
+            "slug": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "prompt": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "RESOLVED",
+                "LINKING",
+                "DIRTY"
+              ]
+            },
+            "vaultId": {
+              "type": "string",
+              "nullable": true
+            },
+            "lastRebuiltAt": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "noteCount": {
+              "type": "number",
+              "default": 0
+            },
+            "lastUpdated": {
+              "type": "string"
+            },
+            "shortDescriptor": {
+              "type": "string",
+              "default": ""
+            },
+            "descriptor": {
+              "type": "string",
+              "default": ""
+            },
+            "wikiContent": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "lookupKey",
+            "slug",
+            "name",
+            "type",
+            "prompt",
+            "state",
+            "vaultId",
+            "lastRebuiltAt",
+            "createdAt",
+            "updatedAt",
+            "lastUpdated",
+            "wikiContent"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "threadListResponseSchema": {
+      "$ref": "#/definitions/threadListResponseSchema",
+      "definitions": {
+        "threadListResponseSchema": {
+          "type": "object",
+          "properties": {
+            "wikis": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "lookupKey": {
+                    "$ref": "#/definitions/threadListResponseSchema/properties/wikis/items/properties/id"
+                  },
+                  "slug": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "prompt": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "PENDING",
+                      "RESOLVED",
+                      "LINKING",
+                      "DIRTY"
+                    ]
+                  },
+                  "vaultId": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "lastRebuiltAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "noteCount": {
+                    "type": "number",
+                    "default": 0
+                  },
+                  "lastUpdated": {
+                    "type": "string"
+                  },
+                  "shortDescriptor": {
+                    "type": "string",
+                    "default": ""
+                  },
+                  "descriptor": {
+                    "type": "string",
+                    "default": ""
+                  }
+                },
+                "required": [
+                  "id",
+                  "lookupKey",
+                  "slug",
+                  "name",
+                  "type",
+                  "prompt",
+                  "state",
+                  "vaultId",
+                  "lastRebuiltAt",
+                  "createdAt",
+                  "updatedAt",
+                  "lastUpdated"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "wikis"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "wikiDetailResponseSchema": {
+      "$ref": "#/definitions/wikiDetailResponseSchema",
+      "definitions": {
+        "wikiDetailResponseSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "lookupKey": {
+              "$ref": "#/definitions/wikiDetailResponseSchema/properties/id"
+            },
+            "slug": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "prompt": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "RESOLVED",
+                "LINKING",
+                "DIRTY"
+              ]
+            },
+            "vaultId": {
+              "type": "string",
+              "nullable": true
+            },
+            "lastRebuiltAt": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "noteCount": {
+              "type": "number",
+              "default": 0
+            },
+            "lastUpdated": {
+              "type": "string"
+            },
+            "shortDescriptor": {
+              "type": "string",
+              "default": ""
+            },
+            "descriptor": {
+              "type": "string",
+              "default": ""
+            },
+            "wikiContent": {
+              "type": "string"
+            },
+            "fragments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "$ref": "#/definitions/wikiDetailResponseSchema/properties/id"
+                  },
+                  "slug": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "snippet": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "slug",
+                  "title",
+                  "snippet"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "people": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "$ref": "#/definitions/wikiDetailResponseSchema/properties/id"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "id",
+            "lookupKey",
+            "slug",
+            "name",
+            "type",
+            "prompt",
+            "state",
+            "vaultId",
+            "lastRebuiltAt",
+            "createdAt",
+            "updatedAt",
+            "lastUpdated",
+            "wikiContent",
+            "fragments",
+            "people"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "bouncerModeBodySchema": {
+      "$ref": "#/definitions/bouncerModeBodySchema",
+      "definitions": {
+        "bouncerModeBodySchema": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "review"
+              ]
+            }
+          },
+          "required": [
+            "mode"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "bouncerModeResponseSchema": {
+      "$ref": "#/definitions/bouncerModeResponseSchema",
+      "definitions": {
+        "bouncerModeResponseSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "bouncerMode": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "review"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "bouncerMode"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "publishWikiResponseSchema": {
+      "$ref": "#/definitions/publishWikiResponseSchema",
+      "definitions": {
+        "publishWikiResponseSchema": {
+          "type": "object",
+          "properties": {
+            "published": {
+              "type": "boolean"
+            },
+            "publishedSlug": {
+              "type": "string",
+              "nullable": true
+            },
+            "publishedAt": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            },
+            "regenerate": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "published",
+            "publishedSlug",
+            "publishedAt",
+            "regenerate"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "publicWikiResponseSchema": {
+      "$ref": "#/definitions/publicWikiResponseSchema",
+      "definitions": {
+        "publicWikiResponseSchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "publishedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "content": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "type",
+            "publishedAt",
+            "content"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "toggleRegenerateBodySchema": {
+      "$ref": "#/definitions/toggleRegenerateBodySchema",
+      "definitions": {
+        "toggleRegenerateBodySchema": {
+          "type": "object",
+          "properties": {
+            "regenerate": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "regenerate"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "toggleRegenerateResponseSchema": {
+      "$ref": "#/definitions/toggleRegenerateResponseSchema",
+      "definitions": {
+        "toggleRegenerateResponseSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "regenerate": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "regenerate"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "wikiTypeResponseSchema": {
+      "$ref": "#/definitions/wikiTypeResponseSchema",
+      "definitions": {
+        "wikiTypeResponseSchema": {
+          "type": "object",
+          "properties": {
+            "slug": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "shortDescriptor": {
+              "type": "string"
+            },
+            "descriptor": {
+              "type": "string"
+            },
+            "prompt": {
+              "type": "string"
+            },
+            "isDefault": {
+              "type": "boolean"
+            },
+            "userModified": {
+              "type": "boolean"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "slug",
+            "name",
+            "shortDescriptor",
+            "descriptor",
+            "prompt",
+            "isDefault",
+            "userModified",
+            "createdAt",
+            "updatedAt"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "wikiTypeListResponseSchema": {
+      "$ref": "#/definitions/wikiTypeListResponseSchema",
+      "definitions": {
+        "wikiTypeListResponseSchema": {
+          "type": "object",
+          "properties": {
+            "wikiTypes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "slug": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "shortDescriptor": {
+                    "type": "string"
+                  },
+                  "descriptor": {
+                    "type": "string"
+                  },
+                  "prompt": {
+                    "type": "string"
+                  },
+                  "isDefault": {
+                    "type": "boolean"
+                  },
+                  "userModified": {
+                    "type": "boolean"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "slug",
+                  "name",
+                  "shortDescriptor",
+                  "descriptor",
+                  "prompt",
+                  "isDefault",
+                  "userModified",
+                  "createdAt",
+                  "updatedAt"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "wikiTypes"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "createWikiTypeBodySchema": {
+      "$ref": "#/definitions/createWikiTypeBodySchema",
+      "definitions": {
+        "createWikiTypeBodySchema": {
+          "type": "object",
+          "properties": {
+            "slug": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "shortDescriptor": {
+              "type": "string",
+              "minLength": 1
+            },
+            "descriptor": {
+              "type": "string",
+              "minLength": 1
+            },
+            "prompt": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          "required": [
+            "slug",
+            "name",
+            "shortDescriptor",
+            "descriptor"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "updateWikiTypeBodySchema": {
+      "$ref": "#/definitions/updateWikiTypeBodySchema",
+      "definitions": {
+        "updateWikiTypeBodySchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "shortDescriptor": {
+              "type": "string"
+            },
+            "descriptor": {
+              "type": "string"
+            },
+            "prompt": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "personResponseSchema": {
+      "$ref": "#/definitions/personResponseSchema",
+      "definitions": {
+        "personResponseSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "lookupKey": {
+              "$ref": "#/definitions/personResponseSchema/properties/id"
+            },
+            "slug": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "relationship": {
+              "type": "string"
+            },
+            "canonicalName": {
+              "type": "string"
+            },
+            "aliases": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "verified": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "RESOLVED",
+                "LINKING",
+                "DIRTY"
+              ]
+            },
+            "lastRebuiltAt": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "id",
+            "lookupKey",
+            "slug",
+            "name",
+            "relationship",
+            "canonicalName",
+            "aliases",
+            "verified",
+            "state",
+            "lastRebuiltAt",
+            "createdAt",
+            "updatedAt"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "personDetailResponseSchema": {
+      "$ref": "#/definitions/personDetailResponseSchema",
+      "definitions": {
+        "personDetailResponseSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "lookupKey": {
+              "$ref": "#/definitions/personDetailResponseSchema/properties/id"
+            },
+            "slug": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "relationship": {
+              "type": "string"
+            },
+            "canonicalName": {
+              "type": "string"
+            },
+            "aliases": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "verified": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "RESOLVED",
+                "LINKING",
+                "DIRTY"
+              ]
+            },
+            "lastRebuiltAt": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "content": {
+              "type": "string"
+            },
+            "backlinks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "wikis": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "slug": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "fragmentCount": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "slug",
+                  "type",
+                  "fragmentCount"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            }
+          },
+          "required": [
+            "id",
+            "lookupKey",
+            "slug",
+            "name",
+            "relationship",
+            "canonicalName",
+            "aliases",
+            "verified",
+            "state",
+            "lastRebuiltAt",
+            "createdAt",
+            "updatedAt",
+            "content",
+            "backlinks"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "personWithBacklinksResponseSchema": {
+      "$ref": "#/definitions/personWithBacklinksResponseSchema",
+      "definitions": {
+        "personWithBacklinksResponseSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "lookupKey": {
+              "$ref": "#/definitions/personWithBacklinksResponseSchema/properties/id"
+            },
+            "slug": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "relationship": {
+              "type": "string"
+            },
+            "canonicalName": {
+              "type": "string"
+            },
+            "aliases": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "verified": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "RESOLVED",
+                "LINKING",
+                "DIRTY"
+              ]
+            },
+            "lastRebuiltAt": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "backlinkFragmentIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "backlinkThreadIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "id",
+            "lookupKey",
+            "slug",
+            "name",
+            "relationship",
+            "canonicalName",
+            "aliases",
+            "verified",
+            "state",
+            "lastRebuiltAt",
+            "createdAt",
+            "updatedAt",
+            "backlinkFragmentIds",
+            "backlinkThreadIds"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "personListResponseSchema": {
+      "$ref": "#/definitions/personListResponseSchema",
+      "definitions": {
+        "personListResponseSchema": {
+          "type": "object",
+          "properties": {
+            "people": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "lookupKey": {
+                    "$ref": "#/definitions/personListResponseSchema/properties/people/items/properties/id"
+                  },
+                  "slug": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "relationship": {
+                    "type": "string"
+                  },
+                  "canonicalName": {
+                    "type": "string"
+                  },
+                  "aliases": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "verified": {
+                    "type": "boolean"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "PENDING",
+                      "RESOLVED",
+                      "LINKING",
+                      "DIRTY"
+                    ]
+                  },
+                  "lastRebuiltAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "id",
+                  "lookupKey",
+                  "slug",
+                  "name",
+                  "relationship",
+                  "canonicalName",
+                  "aliases",
+                  "verified",
+                  "state",
+                  "lastRebuiltAt",
+                  "createdAt",
+                  "updatedAt"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "people"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "updatePersonBodySchema": {
+      "$ref": "#/definitions/updatePersonBodySchema",
+      "definitions": {
+        "updatePersonBodySchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "relationship": {
+              "type": "string"
+            },
+            "aliases": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "content": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "personListQuerySchema": {
+      "$ref": "#/definitions/personListQuerySchema",
+      "definitions": {
+        "personListQuerySchema": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "createVaultBodySchema": {
+      "$ref": "#/definitions/createVaultBodySchema",
+      "definitions": {
+        "createVaultBodySchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "icon": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "color": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "updateVaultBodySchema": {
+      "$ref": "#/definitions/updateVaultBodySchema",
+      "definitions": {
+        "updateVaultBodySchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "icon": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "profile": {
+              "type": "string"
+            },
+            "color": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "updateVaultProfileBodySchema": {
+      "$ref": "#/definitions/updateVaultProfileBodySchema",
+      "definitions": {
+        "updateVaultProfileBodySchema": {
+          "type": "object",
+          "properties": {
+            "profile": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "profile"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "vaultResponseSchema": {
+      "$ref": "#/definitions/vaultResponseSchema",
+      "definitions": {
+        "vaultResponseSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "slug": {
+              "type": "string"
+            },
+            "icon": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "profile": {
+              "type": "string",
+              "nullable": true
+            },
+            "color": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "user",
+                "system",
+                "inbox"
+              ]
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "threadCount": {
+              "type": "number",
+              "default": 0
+            },
+            "noteCount": {
+              "type": "number",
+              "default": 0
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "slug",
+            "icon",
+            "description",
+            "profile",
+            "color",
+            "type",
+            "createdAt",
+            "updatedAt"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "vaultListResponseSchema": {
+      "$ref": "#/definitions/vaultListResponseSchema",
+      "definitions": {
+        "vaultListResponseSchema": {
+          "type": "object",
+          "properties": {
+            "vaults": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "slug": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "profile": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "color": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "system",
+                      "inbox"
+                    ]
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "threadCount": {
+                    "type": "number",
+                    "default": 0
+                  },
+                  "noteCount": {
+                    "type": "number",
+                    "default": 0
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "slug",
+                  "icon",
+                  "description",
+                  "profile",
+                  "color",
+                  "type",
+                  "createdAt",
+                  "updatedAt"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "vaults"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "searchQuerySchema": {
+      "$ref": "#/definitions/searchQuerySchema",
+      "definitions": {
+        "searchQuerySchema": {
+          "type": "object",
+          "properties": {
+            "q": {
+              "type": "string",
+              "minLength": 1
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            },
+            "tables": {
+              "allOf": [
+                {
+                  "anyOf": [
+                    {
+                      "not": {}
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "fragment",
+                      "wiki",
+                      "person"
+                    ]
+                  },
+                  "minItems": 1
+                }
+              ]
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "hybrid",
+                "bm25",
+                "vector"
+              ],
+              "default": "hybrid"
+            },
+            "vaultId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "q"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "searchResponseSchema": {
+      "$ref": "#/definitions/searchResponseSchema",
+      "definitions": {
+        "searchResponseSchema": {
+          "type": "object",
+          "properties": {
+            "results": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "fragment",
+                      "wiki",
+                      "person"
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "snippet": {
+                    "type": "string"
+                  },
+                  "score": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "title",
+                  "snippet",
+                  "score"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "results"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "userProfileResponseSchema": {
+      "$ref": "#/definitions/userProfileResponseSchema",
+      "definitions": {
+        "userProfileResponseSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string",
+              "nullable": true
+            },
+            "mcpEndpointUrl": {
+              "type": "string"
+            },
+            "apiKeyHint": {
+              "type": "string"
+            },
+            "onboardedAt": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          "required": [
+            "id",
+            "email",
+            "name",
+            "mcpEndpointUrl",
+            "apiKeyHint",
+            "onboardedAt"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "userStatsResponseSchema": {
+      "$ref": "#/definitions/userStatsResponseSchema",
+      "definitions": {
+        "userStatsResponseSchema": {
+          "type": "object",
+          "properties": {
+            "totalNotes": {
+              "type": "number"
+            },
+            "totalThreads": {
+              "type": "number"
+            },
+            "peopleCount": {
+              "type": "number"
+            },
+            "unthreadedCount": {
+              "type": "number"
+            },
+            "lastSync": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "totalNotes",
+            "totalThreads",
+            "peopleCount",
+            "unthreadedCount",
+            "lastSync"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "userActivityResponseSchema": {
+      "$ref": "#/definitions/userActivityResponseSchema",
+      "definitions": {
+        "userActivityResponseSchema": {
+          "type": "object",
+          "properties": {
+            "activity": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string"
+                  },
+                  "time": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "action",
+                  "time"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "activity"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "keypairResponseSchema": {
+      "$ref": "#/definitions/keypairResponseSchema",
+      "definitions": {
+        "keypairResponseSchema": {
+          "type": "object",
+          "properties": {
+            "algorithm": {
+              "type": "string"
+            },
+            "publicKey": {
+              "type": "string"
+            },
+            "privateKey": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "algorithm",
+            "publicKey",
+            "privateKey"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "mcpEndpointResponseSchema": {
+      "$ref": "#/definitions/mcpEndpointResponseSchema",
+      "definitions": {
+        "mcpEndpointResponseSchema": {
+          "type": "object",
+          "properties": {
+            "mcpEndpointUrl": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mcpEndpointUrl"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "exportDataResponseSchema": {
+      "$ref": "#/definitions/exportDataResponseSchema",
+      "definitions": {
+        "exportDataResponseSchema": {
+          "type": "object",
+          "properties": {
+            "exportedAt": {
+              "type": "string"
+            },
+            "vaults": {
+              "type": "array"
+            },
+            "wikis": {
+              "type": "array"
+            },
+            "fragments": {
+              "type": "array"
+            },
+            "people": {
+              "type": "array"
+            }
+          },
+          "required": [
+            "exportedAt",
+            "vaults",
+            "wikis",
+            "fragments",
+            "people"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "graphResponseSchema": {
+      "$ref": "#/definitions/graphResponseSchema",
+      "definitions": {
+        "graphResponseSchema": {
+          "type": "object",
+          "properties": {
+            "nodes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "wiki",
+                      "fragment",
+                      "person",
+                      "entry",
+                      "vault"
+                    ]
+                  },
+                  "vaultId": {
+                    "type": "string"
+                  },
+                  "size": {
+                    "type": "number"
+                  },
+                  "snippet": {
+                    "type": "string",
+                    "default": ""
+                  }
+                },
+                "required": [
+                  "id",
+                  "label",
+                  "type",
+                  "vaultId",
+                  "size"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "edges": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  },
+                  "edgeType": {
+                    "type": "string",
+                    "enum": [
+                      "filing",
+                      "wikilink",
+                      "mention"
+                    ]
+                  }
+                },
+                "required": [
+                  "source",
+                  "target",
+                  "edgeType"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "nodes",
+            "edges"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "relationshipsResponseSchema": {
+      "$ref": "#/definitions/relationshipsResponseSchema",
+      "definitions": {
+        "relationshipsResponseSchema": {
+          "type": "object",
+          "properties": {
+            "relationships": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "edgeType": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "label",
+                    "edgeType"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "required": [
+            "relationships"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "contentRawResponseSchema": {
+      "$ref": "#/definitions/contentRawResponseSchema",
+      "definitions": {
+        "contentRawResponseSchema": {
+          "type": "object",
+          "properties": {
+            "content": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "content"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "contentStructuredResponseSchema": {
+      "$ref": "#/definitions/contentStructuredResponseSchema",
+      "definitions": {
+        "contentStructuredResponseSchema": {
+          "type": "object",
+          "properties": {
+            "frontmatter": {
+              "type": "object",
+              "additionalProperties": {}
+            },
+            "body": {
+              "type": "string"
+            },
+            "raw": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "frontmatter",
+            "body",
+            "raw"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "fragmentWriteSchema": {
+      "$ref": "#/definitions/fragmentWriteSchema",
+      "definitions": {
+        "fragmentWriteSchema": {
+          "type": "object",
+          "properties": {
+            "frontmatter": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                },
+                "vaultId": {
+                  "type": "string"
+                },
+                "wikiKeys": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                },
+                "personKeys": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                },
+                "relatedFragmentKeys": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            },
+            "body": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "frontmatter",
+            "body"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "entryWriteSchema": {
+      "$ref": "#/definitions/entryWriteSchema",
+      "definitions": {
+        "entryWriteSchema": {
+          "type": "object",
+          "properties": {
+            "frontmatter": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "frontmatter"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "wikiWriteSchema": {
+      "$ref": "#/definitions/wikiWriteSchema",
+      "definitions": {
+        "wikiWriteSchema": {
+          "type": "object",
+          "properties": {
+            "frontmatter": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string"
+                },
+                "prompt": {
+                  "type": "string"
+                },
+                "vaultId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "body": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "frontmatter",
+            "body"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "personWriteSchema": {
+      "$ref": "#/definitions/personWriteSchema",
+      "definitions": {
+        "personWriteSchema": {
+          "type": "object",
+          "properties": {
+            "frontmatter": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "relationship": {
+                  "type": "string"
+                },
+                "aliases": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "default": []
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "body": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "frontmatter",
+            "body"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "retryStuckDryRunResponseSchema": {
+      "$ref": "#/definitions/retryStuckDryRunResponseSchema",
+      "definitions": {
+        "retryStuckDryRunResponseSchema": {
+          "type": "object",
+          "properties": {
+            "dryRun": {
+              "type": "boolean",
+              "enum": [
+                true
+              ]
+            },
+            "count": {
+              "type": "number"
+            },
+            "fragments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "fragmentKey": {
+                    "type": "string"
+                  },
+                  "entryKey": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "fragmentKey",
+                  "entryKey"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "dryRun",
+            "count",
+            "fragments"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "retryStuckResponseSchema": {
+      "$ref": "#/definitions/retryStuckResponseSchema",
+      "definitions": {
+        "retryStuckResponseSchema": {
+          "type": "object",
+          "properties": {
+            "enqueued": {
+              "type": "number"
+            },
+            "errors": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "fragmentKey": {
+                    "type": "string"
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "fragmentKey",
+                  "error"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "minutes": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "enqueued",
+            "errors",
+            "minutes"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "syncNotifyPayloadSchema": {
+      "$ref": "#/definitions/syncNotifyPayloadSchema",
+      "definitions": {
+        "syncNotifyPayloadSchema": {
+          "type": "object",
+          "properties": {
+            "userId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "commitHash": {
+              "type": "string"
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "add",
+                      "modify",
+                      "delete"
+                    ]
+                  },
+                  "content": {
+                    "type": "string"
+                  },
+                  "frontmatterHash": {
+                    "type": "string"
+                  },
+                  "bodyHash": {
+                    "type": "string"
+                  },
+                  "contentHash": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path",
+                  "operation",
+                  "content"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "userId",
+            "commitHash",
+            "files"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "syncAcceptedResponseSchema": {
+      "$ref": "#/definitions/syncAcceptedResponseSchema",
+      "definitions": {
+        "syncAcceptedResponseSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "accepted"
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "auditLogResponseSchema": {
+      "$ref": "#/definitions/auditLogResponseSchema",
+      "definitions": {
+        "auditLogResponseSchema": {
+          "type": "object",
+          "properties": {
+            "events": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "entityType": {
+                    "type": "string"
+                  },
+                  "entityId": {
+                    "type": "string"
+                  },
+                  "eventType": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "summary": {
+                    "type": "string"
+                  },
+                  "detail": {
+                    "nullable": true
+                  },
+                  "createdAt": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "entityType",
+                  "entityId",
+                  "eventType",
+                  "source",
+                  "summary",
+                  "createdAt"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "total": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "events",
+            "total"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "auditLogQuerySchema": {
+      "$ref": "#/definitions/auditLogQuerySchema",
+      "definitions": {
+        "auditLogQuerySchema": {
+          "type": "object",
+          "properties": {
+            "entityType": {
+              "type": "string"
+            },
+            "entityId": {
+              "type": "string"
+            },
+            "eventType": {
+              "type": "string"
+            },
+            "from": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "auditEventSchema": {
+      "$ref": "#/definitions/auditEventSchema",
+      "definitions": {
+        "auditEventSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "entityType": {
+              "type": "string"
+            },
+            "entityId": {
+              "type": "string"
+            },
+            "eventType": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string",
+              "nullable": true
+            },
+            "summary": {
+              "type": "string"
+            },
+            "detail": {
+              "nullable": true
+            },
+            "createdAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "entityType",
+            "entityId",
+            "eventType",
+            "source",
+            "summary",
+            "createdAt"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "timelineQuerySchema": {
+      "$ref": "#/definitions/timelineQuerySchema",
+      "definitions": {
+        "timelineQuerySchema": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  }
+}

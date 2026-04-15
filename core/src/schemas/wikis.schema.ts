@@ -90,6 +90,22 @@ export const publicWikiResponseSchema = z.object({
   content: z.string(),
 })
 
+// ── Spawn schemas ────────────────────────────────────────────────────
+
+export const spawnWikiBodySchema = z.object({
+  name: z.string().min(3, 'name must be at least 3 characters'),
+  type: z.string().optional(),
+})
+
+export const spawnWikiResponseSchema = z.object({
+  lookupKey: lookupKeySchema,
+  slug: z.string(),
+  name: z.string(),
+  type: z.string(),
+  parentKey: lookupKeySchema,
+  fragmentCount: z.number(),
+})
+
 // ── Regenerate toggle schemas ─────────────────────────────────────────────
 
 export const toggleRegenerateBodySchema = z.object({

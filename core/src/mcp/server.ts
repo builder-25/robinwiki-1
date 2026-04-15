@@ -20,7 +20,7 @@
 import { z } from 'zod/v4'
 import { eq, and, isNull, inArray, sql } from 'drizzle-orm'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { listWikis, getThread, getFragment, findPersonById, findPersonByQuery, listWikiTypes, resolveThreadBySlug } from './resolvers.js'
+import { listWikis, getThread, getFragment, findPersonById, findPersonByQuery, listWikiTypes, briefPerson, resolveThreadBySlug } from './resolvers.js'
 import type { McpResolverDeps } from './resolvers.js'
 import { handleLogEntry, handleLogFragment, handleCreateWikiType, handleCreateWiki, handleEditWiki } from './handlers.js'
 import type { McpServerDeps } from './handlers.js'
@@ -258,6 +258,30 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
           content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Provide id or query' }) }],
           isError: true as const,
         }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err)
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
+          isError: true as const,
+        }
+      }
+    }
+  )
+
+  server.registerTool(
+    'brief_person',
+    {
+      description:
+        'Get a formatted briefing on a person including their wiki appearances and fragment mentions. ' +
+        'Returns a markdown summary. Instant response, no LLM call.',
+      inputSchema: {
+        query: z.string().describe('Person name, slug, or lookupKey'),
+      },
+    },
+    async ({ query }) => {
+      try {
+        const result = await briefPerson(resolverDeps, query)
+        return { content: [{ type: 'text' as const, text: result }] }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err)
         return {

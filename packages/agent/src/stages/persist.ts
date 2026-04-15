@@ -94,6 +94,7 @@ export async function persist(
       vaultId: input.vaultId,
       tags: frag.tags,
       state: 'PENDING',
+      confidence: frag.confidence,
     })
   }
 

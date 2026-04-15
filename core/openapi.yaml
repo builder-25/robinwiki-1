@@ -18,8 +18,16 @@ tags:
     description: Raw user captures (thoughts, notes, bookmarks)
   - name: Fragments
     description: AI-processed knowledge fragments
+  - name: Wikis
+    description: Wiki pages (cross-vault thread listing, detail, publish, bouncer)
+  - name: Wiki Types
+    description: Wiki type definitions and configuration
+  - name: Published
+    description: Public read-only wiki access (no auth)
+  - name: Audit
+    description: Audit log and timeline queries
   - name: Threads
-    description: Topic threads that group related fragments
+    description: Topic threads that group related fragments (legacy alias)
   - name: Vaults
     description: Top-level knowledge containers
   - name: People
@@ -32,8 +40,6 @@ tags:
     description: Object relationship lookups
   - name: Content
     description: Raw/structured content read/write
-  - name: Robin
-    description: System config notes
   - name: Users
     description: User profile, stats, and account management
   - name: Admin
@@ -251,7 +257,506 @@ paths:
               schema:
                 $ref: "#/components/schemas/errorResponseSchema"
 
-  # ── Threads ────────────────────────────────────────────────────────
+  /fragments/{id}/accept:
+    post:
+      operationId: acceptFragment
+      summary: Accept fragment into a review-mode wiki
+      tags: [Fragments]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/fragmentReviewBodySchema"
+      responses:
+        "200":
+          description: Fragment accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/okResponseSchema"
+        "400":
+          description: Wiki not in review mode
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /fragments/{id}/reject:
+    post:
+      operationId: rejectFragment
+      summary: Reject fragment from a review-mode wiki
+      tags: [Fragments]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/fragmentReviewBodySchema"
+      responses:
+        "200":
+          description: Fragment rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/okResponseSchema"
+        "400":
+          description: Wiki not in review mode
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  # ── Wikis ─────────────────────────────────────────────────────────
+
+  /wikis:
+    get:
+      operationId: listWikis
+      summary: List wikis with pagination and fragment counts
+      tags: [Wikis]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: List of wikis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/threadListResponseSchema"
+
+  /wikis/{id}:
+    get:
+      operationId: getWiki
+      summary: Get wiki detail with fragments and people
+      tags: [Wikis]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Wiki detail with fragments and people
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/wikiDetailResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+    put:
+      operationId: updateWiki
+      summary: Update a wiki
+      tags: [Wikis]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/updateThreadBodySchema"
+      responses:
+        "200":
+          description: Updated wiki
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/threadResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /wikis/{id}/timeline:
+    get:
+      operationId: getWikiTimeline
+      summary: Audit timeline for a wiki and its fragments
+      tags: [Wikis]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Timeline events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/auditLogResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /wikis/{id}/bouncer:
+    patch:
+      operationId: toggleBouncerMode
+      summary: Toggle bouncer mode (auto/review)
+      tags: [Wikis]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/bouncerModeBodySchema"
+      responses:
+        "200":
+          description: Updated bouncer mode
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/bouncerModeResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /wikis/{id}/regenerate:
+    patch:
+      operationId: toggleRegenerate
+      summary: Toggle regenerate flag on a wiki
+      tags: [Wikis]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/toggleRegenerateBodySchema"
+      responses:
+        "200":
+          description: Updated regenerate flag
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/toggleRegenerateResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+    post:
+      operationId: regenerateWiki
+      summary: Trigger on-demand wiki regeneration
+      tags: [Wikis]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Regeneration result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/okResponseSchema"
+        "400":
+          description: Regeneration disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /wikis/{id}/publish:
+    post:
+      operationId: publishWiki
+      summary: Publish a wiki with a stable nanoid slug
+      tags: [Wikis]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Publish status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/publishWikiResponseSchema"
+        "400":
+          description: No content to publish
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /wikis/{id}/unpublish:
+    post:
+      operationId: unpublishWiki
+      summary: Unpublish a wiki (preserves slug for re-publish)
+      tags: [Wikis]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Unpublish status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/publishWikiResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /wikis/{targetId}/merge:
+    post:
+      operationId: mergeWikis
+      summary: Merge wikis (not implemented)
+      tags: [Wikis]
+      parameters:
+        - name: targetId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "501":
+          description: Not implemented
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  # ── Wiki Types ────────────────────────────────────────────────────
+
+  /wiki-types:
+    get:
+      operationId: listWikiTypes
+      summary: List all wiki types
+      tags: [Wiki Types]
+      responses:
+        "200":
+          description: List of wiki types
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/wikiTypeListResponseSchema"
+    post:
+      operationId: createWikiType
+      summary: Create a new user-defined wiki type
+      tags: [Wiki Types]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/createWikiTypeBodySchema"
+      responses:
+        "201":
+          description: Created wiki type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/wikiTypeResponseSchema"
+        "409":
+          description: Slug conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  /wiki-types/setup:
+    post:
+      operationId: setupWikiTypes
+      summary: Seed default wiki types from YAML configs (idempotent)
+      tags: [Wiki Types]
+      responses:
+        "200":
+          description: Seed result
+
+  /wiki-types/{slug}:
+    get:
+      operationId: getWikiType
+      summary: Get a wiki type by slug
+      tags: [Wiki Types]
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The wiki type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/wikiTypeResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+    put:
+      operationId: updateWikiType
+      summary: Update a wiki type
+      tags: [Wiki Types]
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/updateWikiTypeBodySchema"
+      responses:
+        "200":
+          description: Updated wiki type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/wikiTypeResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  # ── Published ─────────────────────────────────────────────────────
+
+  /published/wiki/{nanoid}:
+    get:
+      operationId: getPublishedWiki
+      summary: Get a published wiki by nanoid slug (no auth)
+      tags: [Published]
+      security: []
+      parameters:
+        - name: nanoid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Published wiki content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/publicWikiResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+
+  # ── Audit Log ─────────────────────────────────────────────────────
+
+  /audit-log:
+    get:
+      operationId: getAuditLog
+      summary: Query the audit log with filters
+      tags: [Audit]
+      parameters:
+        - name: entityType
+          in: query
+          schema:
+            type: string
+        - name: entityId
+          in: query
+          schema:
+            type: string
+        - name: eventType
+          in: query
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: string
+        - name: to
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Audit events with total count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/auditLogResponseSchema"
+
+  # ── Threads (legacy) ──────────────────────────────────────────────
 
   /threads/{id}:
     get:
@@ -495,8 +1000,22 @@ paths:
   /people:
     get:
       operationId: listPeople
-      summary: List all people
+      summary: List all people with pagination
       tags: [People]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
       responses:
         "200":
           description: List of people
@@ -508,17 +1027,42 @@ paths:
   /people/{id}:
     get:
       operationId: getPerson
-      summary: Get a person by ID (includes backlinks)
+      summary: Get a person by ID (includes content and backlinks)
       tags: [People]
       parameters:
         - $ref: "#/components/parameters/Id"
       responses:
         "200":
-          description: Person with backlinks
+          description: Person with content and backlinks
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/personWithBacklinksResponseSchema"
+                $ref: "#/components/schemas/personDetailResponseSchema"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/errorResponseSchema"
+    put:
+      operationId: updatePerson
+      summary: Update a person
+      tags: [People]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/updatePersonBodySchema"
+      responses:
+        "200":
+          description: Updated person
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/personDetailResponseSchema"
         "404":
           description: Not found
           content:
@@ -697,75 +1241,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/errorResponseSchema"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/errorResponseSchema"
-
-  # ── Robin (Config) ─────────────────────────────────────────────────
-
-  /robin/config:
-    get:
-      operationId: listConfigNotes
-      summary: List all config notes
-      tags: [Robin]
-      responses:
-        "200":
-          description: List of config notes
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/configNoteListResponseSchema"
-
-  /robin/config/{key}:
-    get:
-      operationId: getConfigNote
-      summary: Get config note by key
-      tags: [Robin]
-      parameters:
-        - name: key
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: The config note
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/configNoteResponseSchema"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/errorResponseSchema"
-    put:
-      operationId: updateConfigNote
-      summary: Update config note
-      tags: [Robin]
-      parameters:
-        - name: key
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/updateConfigNoteBodySchema"
-      responses:
-        "200":
-          description: Updated config note
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/configNoteResponseSchema"
         "404":
           description: Not found
           content:
@@ -1230,6 +1705,15 @@ components:
             type: string
       additionalProperties: false
 
+    fragmentReviewBodySchema:
+      type: object
+      properties:
+        wikiId:
+          type: string
+          minLength: 1
+      required: [wikiId]
+      additionalProperties: false
+
     fragmentListQuerySchema:
       type: object
       properties:
@@ -1238,6 +1722,12 @@ components:
           minimum: 1
           maximum: 200
           default: 50
+        offset:
+          type: integer
+          minimum: 0
+          default: 0
+        vaultId:
+          type: string
       additionalProperties: false
 
     fragmentResponseSchema:
@@ -1320,6 +1810,26 @@ components:
       required: [id, lookupKey, userId, slug, title, type, tags, entryId, state, repoPath, createdAt, updatedAt, content]
       additionalProperties: false
 
+    fragmentDetailResponseSchema:
+      allOf:
+        - $ref: "#/components/schemas/fragmentWithContentResponseSchema"
+        - type: object
+          properties:
+            backlinks:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  type:
+                    type: string
+                required: [id, name, type]
+                additionalProperties: false
+          required: [backlinks]
+
     fragmentListResponseSchema:
       type: object
       properties:
@@ -1330,7 +1840,7 @@ components:
       required: [fragments]
       additionalProperties: false
 
-    # ── Threads ────────────────────────────────────────────────────
+    # ── Threads / Wikis ────────────────────────────────────────────
 
     createThreadBodySchema:
       type: object
@@ -1459,6 +1969,219 @@ components:
       required: [threads]
       additionalProperties: false
 
+    wikiDetailResponseSchema:
+      allOf:
+        - $ref: "#/components/schemas/threadWithWikiResponseSchema"
+        - type: object
+          properties:
+            fragments:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  slug:
+                    type: string
+                  title:
+                    type: string
+                  snippet:
+                    type: string
+                required: [id, slug, title, snippet]
+                additionalProperties: false
+            people:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                required: [id, name]
+                additionalProperties: false
+          required: [fragments, people]
+
+    bouncerModeBodySchema:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [auto, review]
+      required: [mode]
+      additionalProperties: false
+
+    bouncerModeResponseSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        bouncerMode:
+          type: string
+          enum: [auto, review]
+      required: [id, bouncerMode]
+      additionalProperties: false
+
+    publishWikiResponseSchema:
+      type: object
+      properties:
+        published:
+          type: boolean
+        publishedSlug:
+          type: string
+          nullable: true
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        regenerate:
+          type: boolean
+      required: [published, publishedSlug, publishedAt, regenerate]
+      additionalProperties: false
+
+    publicWikiResponseSchema:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+        content:
+          type: string
+      required: [name, type, publishedAt, content]
+      additionalProperties: false
+
+    toggleRegenerateBodySchema:
+      type: object
+      properties:
+        regenerate:
+          type: boolean
+      required: [regenerate]
+      additionalProperties: false
+
+    toggleRegenerateResponseSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        regenerate:
+          type: boolean
+      required: [id, regenerate]
+      additionalProperties: false
+
+    # ── Wiki Types ─────────────────────────────────────────────────
+
+    wikiTypeResponseSchema:
+      type: object
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+        shortDescriptor:
+          type: string
+        descriptor:
+          type: string
+        prompt:
+          type: string
+        isDefault:
+          type: boolean
+        userModified:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [slug, name, shortDescriptor, descriptor, prompt, isDefault, userModified, createdAt, updatedAt]
+      additionalProperties: false
+
+    wikiTypeListResponseSchema:
+      type: object
+      properties:
+        wikiTypes:
+          type: array
+          items:
+            $ref: "#/components/schemas/wikiTypeResponseSchema"
+      required: [wikiTypes]
+      additionalProperties: false
+
+    createWikiTypeBodySchema:
+      type: object
+      properties:
+        slug:
+          type: string
+          pattern: "^[a-z0-9-]+$"
+        name:
+          type: string
+          minLength: 1
+        shortDescriptor:
+          type: string
+          minLength: 1
+        descriptor:
+          type: string
+          minLength: 1
+        prompt:
+          type: string
+          default: ""
+      required: [slug, name, shortDescriptor, descriptor]
+      additionalProperties: false
+
+    updateWikiTypeBodySchema:
+      type: object
+      properties:
+        name:
+          type: string
+        shortDescriptor:
+          type: string
+        descriptor:
+          type: string
+        prompt:
+          type: string
+      additionalProperties: false
+
+    # ── Audit ──────────────────────────────────────────────────────
+
+    auditEventSchema:
+      type: object
+      properties:
+        id:
+          type: string
+        entityType:
+          type: string
+        entityId:
+          type: string
+        eventType:
+          type: string
+        source:
+          type: string
+          nullable: true
+        summary:
+          type: string
+        detail: {}
+        createdAt:
+          type: string
+      required: [id, entityType, entityId, eventType, summary, createdAt]
+      additionalProperties: false
+
+    auditLogResponseSchema:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/auditEventSchema"
+        total:
+          type: number
+      required: [events, total]
+      additionalProperties: false
+
     # ── People ─────────────────────────────────────────────────────
 
     personResponseSchema:
@@ -1551,6 +2274,41 @@ components:
       required: [people]
       additionalProperties: false
 
+    personDetailResponseSchema:
+      allOf:
+        - $ref: "#/components/schemas/personResponseSchema"
+        - type: object
+          properties:
+            content:
+              type: string
+            backlinks:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  title:
+                    type: string
+                required: [id, title]
+                additionalProperties: false
+          required: [content, backlinks]
+
+    updatePersonBodySchema:
+      type: object
+      properties:
+        name:
+          type: string
+        relationship:
+          type: string
+        aliases:
+          type: array
+          items:
+            type: string
+        content:
+          type: string
+      additionalProperties: false
+
     # ── Vaults ─────────────────────────────────────────────────────
 
     createVaultBodySchema:
@@ -1581,6 +2339,14 @@ components:
           type: string
         color:
           type: string
+      additionalProperties: false
+
+    updateVaultProfileBodySchema:
+      type: object
+      properties:
+        profile:
+          type: string
+      required: [profile]
       additionalProperties: false
 
     vaultResponseSchema:
@@ -1836,51 +2602,6 @@ components:
       required: [relationships]
       additionalProperties: false
 
-    # ── Robin (Config) ─────────────────────────────────────────────
-
-    configNoteResponseSchema:
-      type: object
-      properties:
-        id:
-          type: string
-        userId:
-          type: string
-        key:
-          type: string
-        title:
-          type: string
-        content:
-          type: string
-        frontmatter: {}
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-      required: [id, userId, key, title, content, createdAt, updatedAt]
-      additionalProperties: false
-
-    configNoteListResponseSchema:
-      type: object
-      properties:
-        configNotes:
-          type: array
-          items:
-            $ref: "#/components/schemas/configNoteResponseSchema"
-      required: [configNotes]
-      additionalProperties: false
-
-    updateConfigNoteBodySchema:
-      type: object
-      properties:
-        content:
-          type: string
-        frontmatter:
-          type: object
-          additionalProperties: {}
-      additionalProperties: false
-
     # ── Admin ──────────────────────────────────────────────────────
 
     retryStuckDryRunResponseSchema:
@@ -2048,7 +2769,7 @@ components:
       required: [frontmatter]
       additionalProperties: false
 
-    threadWriteSchema:
+    wikiWriteSchema:
       type: object
       properties:
         frontmatter:

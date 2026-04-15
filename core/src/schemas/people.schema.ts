@@ -18,6 +18,14 @@ export const personResponseSchema = z.object({
   updatedAt: z.coerce.date(),
 })
 
+export const personWikiSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  type: z.string(),
+  fragmentCount: z.number(),
+})
+
 /** Person detail with content and backlinks from edges table */
 export const personDetailResponseSchema = personResponseSchema.extend({
   content: z.string(),
@@ -27,6 +35,7 @@ export const personDetailResponseSchema = personResponseSchema.extend({
       title: z.string(),
     })
   ),
+  wikis: z.array(personWikiSchema).default([]),
 })
 
 export const personWithBacklinksResponseSchema = personResponseSchema.extend({

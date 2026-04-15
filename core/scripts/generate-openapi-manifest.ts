@@ -16,109 +16,175 @@ import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
+  // base
   errorResponseSchema,
   okResponseSchema,
   queuedResponseSchema,
+  // entries
   createEntryBodySchema,
   entryListQuerySchema,
   entryResponseSchema,
   entryCreatedResponseSchema,
   entryListResponseSchema,
+  // fragments
   createFragmentBodySchema,
   updateFragmentBodySchema,
   fragmentListQuerySchema,
   fragmentResponseSchema,
   fragmentWithContentResponseSchema,
+  fragmentDetailResponseSchema,
   fragmentListResponseSchema,
+  fragmentReviewBodySchema,
+  // wikis (threads)
   createThreadBodySchema,
   updateThreadBodySchema,
   threadResponseSchema,
   threadWithWikiResponseSchema,
   threadListResponseSchema,
+  wikiDetailResponseSchema,
+  bouncerModeBodySchema,
+  bouncerModeResponseSchema,
+  publishWikiResponseSchema,
+  publicWikiResponseSchema,
+  toggleRegenerateBodySchema,
+  toggleRegenerateResponseSchema,
+  // wiki types
+  wikiTypeResponseSchema,
+  wikiTypeListResponseSchema,
+  createWikiTypeBodySchema,
+  updateWikiTypeBodySchema,
+  // people
   personResponseSchema,
+  personDetailResponseSchema,
   personWithBacklinksResponseSchema,
   personListResponseSchema,
+  updatePersonBodySchema,
+  personListQuerySchema,
+  // vaults
   createVaultBodySchema,
   updateVaultBodySchema,
+  updateVaultProfileBodySchema,
   vaultResponseSchema,
   vaultListResponseSchema,
+  // search
   searchQuerySchema,
   searchResponseSchema,
+  // users
   userProfileResponseSchema,
   userStatsResponseSchema,
   userActivityResponseSchema,
   keypairResponseSchema,
   mcpEndpointResponseSchema,
   exportDataResponseSchema,
+  // graph
   graphResponseSchema,
+  // relationships
   relationshipsResponseSchema,
-  configNoteResponseSchema,
-  configNoteListResponseSchema,
-  updateConfigNoteBodySchema,
-  retryStuckDryRunResponseSchema,
-  retryStuckResponseSchema,
-  syncNotifyPayloadSchema,
-  syncAcceptedResponseSchema,
+  // content
   contentRawResponseSchema,
   contentStructuredResponseSchema,
   fragmentWriteSchema,
   entryWriteSchema,
-  threadWriteSchema,
+  wikiWriteSchema,
   personWriteSchema,
+  // admin
+  retryStuckDryRunResponseSchema,
+  retryStuckResponseSchema,
+  // internal
+  syncNotifyPayloadSchema,
+  syncAcceptedResponseSchema,
+  // audit
+  auditLogResponseSchema,
+  auditLogQuerySchema,
+  auditEventSchema,
+  timelineQuerySchema,
 } from '../src/schemas/index.js'
 
 // ── Schema registry ─────────────────────────────────────────────────────────
 
 const schemaRegistry: Record<string, ZodType> = {
+  // base
   errorResponseSchema,
   okResponseSchema,
   queuedResponseSchema,
+  // entries
   createEntryBodySchema,
   entryListQuerySchema,
   entryResponseSchema,
   entryCreatedResponseSchema,
   entryListResponseSchema,
+  // fragments
   createFragmentBodySchema,
   updateFragmentBodySchema,
   fragmentListQuerySchema,
   fragmentResponseSchema,
   fragmentWithContentResponseSchema,
+  fragmentDetailResponseSchema,
   fragmentListResponseSchema,
+  fragmentReviewBodySchema,
+  // wikis (threads)
   createThreadBodySchema,
   updateThreadBodySchema,
   threadResponseSchema,
   threadWithWikiResponseSchema,
   threadListResponseSchema,
+  wikiDetailResponseSchema,
+  bouncerModeBodySchema,
+  bouncerModeResponseSchema,
+  publishWikiResponseSchema,
+  publicWikiResponseSchema,
+  toggleRegenerateBodySchema,
+  toggleRegenerateResponseSchema,
+  // wiki types
+  wikiTypeResponseSchema,
+  wikiTypeListResponseSchema,
+  createWikiTypeBodySchema,
+  updateWikiTypeBodySchema,
+  // people
   personResponseSchema,
+  personDetailResponseSchema,
   personWithBacklinksResponseSchema,
   personListResponseSchema,
+  updatePersonBodySchema,
+  personListQuerySchema,
+  // vaults
   createVaultBodySchema,
   updateVaultBodySchema,
+  updateVaultProfileBodySchema,
   vaultResponseSchema,
   vaultListResponseSchema,
+  // search
   searchQuerySchema,
   searchResponseSchema,
+  // users
   userProfileResponseSchema,
   userStatsResponseSchema,
   userActivityResponseSchema,
   keypairResponseSchema,
   mcpEndpointResponseSchema,
   exportDataResponseSchema,
+  // graph
   graphResponseSchema,
+  // relationships
   relationshipsResponseSchema,
-  configNoteResponseSchema,
-  configNoteListResponseSchema,
-  updateConfigNoteBodySchema,
-  retryStuckDryRunResponseSchema,
-  retryStuckResponseSchema,
-  syncNotifyPayloadSchema,
-  syncAcceptedResponseSchema,
+  // content
   contentRawResponseSchema,
   contentStructuredResponseSchema,
   fragmentWriteSchema,
   entryWriteSchema,
-  threadWriteSchema,
+  wikiWriteSchema,
   personWriteSchema,
+  // admin
+  retryStuckDryRunResponseSchema,
+  retryStuckResponseSchema,
+  // internal
+  syncNotifyPayloadSchema,
+  syncAcceptedResponseSchema,
+  // audit
+  auditLogResponseSchema,
+  auditLogQuerySchema,
+  auditEventSchema,
+  timelineQuerySchema,
 }
 
 // ── Route definitions ───────────────────────────────────────────────────────
@@ -139,61 +205,84 @@ interface RouteSpec {
 }
 
 const routes: RouteSpec[] = [
-  // System
+  // ── System ───────────────────────────────────────────────────────────────
   { method: 'GET', path: '/health', operationId: 'getHealth', summary: 'Health check', tags: ['System'], auth: 'none', responses: { '200': { description: 'Server is running' } } },
   { method: 'GET', path: '/openapi.json', operationId: 'getOpenApiSpec', summary: 'OpenAPI specification', tags: ['System'], auth: 'none', responses: { '200': { description: 'The OpenAPI spec' } } },
 
-  // Entries
+  // ── Entries ──────────────────────────────────────────────────────────────
   { method: 'POST', path: '/entries', operationId: 'createEntry', summary: 'Create a new entry (queues async processing)', tags: ['Entries'], auth: 'session', request: { body: { schemaName: 'createEntryBodySchema' } }, responses: { '202': { description: 'Entry created and queued', schemaName: 'entryCreatedResponseSchema' }, '400': { description: 'Invalid input', schemaName: 'errorResponseSchema' } } },
   { method: 'GET', path: '/entries', operationId: 'listEntries', summary: 'List recent entries', tags: ['Entries'], auth: 'session', request: { query: { schemaName: 'entryListQuerySchema' } }, responses: { '200': { description: 'List of entries', schemaName: 'entryListResponseSchema' } } },
   { method: 'GET', path: '/entries/{id}', operationId: 'getEntry', summary: 'Get an entry by ID', tags: ['Entries'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '200': { description: 'The entry', schemaName: 'entryResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
   { method: 'GET', path: '/entries/{id}/fragments', operationId: 'listEntryFragments', summary: 'Get all fragments derived from an entry', tags: ['Entries'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '200': { description: 'Fragments for this entry', schemaName: 'fragmentListResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
 
-  // Fragments
+  // ── Fragments ────────────────────────────────────────────────────────────
   { method: 'GET', path: '/fragments', operationId: 'listFragments', summary: 'List fragments', tags: ['Fragments'], auth: 'session', request: { query: { schemaName: 'fragmentListQuerySchema' } }, responses: { '200': { description: 'List of fragments', schemaName: 'fragmentListResponseSchema' } } },
-  { method: 'GET', path: '/fragments/{id}', operationId: 'getFragment', summary: 'Get a fragment by ID (includes content)', tags: ['Fragments'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '200': { description: 'Fragment with content', schemaName: 'fragmentWithContentResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
+  { method: 'GET', path: '/fragments/{id}', operationId: 'getFragment', summary: 'Get a fragment by ID (includes content and backlinks)', tags: ['Fragments'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '200': { description: 'Fragment with content and backlinks', schemaName: 'fragmentDetailResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
   { method: 'POST', path: '/fragments', operationId: 'createFragment', summary: 'Create a new fragment', tags: ['Fragments'], auth: 'session', request: { body: { schemaName: 'createFragmentBodySchema' } }, responses: { '201': { description: 'Created fragment', schemaName: 'fragmentWithContentResponseSchema' }, '400': { description: 'Invalid input', schemaName: 'errorResponseSchema' } } },
   { method: 'PUT', path: '/fragments/{id}', operationId: 'updateFragment', summary: 'Update a fragment', tags: ['Fragments'], auth: 'session', request: { params: { id: 'lookupKey' }, body: { schemaName: 'updateFragmentBodySchema' } }, responses: { '200': { description: 'Updated fragment', schemaName: 'fragmentResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
+  { method: 'POST', path: '/fragments/{id}/accept', operationId: 'acceptFragment', summary: 'Accept fragment into a review-mode wiki', tags: ['Fragments'], auth: 'session', request: { params: { id: 'lookupKey' }, body: { schemaName: 'fragmentReviewBodySchema' } }, responses: { '200': { description: 'Fragment accepted', schemaName: 'okResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' }, '400': { description: 'Wiki not in review mode', schemaName: 'errorResponseSchema' } } },
+  { method: 'POST', path: '/fragments/{id}/reject', operationId: 'rejectFragment', summary: 'Reject fragment from a review-mode wiki', tags: ['Fragments'], auth: 'session', request: { params: { id: 'lookupKey' }, body: { schemaName: 'fragmentReviewBodySchema' } }, responses: { '200': { description: 'Fragment rejected', schemaName: 'okResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' }, '400': { description: 'Wiki not in review mode', schemaName: 'errorResponseSchema' } } },
 
-  // Threads
+  // ── Wikis ────────────────────────────────────────────────────────────────
+  { method: 'GET', path: '/wikis', operationId: 'listWikis', summary: 'List wikis with pagination and fragment counts', tags: ['Wikis'], auth: 'session', responses: { '200': { description: 'List of wikis', schemaName: 'threadListResponseSchema' } } },
+  { method: 'GET', path: '/wikis/{id}', operationId: 'getWiki', summary: 'Get wiki detail with fragments and people', tags: ['Wikis'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '200': { description: 'Wiki detail with fragments and people', schemaName: 'wikiDetailResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
+  { method: 'PUT', path: '/wikis/{id}', operationId: 'updateWiki', summary: 'Update a wiki', tags: ['Wikis'], auth: 'session', request: { params: { id: 'lookupKey' }, body: { schemaName: 'updateThreadBodySchema' } }, responses: { '200': { description: 'Updated wiki', schemaName: 'threadResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
+  { method: 'GET', path: '/wikis/{id}/timeline', operationId: 'getWikiTimeline', summary: 'Audit timeline for a wiki and its fragments', tags: ['Wikis'], auth: 'session', request: { params: { id: 'lookupKey' }, query: { schemaName: 'timelineQuerySchema' } }, responses: { '200': { description: 'Timeline events', schemaName: 'auditLogResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
+  { method: 'PATCH', path: '/wikis/{id}/bouncer', operationId: 'toggleBouncerMode', summary: 'Toggle bouncer mode (auto/review)', tags: ['Wikis'], auth: 'session', request: { params: { id: 'lookupKey' }, body: { schemaName: 'bouncerModeBodySchema' } }, responses: { '200': { description: 'Updated bouncer mode', schemaName: 'bouncerModeResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
+  { method: 'PATCH', path: '/wikis/{id}/regenerate', operationId: 'toggleRegenerate', summary: 'Toggle regenerate flag on a wiki', tags: ['Wikis'], auth: 'session', request: { params: { id: 'lookupKey' }, body: { schemaName: 'toggleRegenerateBodySchema' } }, responses: { '200': { description: 'Updated regenerate flag', schemaName: 'toggleRegenerateResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
+  { method: 'POST', path: '/wikis/{id}/regenerate', operationId: 'regenerateWiki', summary: 'Trigger on-demand wiki regeneration', tags: ['Wikis'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '200': { description: 'Regeneration result', schemaName: 'okResponseSchema' }, '400': { description: 'Regeneration disabled', schemaName: 'errorResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
+  { method: 'POST', path: '/wikis/{id}/publish', operationId: 'publishWiki', summary: 'Publish a wiki with a stable nanoid slug', tags: ['Wikis'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '200': { description: 'Publish status', schemaName: 'publishWikiResponseSchema' }, '400': { description: 'No content to publish', schemaName: 'errorResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
+  { method: 'POST', path: '/wikis/{id}/unpublish', operationId: 'unpublishWiki', summary: 'Unpublish a wiki (preserves slug for re-publish)', tags: ['Wikis'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '200': { description: 'Unpublish status', schemaName: 'publishWikiResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
+  { method: 'POST', path: '/wikis/{targetId}/merge', operationId: 'mergeWikis', summary: 'Merge wikis (not implemented)', tags: ['Wikis'], auth: 'session', responses: { '501': { description: 'Not implemented', schemaName: 'errorResponseSchema' } } },
+
+  // ── Wiki Types ───────────────────────────────────────────────────────────
+  { method: 'GET', path: '/wiki-types', operationId: 'listWikiTypes', summary: 'List all wiki types', tags: ['Wiki Types'], auth: 'session', responses: { '200': { description: 'List of wiki types', schemaName: 'wikiTypeListResponseSchema' } } },
+  { method: 'GET', path: '/wiki-types/{slug}', operationId: 'getWikiType', summary: 'Get a wiki type by slug', tags: ['Wiki Types'], auth: 'session', request: { params: { slug: 'string' } }, responses: { '200': { description: 'The wiki type', schemaName: 'wikiTypeResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
+  { method: 'POST', path: '/wiki-types', operationId: 'createWikiType', summary: 'Create a new user-defined wiki type', tags: ['Wiki Types'], auth: 'session', request: { body: { schemaName: 'createWikiTypeBodySchema' } }, responses: { '201': { description: 'Created wiki type', schemaName: 'wikiTypeResponseSchema' }, '409': { description: 'Slug conflict', schemaName: 'errorResponseSchema' } } },
+  { method: 'POST', path: '/wiki-types/setup', operationId: 'setupWikiTypes', summary: 'Seed default wiki types from YAML configs (idempotent)', tags: ['Wiki Types'], auth: 'session', responses: { '200': { description: 'Seed result' } } },
+  { method: 'PUT', path: '/wiki-types/{slug}', operationId: 'updateWikiType', summary: 'Update a wiki type', tags: ['Wiki Types'], auth: 'session', request: { params: { slug: 'string' }, body: { schemaName: 'updateWikiTypeBodySchema' } }, responses: { '200': { description: 'Updated wiki type', schemaName: 'wikiTypeResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
+
+  // ── Published ────────────────────────────────────────────────────────────
+  { method: 'GET', path: '/published/wiki/{nanoid}', operationId: 'getPublishedWiki', summary: 'Get a published wiki by nanoid slug (no auth)', tags: ['Published'], auth: 'none', request: { params: { nanoid: 'string' } }, responses: { '200': { description: 'Published wiki content', schemaName: 'publicWikiResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
+
+  // ── Audit Log ────────────────────────────────────────────────────────────
+  { method: 'GET', path: '/audit-log', operationId: 'getAuditLog', summary: 'Query the audit log with filters', tags: ['Audit'], auth: 'session', request: { query: { schemaName: 'auditLogQuerySchema' } }, responses: { '200': { description: 'Audit events with total count', schemaName: 'auditLogResponseSchema' } } },
+
+  // ── Threads (legacy — aliased to wikis) ──────────────────────────────────
   { method: 'GET', path: '/threads/{id}', operationId: 'getThread', summary: 'Get a thread by ID (includes wiki content)', tags: ['Threads'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '200': { description: 'Thread with wiki content', schemaName: 'threadWithWikiResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
   { method: 'PUT', path: '/threads/{id}', operationId: 'updateThread', summary: 'Update a thread', tags: ['Threads'], auth: 'session', request: { params: { id: 'lookupKey' }, body: { schemaName: 'updateThreadBodySchema' } }, responses: { '200': { description: 'Updated thread', schemaName: 'threadResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
   { method: 'POST', path: '/threads/{id}/regenerate', operationId: 'regenerateThread', summary: 'Trigger thread wiki regeneration', tags: ['Threads'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '202': { description: 'Job queued', schemaName: 'queuedResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
   { method: 'POST', path: '/threads/{targetId}/merge', operationId: 'mergeThreads', summary: 'Merge threads (not implemented)', tags: ['Threads'], auth: 'session', responses: { '501': { description: 'Not implemented', schemaName: 'errorResponseSchema' } } },
 
-  // Vaults
+  // ── Vaults ───────────────────────────────────────────────────────────────
   { method: 'GET', path: '/vaults', operationId: 'listVaults', summary: 'List all vaults', tags: ['Vaults'], auth: 'session', responses: { '200': { description: 'List of vaults', schemaName: 'vaultListResponseSchema' } } },
   { method: 'GET', path: '/vaults/{id}', operationId: 'getVault', summary: 'Get a vault by ID', tags: ['Vaults'], auth: 'session', request: { params: { id: 'string' } }, responses: { '200': { description: 'The vault', schemaName: 'vaultResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
   { method: 'POST', path: '/vaults', operationId: 'createVault', summary: 'Create a new vault', tags: ['Vaults'], auth: 'session', request: { body: { schemaName: 'createVaultBodySchema' } }, responses: { '201': { description: 'Created vault', schemaName: 'vaultResponseSchema' }, '400': { description: 'Invalid input', schemaName: 'errorResponseSchema' } } },
   { method: 'PUT', path: '/vaults/{id}', operationId: 'updateVault', summary: 'Update a vault', tags: ['Vaults'], auth: 'session', request: { params: { id: 'string' }, body: { schemaName: 'updateVaultBodySchema' } }, responses: { '200': { description: 'Updated vault', schemaName: 'vaultResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
-  { method: 'PUT', path: '/vaults/{id}/profile', operationId: 'updateVaultProfile', summary: "Update vault profile text", tags: ['Vaults'], auth: 'session', request: { params: { id: 'string' } }, responses: { '200': { description: 'Updated vault', schemaName: 'vaultResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
+  { method: 'PUT', path: '/vaults/{id}/profile', operationId: 'updateVaultProfile', summary: "Update vault profile text", tags: ['Vaults'], auth: 'session', request: { params: { id: 'string' }, body: { schemaName: 'updateVaultProfileBodySchema' } }, responses: { '200': { description: 'Updated vault', schemaName: 'vaultResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
   { method: 'GET', path: '/vaults/{vaultId}/threads', operationId: 'listVaultThreads', summary: 'List threads in a vault', tags: ['Vaults'], auth: 'session', request: { params: { vaultId: 'string' } }, responses: { '200': { description: 'List of threads', schemaName: 'threadListResponseSchema' } } },
   { method: 'POST', path: '/vaults/{vaultId}/threads', operationId: 'createVaultThread', summary: 'Create a thread in a vault', tags: ['Vaults'], auth: 'session', request: { params: { vaultId: 'string' }, body: { schemaName: 'createThreadBodySchema' } }, responses: { '201': { description: 'Created thread', schemaName: 'threadResponseSchema' }, '400': { description: 'Invalid input', schemaName: 'errorResponseSchema' }, '404': { description: 'Vault not found', schemaName: 'errorResponseSchema' } } },
 
-  // People
-  { method: 'GET', path: '/people', operationId: 'listPeople', summary: 'List all people', tags: ['People'], auth: 'session', responses: { '200': { description: 'List of people', schemaName: 'personListResponseSchema' } } },
-  { method: 'GET', path: '/people/{id}', operationId: 'getPerson', summary: 'Get a person by ID (includes backlinks)', tags: ['People'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '200': { description: 'Person with backlinks', schemaName: 'personWithBacklinksResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
+  // ── People ───────────────────────────────────────────────────────────────
+  { method: 'GET', path: '/people', operationId: 'listPeople', summary: 'List all people with pagination', tags: ['People'], auth: 'session', request: { query: { schemaName: 'personListQuerySchema' } }, responses: { '200': { description: 'List of people', schemaName: 'personListResponseSchema' } } },
+  { method: 'GET', path: '/people/{id}', operationId: 'getPerson', summary: 'Get a person by ID (includes content and backlinks)', tags: ['People'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '200': { description: 'Person with content and backlinks', schemaName: 'personDetailResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
+  { method: 'PUT', path: '/people/{id}', operationId: 'updatePerson', summary: 'Update a person', tags: ['People'], auth: 'session', request: { params: { id: 'lookupKey' }, body: { schemaName: 'updatePersonBodySchema' } }, responses: { '200': { description: 'Updated person', schemaName: 'personDetailResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
   { method: 'POST', path: '/people/{id}/regenerate', operationId: 'regeneratePerson', summary: 'Trigger person body regeneration', tags: ['People'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '202': { description: 'Job queued', schemaName: 'queuedResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
 
-  // Search
+  // ── Search ───────────────────────────────────────────────────────────────
   { method: 'GET', path: '/search', operationId: 'search', summary: 'Hybrid search across fragments, wikis, and people', tags: ['Search'], auth: 'session', request: { query: { schemaName: 'searchQuerySchema' } }, responses: { '200': { description: 'Search results', schemaName: 'searchResponseSchema' }, '400': { description: 'Missing query', schemaName: 'errorResponseSchema' } } },
 
-  // Graph
+  // ── Graph ────────────────────────────────────────────────────────────────
   { method: 'GET', path: '/graph', operationId: 'getGraph', summary: 'Get the knowledge graph', tags: ['Graph'], auth: 'session', responses: { '200': { description: 'Graph nodes and edges', schemaName: 'graphResponseSchema' } } },
 
-  // Relationships
+  // ── Relationships ────────────────────────────────────────────────────────
   { method: 'GET', path: '/relationships/{type}/{id}', operationId: 'getRelationships', summary: 'Get all relationships for an object', tags: ['Relationships'], auth: 'session', request: { params: { type: 'enum: entry, fragment, thread, vault, person', id: 'lookupKey' } }, responses: { '200': { description: 'Relationships grouped by edge type', schemaName: 'relationshipsResponseSchema' }, '400': { description: 'Invalid type', schemaName: 'errorResponseSchema' } } },
 
-  // Content
+  // ── Content ──────────────────────────────────────────────────────────────
   { method: 'GET', path: '/api/content/{type}/{key}', operationId: 'getContent', summary: 'Read raw or structured content', tags: ['Content'], auth: 'session', request: { params: { type: 'enum: fragment, entry, thread, person', key: 'lookupKey' } }, responses: { '200': { description: 'Content (raw or structured)', schemaName: 'contentRawResponseSchema' }, '400': { description: 'Invalid type', schemaName: 'errorResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
   { method: 'PUT', path: '/api/content/{type}/{key}', operationId: 'updateContent', summary: 'Write structured content', tags: ['Content'], auth: 'session', request: { params: { type: 'enum: fragment, entry, thread, person', key: 'lookupKey' } }, responses: { '200': { description: 'Content updated', schemaName: 'okResponseSchema' }, '400': { description: 'Validation failed', schemaName: 'errorResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
 
-  // Robin Config
-  { method: 'GET', path: '/robin/config', operationId: 'listConfigNotes', summary: 'List all config notes', tags: ['Robin'], auth: 'session', responses: { '200': { description: 'List of config notes', schemaName: 'configNoteListResponseSchema' } } },
-  { method: 'GET', path: '/robin/config/{key}', operationId: 'getConfigNote', summary: 'Get config note by key', tags: ['Robin'], auth: 'session', request: { params: { key: 'string' } }, responses: { '200': { description: 'The config note', schemaName: 'configNoteResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
-  { method: 'PUT', path: '/robin/config/{key}', operationId: 'updateConfigNote', summary: 'Update config note', tags: ['Robin'], auth: 'session', request: { params: { key: 'string' }, body: { schemaName: 'updateConfigNoteBodySchema' } }, responses: { '200': { description: 'Updated config note', schemaName: 'configNoteResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
-
-  // Users
+  // ── Users ────────────────────────────────────────────────────────────────
   { method: 'GET', path: '/users/profile', operationId: 'getUserProfile', summary: "Get current user's profile", tags: ['Users'], auth: 'session', responses: { '200': { description: 'User profile', schemaName: 'userProfileResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
   { method: 'PATCH', path: '/users/onboard', operationId: 'markOnboarded', summary: 'Mark onboarding complete', tags: ['Users'], auth: 'session', responses: { '200': { description: 'Onboarding marked', schemaName: 'okResponseSchema' } } },
   { method: 'GET', path: '/users/keypair', operationId: 'getUserKeypair', summary: "Get user's Ed25519 keypair", tags: ['Users'], auth: 'session', responses: { '200': { description: 'Keypair details', schemaName: 'keypairResponseSchema' }, '404': { description: 'No keypair', schemaName: 'errorResponseSchema' } } },
@@ -204,13 +293,13 @@ const routes: RouteSpec[] = [
   { method: 'DELETE', path: '/users/data', operationId: 'deleteUserData', summary: 'Delete all user data (keeps account)', tags: ['Users'], auth: 'session', responses: { '200': { description: 'Data deleted', schemaName: 'okResponseSchema' } } },
   { method: 'DELETE', path: '/users/account', operationId: 'deleteUserAccount', summary: 'Delete user account entirely', tags: ['Users'], auth: 'session', responses: { '200': { description: 'Account deleted', schemaName: 'okResponseSchema' } } },
 
-  // Admin
+  // ── Admin ────────────────────────────────────────────────────────────────
   { method: 'POST', path: '/admin/retry-stuck', operationId: 'retryStuckFragments', summary: 'Re-enqueue stuck PENDING fragments', tags: ['Admin'], auth: 'none', responses: { '200': { description: 'Re-enqueue results', schemaName: 'retryStuckResponseSchema' } } },
 
-  // Internal
+  // ── Internal ─────────────────────────────────────────────────────────────
   { method: 'POST', path: '/internal/sync-notify', operationId: 'syncNotify', summary: 'Gateway sync notification (HMAC)', tags: ['Internal'], auth: 'hmac', request: { body: { schemaName: 'syncNotifyPayloadSchema' } }, responses: { '202': { description: 'Sync job accepted', schemaName: 'syncAcceptedResponseSchema' }, '400': { description: 'Invalid payload', schemaName: 'errorResponseSchema' }, '401': { description: 'Invalid HMAC', schemaName: 'errorResponseSchema' } } },
 
-  // MCP
+  // ── MCP ──────────────────────────────────────────────────────────────────
   { method: 'POST', path: '/mcp', operationId: 'mcpTransport', summary: 'MCP Streamable HTTP transport (JWT)', tags: ['MCP'], auth: 'jwt', responses: { '200': { description: 'MCP protocol response' }, '401': { description: 'Invalid token', schemaName: 'errorResponseSchema' } } },
 ]
 

@@ -81,16 +81,63 @@ export async function regenerateWiki(
     ? userEdits.map((e) => e.content).join('\n---\n')
     : undefined
 
-  // Gather related wikis for cross-linking context
-  const otherWikis = await database
-    .select({ name: wikis.name, slug: wikis.slug, type: wikis.type })
-    .from(wikis)
-    .where(and(ne(wikis.lookupKey, wikiKey), isNull(wikis.deletedAt)))
-    .limit(20)
+  // Gather related wikis via shared fragments and [[wiki-slug]] references
+  const linkedWikiKeys = new Set<string>()
 
-  const relatedWikisText = otherWikis.length > 0
-    ? otherWikis.map((w) => `- ${w.slug} (${w.type}): ${w.name}`).join('\n')
-    : undefined
+  // Source 1: wikis that share fragments with the current wiki (co-occurrence)
+  if (fragmentKeys.length > 0) {
+    const sharedFragWikiRows = await database
+      .select({ dstId: edges.dstId })
+      .from(edges)
+      .where(and(
+        inArray(edges.srcId, fragmentKeys),
+        eq(edges.edgeType, 'FRAGMENT_IN_WIKI'),
+        ne(edges.dstId, wikiKey),
+        isNull(edges.deletedAt)
+      ))
+      .groupBy(edges.dstId)
+    for (const row of sharedFragWikiRows) linkedWikiKeys.add(row.dstId)
+  }
+
+  // Source 2: explicit [[wiki-slug]] references in existing content
+  const wikiLinkPattern = /\[\[([a-z0-9-]+)\]\]/g
+  const referencedSlugs = [...(wiki.content?.matchAll(wikiLinkPattern) ?? [])].map(m => m[1])
+  if (referencedSlugs.length > 0) {
+    const slugRows = await database
+      .select({ lookupKey: wikis.lookupKey })
+      .from(wikis)
+      .where(and(
+        inArray(wikis.slug, referencedSlugs),
+        ne(wikis.lookupKey, wikiKey),
+        isNull(wikis.deletedAt)
+      ))
+    for (const row of slugRows) linkedWikiKeys.add(row.lookupKey)
+  }
+
+  // Cap at 8 linked wikis, load content
+  const cappedKeys = [...linkedWikiKeys].slice(0, 8)
+  let relatedWikisText: string | undefined
+  if (cappedKeys.length > 0) {
+    const linkedRows = await database
+      .select({
+        slug: wikis.slug,
+        name: wikis.name,
+        type: wikis.type,
+        content: wikis.content,
+      })
+      .from(wikis)
+      .where(inArray(wikis.lookupKey, cappedKeys))
+
+    relatedWikisText = linkedRows.map((w) => {
+      const raw = (w.content ?? '').slice(0, 400)
+      // Trim to last sentence boundary within 400 chars
+      const lastDot = raw.lastIndexOf('.')
+      const lastNewline = raw.lastIndexOf('\n')
+      const boundary = Math.max(lastDot, lastNewline)
+      const truncated = boundary > 0 ? raw.slice(0, boundary + 1) : raw + '...'
+      return `- [[${w.slug}]] (${w.type}): ${w.name}\n  > ${truncated.trim()}`
+    }).join('\n')
+  }
 
   // Resolve custom prompt override: wiki-level > type-level > YAML default
   let customPrompt: string | undefined

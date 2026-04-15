@@ -43,6 +43,13 @@
       "when": 1781676000000,
       "tag": "0006_audit_trust",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781762400000,
+      "tag": "0007_trust_gates",
+      "breakpoints": true
     }
   ]
 }

@@ -3,7 +3,7 @@ import { eq, and, isNull, inArray } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
 import { sessionMiddleware } from '../middleware/session.js'
 import { db } from '../db/client.js'
-import { people, edges, fragments } from '../db/schema.js'
+import { people, edges, fragments, wikis } from '../db/schema.js'
 import { logger } from '../lib/logger.js'
 import { validationHook } from '../lib/validation.js'
 import {
@@ -69,12 +69,52 @@ peopleRouter.get('/:id', async (c) => {
     for (const r of rows) backlinks.push({ id: r.key, title: r.title })
   }
 
+  // Linked wikis: fragments mentioning this person -> FRAGMENT_IN_WIKI edges -> wikis
+  const wikiEdges = srcIds.length > 0
+    ? await db
+        .select({ dstId: edges.dstId })
+        .from(edges)
+        .where(and(
+          inArray(edges.srcId, srcIds),
+          eq(edges.edgeType, 'FRAGMENT_IN_WIKI'),
+          isNull(edges.deletedAt)
+        ))
+    : []
+
+  // Count fragments per wiki
+  const wikiFragCount = new Map<string, number>()
+  for (const e of wikiEdges) {
+    wikiFragCount.set(e.dstId, (wikiFragCount.get(e.dstId) ?? 0) + 1)
+  }
+  const wikiKeys = [...wikiFragCount.keys()]
+
+  const wikiRows = wikiKeys.length > 0
+    ? await db
+        .select({
+          lookupKey: wikis.lookupKey,
+          name: wikis.name,
+          slug: wikis.slug,
+          type: wikis.type,
+        })
+        .from(wikis)
+        .where(inArray(wikis.lookupKey, wikiKeys))
+    : []
+
+  const linkedWikis = wikiRows.map((w) => ({
+    id: w.lookupKey,
+    name: w.name,
+    slug: w.slug,
+    type: w.type,
+    fragmentCount: wikiFragCount.get(w.lookupKey) ?? 0,
+  }))
+
   return c.json(
     personDetailResponseSchema.parse({
       ...person,
       id: person.lookupKey,
       content: person.content ?? '',
       backlinks,
+      wikis: linkedWikis,
     })
   )
 })

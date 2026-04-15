@@ -1,11 +1,12 @@
 import { Hono } from 'hono'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
-import { generateSlug } from '@robin/shared'
+import { generateSlug, makeLookupKey } from '@robin/shared'
 import { NoOpenRouterKeyError } from '@robin/agent'
 import { sessionMiddleware } from '../middleware/session.js'
 import { db } from '../db/client.js'
 import { wikis, edges, wikiTypes, fragments, people, auditLog } from '../db/schema.js'
+import { resolveWikiSlug } from '../db/slug.js'
 import { logger } from '../lib/logger.js'
 import { validationHook } from '../lib/validation.js'
 import { nanoid24 } from '../lib/id.js'
@@ -20,6 +21,8 @@ import {
   bouncerModeResponseSchema,
   toggleRegenerateBodySchema,
   toggleRegenerateResponseSchema,
+  spawnWikiBodySchema,
+  spawnWikiResponseSchema,
 } from '../schemas/wikis.schema.js'
 import { emitAuditEvent } from '../db/audit.js'
 import { timelineQuerySchema } from '../schemas/audit.schema.js'
@@ -377,6 +380,56 @@ wikisRouter.patch('/:id/bouncer', zValidator('json', bouncerModeBodySchema, vali
 
   return c.json(bouncerModeResponseSchema.parse({ id, bouncerMode: mode }))
 })
+
+// POST /wikis/:id/spawn — create a related child wiki with a WIKI_RELATED_TO_WIKI edge
+wikisRouter.post(
+  '/:id/spawn',
+  zValidator('json', spawnWikiBodySchema, validationHook),
+  async (c) => {
+    const id = c.req.param('id')
+    const body = c.req.valid('json')
+
+    const [parent] = await db.select().from(wikis).where(eq(wikis.lookupKey, id))
+    if (!parent) return c.json({ error: 'Not found' }, 404)
+
+    const newWikiKey = makeLookupKey('wiki')
+    const slug = await resolveWikiSlug(db, generateSlug(body.name))
+    const type = body.type ?? parent.type
+
+    await db.insert(wikis).values({
+      lookupKey: newWikiKey,
+      slug,
+      name: body.name,
+      type,
+      state: 'PENDING',
+      prompt: '',
+    })
+
+    // Create WIKI_RELATED_TO_WIKI edge from parent to child
+    await db
+      .insert(edges)
+      .values({
+        id: crypto.randomUUID(),
+        srcType: 'wiki',
+        srcId: parent.lookupKey,
+        dstType: 'wiki',
+        dstId: newWikiKey,
+        edgeType: 'WIKI_RELATED_TO_WIKI',
+      })
+      .onConflictDoNothing()
+
+    return c.json(
+      spawnWikiResponseSchema.parse({
+        lookupKey: newWikiKey,
+        slug,
+        name: body.name,
+        type,
+        parentKey: parent.lookupKey,
+        fragmentCount: 0,
+      })
+    )
+  }
+)
 
 // POST /wikis/:targetId/merge — merge source thread into target
 wikisRouter.post('/:targetId/merge', async (c) => {

@@ -14,6 +14,7 @@ const EDGE_TYPE_MAP: Record<string, string> = {
   FRAGMENT_MENTIONS_PERSON: 'mention',
   FRAGMENT_RELATED_TO_FRAGMENT: 'wikilink',
   ENTRY_IN_VAULT: 'filing',
+  WIKI_RELATED_TO_WIKI: 'wikilink',
 }
 
 const graphRouter = new Hono()

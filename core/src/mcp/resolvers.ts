@@ -28,7 +28,7 @@
  * @see {@link findPersonByQuery} — fuzzy name/slug/alias search
  */
 
-import { eq, and, isNull, sql, inArray } from 'drizzle-orm'
+import { eq, and, isNull, sql, inArray, ne } from 'drizzle-orm'
 import type { DB } from '../db/client.js'
 import { wikis, fragments, people, edges, wikiTypes } from '../db/schema.js'
 
@@ -781,6 +781,108 @@ export async function resolveThreadBySlug(
     error: `Thread not found: "${slugInput}"`,
     suggestions: scored.slice(0, 3).map((s) => s.slug),
   }
+}
+
+/***********************************************************************
+ * ## Brief person
+ *
+ * @remarks Template-based briefing — no LLM call. Assembles a markdown
+ * summary from person metadata, linked wikis, and fragment mentions.
+ ***********************************************************************/
+
+/**
+ * Generate a formatted markdown briefing for a person.
+ *
+ * @param deps  - Database client
+ * @param query - Person name, slug, or lookupKey
+ * @returns Markdown string with person summary, wikis, and fragment mentions
+ */
+export async function briefPerson(
+  deps: McpResolverDeps,
+  query: string
+): Promise<string> {
+  const isLookupKey = /^person[0-9A-Z]{26}$/i.test(query)
+
+  const personResult = isLookupKey
+    ? await findPersonById(deps, query)
+    : await findPersonByQuery(deps, query)
+
+  if ('error' in personResult) {
+    throw new Error(personResult.error)
+  }
+
+  const { person, fragments: fragSnippets } = personResult
+
+  // Fetch person row for summary
+  const [personRow] = await deps.db
+    .select({ lookupKey: people.lookupKey, summary: people.summary })
+    .from(people)
+    .where(eq(people.slug, person.slug))
+    .limit(1)
+
+  const summary = personRow?.summary || ''
+
+  // Fetch linked wikis via fragment mentions -> FRAGMENT_IN_WIKI
+  const fragEdges = personRow
+    ? await deps.db
+        .select({ srcId: edges.srcId })
+        .from(edges)
+        .where(
+          and(
+            eq(edges.dstId, personRow.lookupKey),
+            eq(edges.edgeType, 'FRAGMENT_MENTIONS_PERSON'),
+            isNull(edges.deletedAt)
+          )
+        )
+    : []
+
+  const fragKeys = fragEdges.map((e) => e.srcId)
+  const wikiEdges = fragKeys.length > 0
+    ? await deps.db
+        .select({ dstId: edges.dstId })
+        .from(edges)
+        .where(
+          and(
+            inArray(edges.srcId, fragKeys),
+            eq(edges.edgeType, 'FRAGMENT_IN_WIKI'),
+            isNull(edges.deletedAt)
+          )
+        )
+    : []
+
+  const wikiKeys = [...new Set(wikiEdges.map((e) => e.dstId))]
+  const wikiRows = wikiKeys.length > 0
+    ? await deps.db
+        .select({ lookupKey: wikis.lookupKey, name: wikis.name, slug: wikis.slug, type: wikis.type })
+        .from(wikis)
+        .where(inArray(wikis.lookupKey, wikiKeys))
+    : []
+
+  // Assemble markdown
+  const lines: string[] = []
+  lines.push(`# ${person.name}`)
+  if (summary) lines.push(summary)
+  if (person.relationship) lines.push(`Relationship: ${person.relationship}`)
+  if (person.aliases.length > 0) lines.push(`Aliases: ${person.aliases.join(', ')}`)
+  lines.push('')
+
+  if (wikiRows.length > 0) {
+    lines.push(`## Appears in ${wikiRows.length} wikis`)
+    for (const w of wikiRows) {
+      lines.push(`- [[${w.slug}]] (${w.type}): ${w.name}`)
+    }
+    lines.push('')
+  }
+
+  if (fragSnippets.length > 0) {
+    lines.push(`## ${fragSnippets.length} fragment mentions`)
+    for (const f of fragSnippets) {
+      lines.push(`- ${f.title}: ${f.snippet.slice(0, 200)}`)
+    }
+    lines.push('')
+  }
+
+  return lines.join('\n')
 }
 
 /***********************************************************************
