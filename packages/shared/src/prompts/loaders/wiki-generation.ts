@@ -50,11 +50,23 @@ export function loadWikiGenerationSpec(
     existingWiki?: string
     edits?: string
     relatedWikis?: string
-  }
+  },
+  customPrompt?: string
 ): PromptResult {
   const validated = inputSchema.parse(vars)
   const spec = loadSpec(`${type}.yaml`, 'wiki-types')
-  const user = renderTemplate(spec.template, validated)
+
+  let template = spec.template
+  if (customPrompt) {
+    // Replace the [DOCUMENT STRUCTURE] section (up to the next section marker)
+    // Sections are indented with 2 spaces in the YAML template
+    template = template.replace(
+      /  \[DOCUMENT STRUCTURE\][\s\S]*?(?=\n  \[)/,
+      `  [DOCUMENT STRUCTURE]\n${customPrompt}\n`
+    )
+  }
+
+  const user = renderTemplate(template, validated)
   return {
     system: spec.system_message,
     user,

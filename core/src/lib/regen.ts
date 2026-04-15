@@ -3,7 +3,7 @@ import { createIngestAgents, createStringCaller, embedText } from '@robin/agent'
 import { loadWikiGenerationSpec } from '@robin/shared'
 import type { WikiType } from '@robin/shared'
 import { db as defaultDb, type DB } from '../db/client.js'
-import { wikis, edges, fragments, edits } from '../db/schema.js'
+import { wikis, wikiTypes, edges, fragments, edits } from '../db/schema.js'
 import { loadOpenRouterConfigFromDb } from './openrouter-config.js'
 import { nanoid } from './id.js'
 import { logger } from './logger.js'
@@ -91,6 +91,20 @@ export async function regenerateWiki(
     ? otherWikis.map((w) => `- ${w.slug} (${w.type}): ${w.name}`).join('\n')
     : undefined
 
+  // Resolve custom prompt override: wiki-level > type-level > YAML default
+  let customPrompt: string | undefined
+  if (wiki.prompt) {
+    customPrompt = wiki.prompt
+  } else {
+    const [wikiType] = await database
+      .select({ prompt: wikiTypes.prompt })
+      .from(wikiTypes)
+      .where(and(eq(wikiTypes.slug, wiki.type), eq(wikiTypes.userModified, true)))
+    if (wikiType?.prompt) {
+      customPrompt = wikiType.prompt
+    }
+  }
+
   // Load prompt spec and call LLM
   const spec = loadWikiGenerationSpec(wiki.type as WikiType, {
     fragments: fragmentsText,
@@ -100,7 +114,7 @@ export async function regenerateWiki(
     existingWiki: previousContent || undefined,
     edits: editsSummary,
     relatedWikis: relatedWikisText,
-  })
+  }, customPrompt)
 
   const markdown = await callLlm(spec.system, spec.user)
 
