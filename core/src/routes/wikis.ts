@@ -1,11 +1,11 @@
 import { Hono } from 'hono'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
 import { generateSlug } from '@robin/shared'
 import { NoOpenRouterKeyError } from '@robin/agent'
 import { sessionMiddleware } from '../middleware/session.js'
 import { db } from '../db/client.js'
-import { wikis, edges, wikiTypes } from '../db/schema.js'
+import { wikis, edges, wikiTypes, fragments, people } from '../db/schema.js'
 import { logger } from '../lib/logger.js'
 import { validationHook } from '../lib/validation.js'
 import { nanoid24 } from '../lib/id.js'
@@ -13,7 +13,7 @@ import { regenerateWiki } from '../lib/regen.js'
 import {
   threadResponseSchema,
   threadListResponseSchema,
-  threadWithWikiResponseSchema,
+  wikiDetailResponseSchema,
   updateThreadBodySchema,
   publishWikiResponseSchema,
   bouncerModeBodySchema,
@@ -88,13 +88,78 @@ wikisRouter.get('/', async (c) => {
   )
 })
 
-// GET /wikis/:id — get single thread (wiki body lives in DB now)
+// GET /wikis/:id — wiki detail with member fragments and aggregated people
 wikisRouter.get('/:id', async (c) => {
   const id = c.req.param('id')
   const [thread] = await db.select().from(wikis).where(eq(wikis.lookupKey, id))
   if (!thread) return c.json({ error: 'Not found' }, 404)
 
-  return c.json(threadWithWikiResponseSchema.parse({ ...prepareThread(thread), wikiContent: '' }))
+  // Member fragments via FRAGMENT_IN_WIKI edges
+  const fragEdges = await db
+    .select({ srcId: edges.srcId })
+    .from(edges)
+    .where(
+      and(
+        eq(edges.dstId, id),
+        eq(edges.edgeType, 'FRAGMENT_IN_WIKI'),
+        isNull(edges.deletedAt)
+      )
+    )
+  const fragKeys = fragEdges.map((e) => e.srcId)
+
+  const frags =
+    fragKeys.length > 0
+      ? await db
+          .select({
+            lookupKey: fragments.lookupKey,
+            slug: fragments.slug,
+            title: fragments.title,
+            content: fragments.content,
+          })
+          .from(fragments)
+          .where(inArray(fragments.lookupKey, fragKeys))
+      : []
+
+  // Aggregated people: FRAGMENT_MENTIONS_PERSON edges from those fragments
+  const personEdges =
+    fragKeys.length > 0
+      ? await db
+          .select({ dstId: edges.dstId })
+          .from(edges)
+          .where(
+            and(
+              inArray(edges.srcId, fragKeys),
+              eq(edges.edgeType, 'FRAGMENT_MENTIONS_PERSON'),
+              isNull(edges.deletedAt)
+            )
+          )
+      : []
+  const personKeys = [...new Set(personEdges.map((e) => e.dstId))]
+
+  const peopleRows =
+    personKeys.length > 0
+      ? await db
+          .select({ lookupKey: people.lookupKey, name: people.name })
+          .from(people)
+          .where(inArray(people.lookupKey, personKeys))
+      : []
+
+  return c.json(
+    wikiDetailResponseSchema.parse({
+      ...prepareThread(thread),
+      wikiContent: thread.content ?? '',
+      fragments: frags.map((f) => ({
+        id: f.lookupKey,
+        slug: f.slug,
+        title: f.title,
+        snippet: (f.content ?? '').slice(0, 200),
+      })),
+      people: peopleRows.map((p) => ({
+        id: p.lookupKey,
+        name: p.name,
+      })),
+    })
+  )
 })
 
 // PUT /wikis/:id — update thread
