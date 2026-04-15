@@ -48,6 +48,8 @@ import {
   publicWikiResponseSchema,
   toggleRegenerateBodySchema,
   toggleRegenerateResponseSchema,
+  updateProgressBodySchema,
+  updateProgressResponseSchema,
   // wiki types
   wikiTypeResponseSchema,
   wikiTypeListResponseSchema,
@@ -135,6 +137,8 @@ const schemaRegistry: Record<string, ZodType> = {
   publicWikiResponseSchema,
   toggleRegenerateBodySchema,
   toggleRegenerateResponseSchema,
+  updateProgressBodySchema,
+  updateProgressResponseSchema,
   // wiki types
   wikiTypeResponseSchema,
   wikiTypeListResponseSchema,
@@ -234,6 +238,7 @@ const routes: RouteSpec[] = [
   { method: 'POST', path: '/wikis/{id}/publish', operationId: 'publishWiki', summary: 'Publish a wiki with a stable nanoid slug', tags: ['Wikis'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '200': { description: 'Publish status', schemaName: 'publishWikiResponseSchema' }, '400': { description: 'No content to publish', schemaName: 'errorResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
   { method: 'POST', path: '/wikis/{id}/unpublish', operationId: 'unpublishWiki', summary: 'Unpublish a wiki (preserves slug for re-publish)', tags: ['Wikis'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '200': { description: 'Unpublish status', schemaName: 'publishWikiResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
   { method: 'POST', path: '/wikis/{targetId}/merge', operationId: 'mergeWikis', summary: 'Merge wikis (not implemented)', tags: ['Wikis'], auth: 'session', responses: { '501': { description: 'Not implemented', schemaName: 'errorResponseSchema' } } },
+  { method: 'PUT', path: '/wikis/{id}/progress', operationId: 'updateWikiProgress', summary: 'Update wiki progress milestones', tags: ['Wikis'], auth: 'session', request: { params: { id: 'lookupKey' }, body: { schemaName: 'updateProgressBodySchema' } }, responses: { '200': { description: 'Updated progress', schemaName: 'updateProgressResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
 
   // ── Wiki Types ───────────────────────────────────────────────────────────
   { method: 'GET', path: '/wiki-types', operationId: 'listWikiTypes', summary: 'List all wiki types', tags: ['Wiki Types'], auth: 'session', responses: { '200': { description: 'List of wiki types', schemaName: 'wikiTypeListResponseSchema' } } },
