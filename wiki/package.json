@@ -1,0 +1,15 @@
+{
+  "name": "@robin/wiki",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "openapi:generate": "openapi-ts"
+  },
+  "dependencies": {
+    "@hey-api/client-fetch": "^0.13.1",
+    "@tanstack/react-query": "^5.99.0"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "^0.96.0"
+  }
+}
