@@ -1,6 +1,6 @@
 ---
 name: uat
-description: Run the Robin User Acceptance Test suite end-to-end against the M2-M10 stack. Boots the server, seeds the OpenRouter key, signs in as the env-seeded user, runs the canonical ingest acceptance test (Sarah example), validates the failure-path self-healing loop, tests wiki types setup, content storage, wiki publishing (including unauthenticated public access), wiki regeneration, M6 API routes (cross-vault listing, enriched detail, regenerate/bouncer toggles, fragment accept/reject, people update), M9 audit log, M10 trust gates (spawn, confidence, source metadata), and writes a structured run report. Asserts deterministic API contracts; observes (does not fail on) probabilistic LLM output.
+description: Run the Robin User Acceptance Test suite end-to-end against the M2-M10 stack. Boots the server, seeds the OpenRouter key, signs in as the env-seeded user, runs the canonical ingest acceptance test (Sarah example), validates the failure-path self-healing loop, tests groups, wiki types setup, content storage, wiki publishing (including unauthenticated public access), wiki regeneration, M6 API routes (wiki listing, enriched detail, regenerate/bouncer toggles, fragment accept/reject, people update), M9 audit log, M10 trust gates (spawn, confidence, source metadata), and writes a structured run report. Asserts deterministic API contracts; observes (does not fail on) probabilistic LLM output.
 ---
 
 > **Shell requirement:** All steps use bash. If your default shell is zsh, this
@@ -18,7 +18,7 @@ Two classes of result:
 
 - **Assert** — deterministic API contracts. Boot, auth, dedup, state-machine
   transitions, schema shape, failure-path audit columns, wiki types, content
-  storage, publishing, edit audit trail, cross-vault listing, enriched detail,
+  storage, publishing, edit audit trail, wiki listing, enriched detail,
   regenerate/bouncer toggles, fragment accept/reject, people update, audit log,
   timeline, spawn, confidence, source metadata. Failures here exit non-zero and
   fail the run.
@@ -129,7 +129,7 @@ REDIS_URL=${REDIS_URL}
 OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
 BOOT_MS=
 INGEST_MS=
-VAULT_ID=
+GROUP_ID=
 ENTRY_SARAH_ID=
 ENTRY_EDGE_ID=
 ENTRY_FAIL_ID=
@@ -403,38 +403,38 @@ fi
 
 ---
 
-## Phase 3 — Vault fixture
+## Phase 3 — Group fixture
 
-### Step 9 -- Create vault
+### Step 9 -- Create group
 
 ```bash
 set -e
 source .uat/runs/state
 source .uat/runs/helpers.sh
 
-VAULT_RESP=$(curl -s -o /tmp/uat-vault.json -w '%{http_code}' \
-  -X POST "${BASE_URL}/vaults" \
+GROUP_RESP=$(curl -s -o /tmp/uat-group.json -w '%{http_code}' \
+  -X POST "${BASE_URL}/groups" \
   -H "Content-Type: application/json" \
   -b "$COOKIE_JAR" \
-  -d '{"name":"UAT","description":"UAT run vault","color":"#3B82F6"}')
+  -d '{"name":"UAT Group"}')
 
-if [ "$VAULT_RESP" = "201" ]; then
-  VAULT_ID=$(jq -r '.id' /tmp/uat-vault.json)
-  save_state VAULT_ID "$VAULT_ID"
-  assert "vault.create" "pass" "POST /vaults -> 201, id=${VAULT_ID}"
+if [ "$GROUP_RESP" = "201" ]; then
+  GROUP_ID=$(jq -r '.id' /tmp/uat-group.json)
+  save_state GROUP_ID "$GROUP_ID"
+  assert "group.create" "pass" "POST /groups -> 201, id=${GROUP_ID}"
 else
-  cat /tmp/uat-vault.json
-  assert "vault.create" "fail" "expected 201, got ${VAULT_RESP}"
-  halt "cannot continue without a vault"
+  cat /tmp/uat-group.json
+  assert "group.create" "fail" "expected 201, got ${GROUP_RESP}"
+  halt "cannot continue without a group"
 fi
 
-# List must include the new vault
-LIST_RESP=$(curl -s -b "$COOKIE_JAR" "${BASE_URL}/vaults")
-FOUND=$(echo "$LIST_RESP" | jq --arg id "$VAULT_ID" '[.vaults[]? // .[]? | select(.id==$id)] | length')
+# List must include the new group
+LIST_RESP=$(curl -s -b "$COOKIE_JAR" "${BASE_URL}/groups")
+FOUND=$(echo "$LIST_RESP" | jq --arg id "$GROUP_ID" '[.groups[]? // .[]? | select(.id==$id)] | length')
 if [ "$FOUND" = "1" ]; then
-  assert "vault.list_contains_new" "pass" "GET /vaults contains ${VAULT_ID}"
+  assert "group.list_contains_new" "pass" "GET /groups contains ${GROUP_ID}"
 else
-  assert "vault.list_contains_new" "fail" "GET /vaults does not contain ${VAULT_ID}"
+  assert "group.list_contains_new" "fail" "GET /groups does not contain ${GROUP_ID}"
 fi
 ```
 
@@ -449,8 +449,8 @@ set -e
 source .uat/runs/state
 source .uat/runs/helpers.sh
 
-SARAH_BODY=$(jq -cn --arg v "$VAULT_ID" --arg t "Lunch with Sarah ${TS}" \
-  '{content:"I had lunch with Sarah about the new product launch.", title:$t, vaultId:$v, type:"thought", source:"api"}')
+SARAH_BODY=$(jq -cn --arg t "Lunch with Sarah ${TS}" \
+  '{content:"I had lunch with Sarah about the new product launch.", title:$t, type:"thought", source:"api"}')
 
 CAPT=$(curl -s -o /tmp/uat-sarah.json -w '%{http_code}' \
   -X POST "${BASE_URL}/entries" \
@@ -479,8 +479,8 @@ set -e
 source .uat/runs/state
 source .uat/runs/helpers.sh
 
-SARAH_BODY=$(jq -cn --arg v "$VAULT_ID" --arg t "Lunch with Sarah ${TS}" \
-  '{content:"I had lunch with Sarah about the new product launch.", title:$t, vaultId:$v, type:"thought", source:"api"}')
+SARAH_BODY=$(jq -cn --arg t "Lunch with Sarah ${TS}" \
+  '{content:"I had lunch with Sarah about the new product launch.", title:$t, type:"thought", source:"api"}')
 
 DUP=$(curl -s -o /tmp/uat-dup.json -w '%{http_code}' \
   -X POST "${BASE_URL}/entries" \
@@ -499,15 +499,15 @@ else
 fi
 ```
 
-### Step 12 -- Edge cases (no vaultId / missing vault / bad JSON)
+### Step 12 -- Edge cases (bad JSON)
 
 ```bash
 set -e
 source .uat/runs/state
 source .uat/runs/helpers.sh
 
-# 12a: No vaultId — should still 202
-EDGE_BODY=$(jq -cn --arg t "No-vault entry ${TS}" \
+# 12a: Second entry for pipeline coverage
+EDGE_BODY=$(jq -cn --arg t "Edge entry ${TS}" \
   '{content:"Random thought about the ingest pipeline and how dedup should handle near-duplicates.", title:$t, type:"thought", source:"api"}')
 
 EDGE_CODE=$(curl -s -o /tmp/uat-edge.json -w '%{http_code}' \
@@ -519,27 +519,13 @@ EDGE_CODE=$(curl -s -o /tmp/uat-edge.json -w '%{http_code}' \
 if [ "$EDGE_CODE" = "202" ]; then
   ENTRY_EDGE_ID=$(jq -r '.id' /tmp/uat-edge.json)
   save_state ENTRY_EDGE_ID "$ENTRY_EDGE_ID"
-  assert "capture.no_vault_ok" "pass" "POST /entries (no vaultId) -> 202, id=${ENTRY_EDGE_ID}"
+  assert "capture.edge_entry" "pass" "POST /entries -> 202, id=${ENTRY_EDGE_ID}"
 else
   cat /tmp/uat-edge.json
-  assert "capture.no_vault_ok" "fail" "expected 202, got ${EDGE_CODE}"
+  assert "capture.edge_entry" "fail" "expected 202, got ${EDGE_CODE}"
 fi
 
-# 12b: Non-existent vaultId — should 404
-BAD_VAULT=$(curl -s -o /tmp/uat-badvault.json -w '%{http_code}' \
-  -X POST "${BASE_URL}/entries" \
-  -H "Content-Type: application/json" \
-  -b "$COOKIE_JAR" \
-  -d '{"content":"test","vaultId":"vault_does_not_exist_xyz"}')
-
-if [ "$BAD_VAULT" = "404" ]; then
-  assert "capture.bad_vault_404" "pass" "nonexistent vaultId -> 404"
-else
-  cat /tmp/uat-badvault.json
-  assert "capture.bad_vault_404" "fail" "expected 404, got ${BAD_VAULT}"
-fi
-
-# 12c: Malformed JSON body — should 400 {error:'Invalid JSON'}
+# 12b: Malformed JSON body — should 400 {error:'Invalid JSON'}
 BAD_JSON=$(curl -s -o /tmp/uat-badjson.json -w '%{http_code}' \
   -X POST "${BASE_URL}/entries" \
   -H "Content-Type: application/json" \
@@ -733,8 +719,8 @@ else
 fi
 
 # 2. POST a fresh entry so it enters the pipeline with no key
-FAIL_BODY=$(jq -cn --arg v "$VAULT_ID" --arg t "Fail-path ${TS}" \
-  '{content:"Failure path test: this entry should fail to ingest because the openrouter key is gone.", title:$t, vaultId:$v, type:"thought", source:"api"}')
+FAIL_BODY=$(jq -cn --arg t "Fail-path ${TS}" \
+  '{content:"Failure path test: this entry should fail to ingest because the openrouter key is gone.", title:$t, type:"thought", source:"api"}')
 FAIL_RESP=$(curl -s -b "$COOKIE_JAR" -H "Content-Type: application/json" \
   -X POST "${BASE_URL}/entries" -d "$FAIL_BODY")
 ENTRY_FAIL_ID=$(echo "$FAIL_RESP" | jq -r '.id')
@@ -786,8 +772,8 @@ else
 fi
 
 # 5. POST a new entry and poll to processed — this proves self-healing for future ingests
-HEAL_BODY=$(jq -cn --arg v "$VAULT_ID" --arg t "Heal-path ${TS}" \
-  '{content:"Recovery test: this entry should ingest successfully now that the key is back.", title:$t, vaultId:$v, type:"thought", source:"api"}')
+HEAL_BODY=$(jq -cn --arg t "Heal-path ${TS}" \
+  '{content:"Recovery test: this entry should ingest successfully now that the key is back.", title:$t, type:"thought", source:"api"}')
 HEAL_RESP=$(curl -s -b "$COOKIE_JAR" -H "Content-Type: application/json" \
   -X POST "${BASE_URL}/entries" -d "$HEAL_BODY")
 ENTRY_HEAL_ID=$(echo "$HEAL_RESP" | jq -r '.id')
@@ -826,7 +812,7 @@ source .uat/runs/helpers.sh
 
 # 1. Create a wiki so we have an id to regen against
 WIKI_RESP=$(curl -s -o /tmp/uat-wiki.json -w '%{http_code}' \
-  -X POST "${BASE_URL}/vaults/${VAULT_ID}/wikis" \
+  -X POST "${BASE_URL}/wikis" \
   -H "Content-Type: application/json" \
   -b "$COOKIE_JAR" \
   -d '{"name":"UAT regen test","type":"log"}')
@@ -834,14 +820,42 @@ WIKI_RESP=$(curl -s -o /tmp/uat-wiki.json -w '%{http_code}' \
 if [ "$WIKI_RESP" = "201" ] || [ "$WIKI_RESP" = "200" ]; then
   WIKI_ID=$(jq -r '.id' /tmp/uat-wiki.json)
   save_state WIKI_ID "$WIKI_ID"
-  assert "wiki.create" "pass" "POST /vaults/:id/wikis -> ${WIKI_RESP}, id=${WIKI_ID}"
+  assert "wiki.create" "pass" "POST /wikis -> ${WIKI_RESP}, id=${WIKI_ID}"
 else
   cat /tmp/uat-wiki.json
   assert "wiki.create" "fail" "expected 200/201, got ${WIKI_RESP}"
   halt "cannot test regen without a wiki id"
 fi
 
-# 2. Write some seed content so the wiki has material to regen from
+# 2. Add wiki to the group
+GROUP_WIKI_CODE=$(curl -s -o /tmp/uat-group-wiki.json -w '%{http_code}' \
+  -X POST "${BASE_URL}/groups/${GROUP_ID}/wikis" \
+  -H "Content-Type: application/json" \
+  -b "$COOKIE_JAR" \
+  -d "{\"wikiId\":\"${WIKI_ID}\"}")
+
+if [ "$GROUP_WIKI_CODE" = "200" ] || [ "$GROUP_WIKI_CODE" = "201" ]; then
+  assert "group.add_wiki" "pass" "POST /groups/:id/wikis -> ${GROUP_WIKI_CODE}"
+else
+  cat /tmp/uat-group-wiki.json
+  assert "group.add_wiki" "fail" "expected 200/201, got ${GROUP_WIKI_CODE}"
+fi
+
+# Verify wiki appears in group's wiki list
+GROUP_WIKIS_CODE=$(curl -s -o /tmp/uat-group-wikis.json -w '%{http_code}' \
+  -b "$COOKIE_JAR" "${BASE_URL}/groups/${GROUP_ID}/wikis")
+if [ "$GROUP_WIKIS_CODE" = "200" ]; then
+  GW_FOUND=$(jq --arg id "$WIKI_ID" '[.wikis[]? // .[]? | select(.id==$id)] | length' /tmp/uat-group-wikis.json)
+  if [ "$GW_FOUND" = "1" ]; then
+    assert "group.wiki_listed" "pass" "GET /groups/:id/wikis contains ${WIKI_ID}"
+  else
+    assert "group.wiki_listed" "fail" "GET /groups/:id/wikis does not contain ${WIKI_ID}"
+  fi
+else
+  assert "group.wiki_listed" "fail" "expected 200, got ${GROUP_WIKIS_CODE}"
+fi
+
+# 3. Write some seed content so the wiki has material to regen from
 CONTENT_BODY=$(jq -cn '{frontmatter:{name:"UAT regen test",type:"log"},body:"# UAT Seed Content\n\nThis wiki was seeded during UAT to test regeneration."}')
 CONTENT_CODE=$(curl -s -o /tmp/uat-wiki-seed.json -w '%{http_code}' \
   -X PUT "${BASE_URL}/api/content/wiki/${WIKI_ID}" \
@@ -855,7 +869,7 @@ else
   assert "wiki.seed_content" "fail" "expected 200, got ${CONTENT_CODE}"
 fi
 
-# 3. Call regen — M3 has this live via Quill LLM
+# 4. Call regen — M3 has this live via Quill LLM
 REGEN_CODE=$(curl -s -o /tmp/uat-regen.json -w '%{http_code}' \
   -X POST "${BASE_URL}/wikis/${WIKI_ID}/regenerate" \
   -b "$COOKIE_JAR")
@@ -1369,7 +1383,7 @@ source .uat/runs/state
 source .uat/runs/helpers.sh
 
 EMPTY_WIKI_RESP=$(curl -s -o /tmp/uat-empty-wiki.json -w '%{http_code}' \
-  -X POST "${BASE_URL}/vaults/${VAULT_ID}/wikis" \
+  -X POST "${BASE_URL}/wikis" \
   -H "Content-Type: application/json" \
   -b "$COOKIE_JAR" \
   -d '{"name":"UAT empty wiki for publish test","type":"log"}')
@@ -1500,7 +1514,7 @@ psql "$DATABASE_URL" -c "UPDATE wikis SET regenerate = true WHERE lookup_key = '
 
 ## Phase 12 — M6 API Routes
 
-### Step 36 -- Cross-vault wiki listing (GET /wikis)
+### Step 36 -- Wiki listing (GET /wikis)
 
 ```bash
 set -e
@@ -2015,7 +2029,7 @@ jq -n \
   --arg shipped "2026-04-12" \
   --argjson asserts "$ASSERTS" \
   --argjson obs "$OBSERVATIONS" \
-  --arg vault "$VAULT_ID" \
+  --arg group "$GROUP_ID" \
   --arg sarah "$ENTRY_SARAH_ID" \
   --arg edge "$ENTRY_EDGE_ID" \
   --arg fail "$ENTRY_FAIL_ID" \
@@ -2035,7 +2049,7 @@ jq -n \
     asserts: $asserts,
     observations: $obs,
     fixtures: {
-      vaultId: $vault,
+      groupId: $group,
       entries: { sarah: $sarah, edge: $edge, failpath: $fail, healpath: $heal },
       wikiId: $wiki,
       wikiTypeId: $wikiType,
