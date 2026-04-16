@@ -231,7 +231,7 @@ groupsRouter.get('/:id/wikis', async (c) => {
         isNull(edges.deletedAt)
       )
     )
-    .where(inArray(wikis.lookupKey, wikiIds))
+    .where(and(inArray(wikis.lookupKey, wikiIds), isNull(wikis.deletedAt)))
     .groupBy(wikis.lookupKey)
 
   return c.json(groupWikisListResponseSchema.parse({ wikis: rows }))

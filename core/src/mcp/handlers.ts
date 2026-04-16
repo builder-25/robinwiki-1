@@ -44,6 +44,7 @@ import {
   people as peopleTable,
   wikiTypes as wikiTypesTable,
   edits as editsTable,
+  groupWikis as groupWikisTable,
 } from '../db/schema.js'
 import { resolveThreadBySlug } from './resolvers.js'
 import type { McpResolverDeps } from './resolvers.js'
@@ -680,6 +681,9 @@ export async function handleDeleteWiki(
       .update(threadsTable)
       .set({ deletedAt: new Date(), updatedAt: new Date() })
       .where(eq(threadsTable.lookupKey, input.wikiKey.trim()))
+
+    // Hard-delete group memberships — soft-delete doesn't trigger FK CASCADE
+    await deps.db.delete(groupWikisTable).where(eq(groupWikisTable.wikiId, input.wikiKey.trim()))
 
     await emitAuditEvent(deps.db, {
       entityType: 'wiki',

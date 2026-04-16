@@ -79,7 +79,8 @@ export const wikiListQuerySchema = z.object({
 
 export const createThreadBodySchema = z.object({
   name: z.string().min(3, 'name must be at least 3 characters'),
-  type: z.string().default('log'),
+  type: z.string().optional(),
+  description: z.string().optional(),
   prompt: z.string().optional(),
 })
 

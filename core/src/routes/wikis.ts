@@ -5,8 +5,9 @@ import { generateSlug, makeLookupKey } from '@robin/shared'
 import { NoOpenRouterKeyError } from '@robin/agent'
 import { sessionMiddleware } from '../middleware/session.js'
 import { db } from '../db/client.js'
-import { wikis, edges, wikiTypes, fragments, people, auditLog, edits } from '../db/schema.js'
+import { wikis, edges, wikiTypes, fragments, people, auditLog, edits, groupWikis } from '../db/schema.js'
 import { resolveWikiSlug } from '../db/slug.js'
+import { inferWikiType } from '../mcp/wiki-type-inference.js'
 import { logger } from '../lib/logger.js'
 import { validationHook } from '../lib/validation.js'
 import { nanoid24 } from '../lib/id.js'
@@ -27,6 +28,7 @@ import {
   updateProgressBodySchema,
   updateProgressResponseSchema,
   editHistoryResponseSchema,
+  createThreadBodySchema,
 } from '../schemas/wikis.schema.js'
 import { emitAuditEvent } from '../db/audit.js'
 import { timelineQuerySchema } from '../schemas/audit.schema.js'
@@ -100,6 +102,39 @@ wikisRouter.get('/', zValidator('query', wikiListQuerySchema, validationHook), a
       ),
     })
   )
+})
+
+// POST /wikis — create a new wiki
+wikisRouter.post('/', zValidator('json', createThreadBodySchema, validationHook), async (c) => {
+  const body = c.req.valid('json')
+
+  const slug = generateSlug(body.name)
+  const finalSlug = await resolveWikiSlug(db, slug)
+  const lookupKey = makeLookupKey('wiki')
+  const wikiType = body.type || inferWikiType(body.description ?? '')
+
+  const [created] = await db
+    .insert(wikis)
+    .values({
+      lookupKey,
+      slug: finalSlug,
+      name: body.name.trim(),
+      type: wikiType,
+      state: 'PENDING',
+      prompt: body.prompt ?? '',
+    })
+    .returning()
+
+  await emitAuditEvent(db, {
+    entityType: 'wiki',
+    entityId: lookupKey,
+    eventType: 'created',
+    source: 'api',
+    summary: `Wiki created: ${body.name.trim()}`,
+    detail: { wikiKey: lookupKey, type: wikiType, slug: finalSlug },
+  })
+
+  return c.json(threadResponseSchema.parse(prepareThread(created)), 201)
 })
 
 // GET /wikis/:id — wiki detail with member fragments and aggregated people
@@ -529,6 +564,9 @@ wikisRouter.delete('/:id', async (c) => {
     .update(wikis)
     .set({ deletedAt: new Date(), updatedAt: new Date() })
     .where(eq(wikis.lookupKey, id))
+
+  // Hard-delete group memberships — soft-delete doesn't trigger FK CASCADE
+  await db.delete(groupWikis).where(eq(groupWikis.wikiId, id))
 
   await emitAuditEvent(db, {
     entityType: 'wiki',
