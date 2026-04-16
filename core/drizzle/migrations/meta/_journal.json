@@ -57,6 +57,13 @@
       "when": 1781848800000,
       "tag": "0008_wiki_progress",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781935200000,
+      "tag": "0009_remove_vaults_add_groups",
+      "breakpoints": true
     }
   ]
 }
