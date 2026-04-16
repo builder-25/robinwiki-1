@@ -8,8 +8,6 @@ export { loadSpec, renderTemplate } from './loader.js'
 export * from './models.js'
 
 // Schemas
-export { vaultClassificationSchema } from './specs/vault-classification.schema.js'
-export type { VaultClassificationOutput } from './specs/vault-classification.schema.js'
 export { fragmentationSchema } from './specs/fragmentation.schema.js'
 export type { FragmentationOutput } from './specs/fragmentation.schema.js'
 export { peopleExtractionSchema } from './specs/people-extraction.schema.js'
@@ -22,7 +20,6 @@ export { fragmentRelevanceSchema } from './specs/fragment-relevance.schema.js'
 export type { FragmentRelevanceOutput } from './specs/fragment-relevance.schema.js'
 
 // Loader functions — standalone
-export * from './loaders/vault-classification.js'
 export * from './loaders/wiki-classification.js'
 export * from './loaders/people-extraction.js'
 export * from './loaders/fragmentation.js'

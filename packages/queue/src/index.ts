@@ -55,7 +55,6 @@ export interface ExtractionJob {
   enqueuedAt: string
   content: string
   entryKey: string
-  vaultId: string | null
   source: string
 }
 
@@ -64,7 +63,6 @@ export interface LinkJob {
   jobId: string
   fragmentKey: string
   entryKey: string
-  vaultId: string
   fragmentContent: string
   enqueuedAt: string
 }
@@ -73,7 +71,6 @@ export interface ReclassifyJob {
   type: 'reclassify'
   jobId: string
   wikiKey: string
-  vaultId: string
   enqueuedAt: string
 }
 

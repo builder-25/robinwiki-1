@@ -50,7 +50,6 @@ mcp.all('/', async (c) => {
     db,
     producer,
     spawnWriteWorker: () => {},
-    resolveDefaultVaultId: async () => null,
     entityExtractCall: async () => ({ people: [] }),
     loadUserPeople: async () => [],
   }
