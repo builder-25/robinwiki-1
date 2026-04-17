@@ -26,15 +26,11 @@ const STANDARD_TRANSITIONS: TransitionMap = {
   DIRTY: new Set<ObjectState>(['RESOLVED']),
 }
 
-/** Vaults always stay RESOLVED -- no valid transitions. */
-const VAULT_TRANSITIONS: TransitionMap = {}
-
 const TRANSITIONS: Record<ObjectType, TransitionMap> = {
   entry: STANDARD_TRANSITIONS,
   frag: STANDARD_TRANSITIONS,
   wiki: STANDARD_TRANSITIONS,
   person: STANDARD_TRANSITIONS,
-  vault: VAULT_TRANSITIONS,
 }
 
 // ---------------------------------------------------------------------------

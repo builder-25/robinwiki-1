@@ -12,7 +12,6 @@ export const fragmentWriteSchema = z.object({
     .object({
       title: z.string().min(1),
       tags: z.array(z.string()).default([]),
-      vaultId: z.string().optional(),
       wikiKeys: z.array(z.string()).default([]),
       personKeys: z.array(z.string()).default([]),
       relatedFragmentKeys: z.array(z.string()).default([]),
@@ -37,7 +36,6 @@ export const wikiWriteSchema = z.object({
       name: z.string().min(1),
       type: z.string().optional(),
       prompt: z.string().optional(),
-      vaultId: z.string().optional(),
     })
     .strip(),
   body: z.string(),

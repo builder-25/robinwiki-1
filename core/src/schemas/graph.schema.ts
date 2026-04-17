@@ -6,8 +6,7 @@ import { z } from 'zod'
 export const graphNodeSchema = z.object({
   id: z.string(),
   label: z.string(),
-  type: z.enum(['wiki', 'fragment', 'person', 'entry', 'vault']),
-  vaultId: z.string(),
+  type: z.enum(['wiki', 'fragment', 'person', 'entry']),
   size: z.number(),
   snippet: z.string().default(''),
 })

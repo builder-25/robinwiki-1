@@ -28,17 +28,13 @@ fragmentsRouter.get('/', async (c) => {
   const query = fragmentListQuerySchema.safeParse({
     limit: c.req.query('limit'),
     offset: c.req.query('offset'),
-    vaultId: c.req.query('vaultId'),
   })
   const limit = query.success ? query.data.limit : 50
   const offset = query.success ? query.data.offset : 0
-  const vaultId = query.success ? query.data.vaultId : undefined
 
-  const condition = vaultId ? eq(fragments.vaultId, vaultId) : undefined
   const rows = await db
     .select()
     .from(fragments)
-    .where(condition)
     .orderBy(desc(fragments.updatedAt))
     .limit(limit)
     .offset(offset)
@@ -108,7 +104,7 @@ fragmentsRouter.post('/', zValidator('json', createFragmentBodySchema, validatio
 
   /** @gate — verify entryId exists */
   const [parentEntry] = await db
-    .select({ vaultId: entries.vaultId })
+    .select({ lookupKey: entries.lookupKey })
     .from(entries)
     .where(eq(entries.lookupKey, entryId))
   if (!parentEntry) return c.json({ error: 'Entry not found' }, 404)
@@ -139,7 +135,6 @@ fragmentsRouter.post('/', zValidator('json', createFragmentBodySchema, validatio
       slug,
       entryId,
       title,
-      vaultId: parentEntry.vaultId,
       dedupHash: content ? computeContentHash(content) : null,
       tags,
     })
@@ -151,7 +146,7 @@ fragmentsRouter.post('/', zValidator('json', createFragmentBodySchema, validatio
     eventType: 'created',
     source: 'api',
     summary: `Fragment created: ${title}`,
-    detail: { fragmentKey: fragKey, entryId, vaultId: parentEntry.vaultId },
+    detail: { fragmentKey: fragKey, entryId },
   })
 
   return c.json(

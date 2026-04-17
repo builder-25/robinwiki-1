@@ -48,7 +48,6 @@ export async function persist(
   input: {
     entryKey: string
     entryContent: string
-    vaultId: string
     source: string
     fragments: FragmentResult[]
     primaryTopic: string
@@ -76,7 +75,6 @@ export async function persist(
     title: input.primaryTopic,
     content: input.entryContent,
     source: input.source,
-    vaultId: input.vaultId,
     state: 'PENDING',
   })
 
@@ -91,7 +89,6 @@ export async function persist(
       content: frag.content,
       type: frag.type,
       entryId: input.entryKey,
-      vaultId: input.vaultId,
       tags: frag.tags,
       state: 'PENDING',
       confidence: frag.confidence,
@@ -138,16 +135,7 @@ export async function persist(
     }
   }
 
-  // -- Edges: ENTRY_IN_VAULT --
-  await deps.insertEdge({
-    srcType: 'entry',
-    srcId: input.entryKey,
-    dstType: 'vault',
-    dstId: input.vaultId,
-    edgeType: 'ENTRY_IN_VAULT',
-  })
-
-  // -- Edges: ENTRY_HAS_FRAGMENT, FRAGMENT_IN_VAULT --
+  // -- Edges: ENTRY_HAS_FRAGMENT --
   for (const fragKey of fragmentKeys) {
     await deps.insertEdge({
       srcType: 'entry',
@@ -155,13 +143,6 @@ export async function persist(
       dstType: 'fragment',
       dstId: fragKey,
       edgeType: 'ENTRY_HAS_FRAGMENT',
-    })
-    await deps.insertEdge({
-      srcType: 'fragment',
-      srcId: fragKey,
-      dstType: 'vault',
-      dstId: input.vaultId,
-      edgeType: 'FRAGMENT_IN_VAULT',
     })
   }
 

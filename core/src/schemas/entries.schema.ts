@@ -11,7 +11,6 @@ export const entryResponseSchema = z.object({
   content: z.string(),
   type: z.string(),
   source: z.string(),
-  vaultId: z.string().nullable(),
   state: objectStateSchema,
   ingestStatus: z.string(),
   createdAt: z.coerce.date(),
@@ -34,7 +33,6 @@ export const createEntryBodySchema = z.object({
   title: z.string().optional(),
   source: z.string().default('api'),
   type: z.string().default('thought'),
-  vaultId: z.string().optional(),
 })
 
 // ── Query schemas ───────────────────────────────────────────────────────────

@@ -11,8 +11,8 @@ import { entries } from './routes/entries.js'
 import { search } from './routes/search.js'
 import { mcp } from './routes/mcp.js'
 import { users } from './routes/users.js'
-import { vaultsRoutes } from './routes/vaults.js'
 import { wikisRoutes } from './routes/wikis.js'
+import { groupsRoutes } from './routes/groups.js'
 import { fragmentsRoutes } from './routes/fragments.js'
 import { peopleRoutes } from './routes/people.js'
 import { graphRoutes } from './routes/graph.js'
@@ -111,8 +111,8 @@ app.route('/search', search)
 app.route('/mcp', mcp)
 app.route('/users', users)
 app.route('/users', aiPreferencesRoutes)
-app.route('/vaults', vaultsRoutes)
 app.route('/wikis', wikisRoutes)
+app.route('/groups', groupsRoutes)
 app.route('/fragments', fragmentsRoutes)
 app.route('/people', peopleRoutes)
 app.route('/graph', graphRoutes)

@@ -17,7 +17,6 @@ export const searchQuerySchema = z.object({
     })
     .pipe(z.array(searchTableEnum).min(1)),
   mode: searchModeEnum.default('hybrid'),
-  vaultId: z.string().optional(),
 })
 
 // ── Response schemas ────────────────────────────────────────────────────────

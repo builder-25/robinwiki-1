@@ -4,7 +4,7 @@ import { zValidator } from '@hono/zod-validator'
 import { sessionMiddleware } from '../middleware/session.js'
 import { producer } from '../queue/producer.js'
 import { db } from '../db/client.js'
-import { entries as entriesTable, fragments, vaults } from '../db/schema.js'
+import { entries as entriesTable, fragments } from '../db/schema.js'
 import { makeLookupKey, parseLookupKey, generateSlug } from '@robin/shared'
 import { resolveEntrySlug } from '../db/slug.js'
 import { computeContentHash, findDuplicateEntry } from '../db/dedup.js'
@@ -25,13 +25,7 @@ entries.use('*', sessionMiddleware)
 
 // POST /entries — accept raw input, persist entry row, enqueue extraction job
 entries.post('/', zValidator('json', createEntryBodySchema, validationHook), async (c) => {
-  const { content, title, source, type, vaultId } = c.req.valid('json')
-
-  /** @gate — validate vaultId exists */
-  if (vaultId) {
-    const [vault] = await db.select({ id: vaults.id }).from(vaults).where(eq(vaults.id, vaultId))
-    if (!vault) return c.json({ error: 'Vault not found' }, 404)
-  }
+  const { content, title, source, type } = c.req.valid('json')
 
   // Content-level dedup: reject if identical content already exists
   const hash = computeContentHash(content)
@@ -58,7 +52,6 @@ entries.post('/', zValidator('json', createEntryBodySchema, validationHook), asy
     .values({
       lookupKey: entryKey,
       slug,
-      vaultId: vaultId ?? null,
       title: title ?? content.slice(0, 80),
       content,
       dedupHash: hash,
@@ -75,7 +68,6 @@ entries.post('/', zValidator('json', createEntryBodySchema, validationHook), asy
     entryKey,
     content,
     source,
-    vaultId: vaultId ?? null,
     enqueuedAt: new Date().toISOString(),
   }
 
@@ -87,7 +79,7 @@ entries.post('/', zValidator('json', createEntryBodySchema, validationHook), asy
     eventType: 'ingested',
     source: 'api',
     summary: `Entry ingested: ${(title ?? content.slice(0, 80)).slice(0, 80)}`,
-    detail: { entryKey, source: source ?? 'api', vaultId: vaultId ?? null },
+    detail: { entryKey, source: source ?? 'api' },
   })
 
   return c.json(

@@ -24,7 +24,7 @@ import { listWikis, getThread, getFragment, findPersonById, findPersonByQuery, l
 import type { McpResolverDeps } from './resolvers.js'
 import { handleLogEntry, handleLogFragment, handleCreateWikiType, handleCreateWiki, handleEditWiki, handleDeleteWiki, handleDeletePerson } from './handlers.js'
 import type { McpServerDeps } from './handlers.js'
-import { wikis, edges, auditLog } from '../db/schema.js'
+import { wikis, edges, auditLog, groups, groupWikis } from '../db/schema.js'
 import { nanoid24 } from '../lib/id.js'
 import { hybridSearch } from '../lib/search.js'
 import { loadOpenRouterConfigFromDb } from '../lib/openrouter-config.js'
@@ -628,6 +628,155 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         const message = err instanceof Error ? err.message : String(err)
         return {
           content: [{ type: 'text' as const, text: `Error: ${message}` }],
+          isError: true as const,
+        }
+      }
+    }
+  )
+
+  /***********************************************************************
+   * ## Groups
+   ***********************************************************************/
+
+  server.registerTool(
+    'list_groups',
+    {
+      description: 'List all groups with wiki counts',
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const rows = await deps.db
+          .select({
+            group: groups,
+            wikiCount: sql<number>`count(${groupWikis.wikiId})::int`,
+          })
+          .from(groups)
+          .leftJoin(groupWikis, eq(groupWikis.groupId, groups.id))
+          .groupBy(groups.id)
+          .orderBy(sql`${groups.updatedAt} DESC`)
+
+        const data = rows.map((r) => ({
+          id: r.group.id,
+          name: r.group.name,
+          slug: r.group.slug,
+          icon: r.group.icon,
+          color: r.group.color,
+          description: r.group.description,
+          wikiCount: r.wikiCount,
+        }))
+        return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err)
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
+          isError: true as const,
+        }
+      }
+    }
+  )
+
+  server.registerTool(
+    'create_group',
+    {
+      description: 'Create a new group for organising wikis',
+      inputSchema: {
+        name: z.string().describe('Group name'),
+        slug: z.string().describe('URL-friendly slug (unique)'),
+        icon: z.string().optional().describe('Emoji or icon identifier'),
+        color: z.string().optional().describe('Hex color code'),
+        description: z.string().optional().describe('What this group is for'),
+      },
+    },
+    async ({ name, slug, icon, color, description }) => {
+      try {
+        const [existing] = await deps.db
+          .select({ id: groups.id })
+          .from(groups)
+          .where(eq(groups.slug, slug))
+        if (existing) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Slug already taken' }) }],
+            isError: true as const,
+          }
+        }
+
+        const [group] = await deps.db
+          .insert(groups)
+          .values({
+            name,
+            slug,
+            icon: icon ?? '',
+            color: color ?? '',
+            description: description ?? '',
+          })
+          .returning()
+
+        await emitAuditEvent(deps.db, {
+          entityType: 'group',
+          entityId: group.id,
+          eventType: 'created',
+          source: 'mcp',
+          summary: `Group created: ${name}`,
+          detail: { groupId: group.id, slug },
+        })
+
+        return { content: [{ type: 'text' as const, text: JSON.stringify(group) }] }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err)
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
+          isError: true as const,
+        }
+      }
+    }
+  )
+
+  server.registerTool(
+    'add_wiki_to_group',
+    {
+      description: 'Add a wiki to a group. Get group IDs from list_groups and wiki keys from list_wikis.',
+      inputSchema: {
+        groupId: z.string().describe('Group ID (from list_groups)'),
+        wikiId: z.string().describe('Wiki lookupKey (from list_wikis)'),
+      },
+    },
+    async ({ groupId, wikiId }) => {
+      try {
+        const [group] = await deps.db
+          .select({ id: groups.id })
+          .from(groups)
+          .where(eq(groups.id, groupId))
+        if (!group) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Group not found' }) }],
+            isError: true as const,
+          }
+        }
+
+        const [wiki] = await deps.db
+          .select({ lookupKey: wikis.lookupKey })
+          .from(wikis)
+          .where(eq(wikis.lookupKey, wikiId))
+        if (!wiki) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Wiki not found' }) }],
+            isError: true as const,
+          }
+        }
+
+        await deps.db
+          .insert(groupWikis)
+          .values({ groupId, wikiId })
+          .onConflictDoNothing()
+
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ ok: true, groupId, wikiId }) }],
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err)
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
           isError: true as const,
         }
       }

@@ -30,7 +30,6 @@ import {
 import {
   makeLookupKey,
   generateSlug,
-  vaultClassificationSchema,
   fragmentationSchema,
   peopleExtractionSchema,
   wikiClassificationSchema,
@@ -39,7 +38,6 @@ import {
 import { eq, sql } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import {
-  vaults,
   fragments,
   entries,
   edges,
@@ -72,11 +70,6 @@ function emitEvent(event: {
   metadata?: Record<string, unknown>
 }): Promise<void> {
   return emitPipelineEvent(db as never, event)
-}
-
-async function loadFallbackVaultId(): Promise<string> {
-  const [row] = await db.select({ id: vaults.id }).from(vaults).where(eq(vaults.type, 'inbox'))
-  return row?.id ?? ''
 }
 
 async function insertEdgeRow(edge: Record<string, unknown>): Promise<void> {
@@ -121,7 +114,6 @@ async function processExtractionJob(job: ExtractionJob): Promise<JobResult> {
 
   // 2. Fresh Mastra agents per ingest run.
   const agents = createIngestAgents(openRouterConfig)
-  const fallbackVaultId = await loadFallbackVaultId()
 
   const deps: ExtractionOrchestratorDeps = {
     entryLock,
@@ -132,17 +124,9 @@ async function processExtractionJob(job: ExtractionJob): Promise<JobResult> {
         jobId: crypto.randomUUID(),
         fragmentKey: linkJobData.fragmentKey,
         entryKey: linkJobData.entryKey,
-        vaultId: linkJobData.vaultId,
         fragmentContent: linkJobData.fragmentContent,
         enqueuedAt: new Date().toISOString(),
       })
-    },
-    vaultClassifyDeps: {
-      listVaults: async () =>
-        db.select({ id: vaults.id, name: vaults.name, slug: vaults.slug }).from(vaults),
-      llmCall: createTypedCaller(agents.vaultClassifier, vaultClassificationSchema),
-      confidenceThreshold: Number.parseFloat(process.env.VAULT_CONFIDENCE_THRESHOLD ?? '0.5'),
-      fallbackVaultId,
     },
     fragmentDeps: {
       llmCall: createTypedCaller(agents.fragmenter, fragmentationSchema),
@@ -194,7 +178,6 @@ async function processExtractionJob(job: ExtractionJob): Promise<JobResult> {
             source: src,
             sourceMetadata,
             type: (e.type as string) ?? 'thought',
-            vaultId: (e.vaultId as string | null) ?? null,
             state: (e.state as 'PENDING' | 'LINKING' | 'RESOLVED') ?? 'PENDING',
             dedupHash: content ? computeContentHash(content) : null,
           })
@@ -205,7 +188,6 @@ async function processExtractionJob(job: ExtractionJob): Promise<JobResult> {
               title: (e.title as string) ?? '',
               content,
               sourceMetadata,
-              vaultId: (e.vaultId as string | null) ?? null,
               updatedAt: new Date(),
             },
           })
@@ -222,7 +204,6 @@ async function processExtractionJob(job: ExtractionJob): Promise<JobResult> {
           tags: ((f.tags as string[]) ?? []) as string[],
           confidence: (f.confidence as number | null) ?? null,
           entryId: (f.entryId as string | null) ?? null,
-          vaultId: (f.vaultId as string | null) ?? null,
           state: (f.state as 'PENDING' | 'LINKING' | 'RESOLVED') ?? 'PENDING',
           dedupHash: content ? computeContentHash(content) : null,
         })
@@ -310,7 +291,6 @@ async function processExtractionJob(job: ExtractionJob): Promise<JobResult> {
     const result = await runExtraction(deps, {
       entryKey: job.entryKey,
       content: job.content,
-      userSelectedVaultId: job.vaultId,
       source: job.source,
       jobId: job.jobId,
     })
@@ -473,7 +453,6 @@ async function processLinkJob(job: LinkJob): Promise<JobResult> {
     fragmentKey: job.fragmentKey,
     fragmentContent: job.fragmentContent,
     entryKey: job.entryKey,
-    vaultId: job.vaultId,
     jobId: job.jobId,
   })
 

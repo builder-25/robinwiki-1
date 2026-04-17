@@ -44,6 +44,7 @@ import {
   people as peopleTable,
   wikiTypes as wikiTypesTable,
   edits as editsTable,
+  groupWikis as groupWikisTable,
 } from '../db/schema.js'
 import { resolveThreadBySlug } from './resolvers.js'
 import type { McpResolverDeps } from './resolvers.js'
@@ -69,7 +70,6 @@ const log = logger.child({ component: 'mcp' })
  * @property producer              - BullMQ producer for enqueuing pipeline jobs
  * @property db                    - Drizzle database instance
  * @property spawnWriteWorker      - Ensures a write worker exists for the user
- * @property resolveDefaultVaultId - Returns the user's inbox vault ID
  * @property entityExtractCall     - LLM call for people extraction (fail-open)
  * @property loadUserPeople        - Loads known people for fuzzy name matching
  */
@@ -77,7 +77,6 @@ export interface McpServerDeps {
   producer: BullMQProducer
   db: DB
   spawnWriteWorker: (userId: string) => void
-  resolveDefaultVaultId: (userId: string) => Promise<string | null>
   entityExtractCall: (system: string, user: string) => Promise<PeopleExtractionOutput>
   loadUserPeople: (userId: string) => Promise<KnownPerson[]>
 }
@@ -126,7 +125,6 @@ export async function handleLogEntry(
 
     const entryKey = makeLookupKey('entry')
     const { ulid: entryUlid } = parseLookupKey(entryKey)
-    const defaultVaultId = await deps.resolveDefaultVaultId(userId)
     const title = trimmed.slice(0, 80)
     const slug = await resolveEntrySlug(deps.db, generateSlug(title))
     const entrySource = input.source ?? 'mcp'
@@ -135,7 +133,6 @@ export async function handleLogEntry(
     await deps.db.insert(entriesTable).values({
       lookupKey: entryKey,
       slug,
-      vaultId: defaultVaultId,
       title,
       content: trimmed,
       dedupHash: hash,
@@ -149,7 +146,6 @@ export async function handleLogEntry(
       enqueuedAt: now.toISOString(),
       content: trimmed,
       entryKey,
-      vaultId: defaultVaultId,
       source: entrySource,
     }
     await deps.producer.enqueueExtraction(job)
@@ -160,7 +156,7 @@ export async function handleLogEntry(
       eventType: 'ingested',
       source: entrySource,
       summary: `Entry ingested: ${title}`,
-      detail: { entryKey, source: entrySource, vaultId: defaultVaultId },
+      detail: { entryKey, source: entrySource },
     })
 
     deps.spawnWriteWorker(userId)
@@ -685,6 +681,9 @@ export async function handleDeleteWiki(
       .update(threadsTable)
       .set({ deletedAt: new Date(), updatedAt: new Date() })
       .where(eq(threadsTable.lookupKey, input.wikiKey.trim()))
+
+    // Hard-delete group memberships — soft-delete doesn't trigger FK CASCADE
+    await deps.db.delete(groupWikisTable).where(eq(groupWikisTable.wikiId, input.wikiKey.trim()))
 
     await emitAuditEvent(deps.db, {
       entityType: 'wiki',

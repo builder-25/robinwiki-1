@@ -12,7 +12,6 @@ export const fragmentResponseSchema = z.object({
   tags: z.array(z.string()),
   confidence: z.number().nullable().optional(),
   entryId: z.string().nullable(),
-  vaultId: z.string().nullable(),
   state: objectStateSchema,
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
@@ -61,5 +60,4 @@ export const fragmentReviewBodySchema = z.object({
 
 export const fragmentListQuerySchema = paginationQuerySchema.extend({
   offset: z.coerce.number().int().min(0).default(0),
-  vaultId: z.string().optional(),
 })

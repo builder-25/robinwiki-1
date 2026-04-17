@@ -5,7 +5,6 @@ export const ObjectType = {
   FRAGMENT: 'frag',
   WIKI: 'wiki',
   PERSON: 'person',
-  VAULT: 'vault',
 } as const
 
 export type ObjectType = (typeof ObjectType)[keyof typeof ObjectType]
@@ -16,7 +15,6 @@ export const TYPE_TO_DIR: Record<ObjectType, string> = {
   frag: 'fragments',
   wiki: 'wikis',
   person: 'people',
-  vault: '',
 }
 
 /**
@@ -37,11 +35,10 @@ export const LOOKUP_KEY_RE: Record<ObjectType, RegExp> = {
   frag: /frag[0-9A-Z]{26}/,
   wiki: /wiki[0-9A-Z]{26}/,
   person: /person[0-9A-Z]{26}/,
-  vault: /vault[0-9A-Z]{26}/,
 }
 
 /** Match any lookup key regardless of type */
-export const ANY_LOOKUP_KEY_RE = /(?:entry|frag|wiki|person|vault)[0-9A-Z]{26}/
+export const ANY_LOOKUP_KEY_RE = /(?:entry|frag|wiki|person)[0-9A-Z]{26}/
 
 const generateUlid = monotonicFactory()
 

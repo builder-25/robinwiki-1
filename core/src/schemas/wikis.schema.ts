@@ -31,7 +31,6 @@ export const threadResponseSchema = z.object({
   type: z.string(),
   prompt: z.string(),
   state: objectStateSchema,
-  vaultId: z.string().nullable(),
   lastRebuiltAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
@@ -80,7 +79,8 @@ export const wikiListQuerySchema = z.object({
 
 export const createThreadBodySchema = z.object({
   name: z.string().min(3, 'name must be at least 3 characters'),
-  type: z.string().default('log'),
+  type: z.string().optional(),
+  description: z.string().optional(),
   prompt: z.string().optional(),
 })
 

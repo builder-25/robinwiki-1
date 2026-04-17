@@ -4,7 +4,6 @@ import type {
   EmitEvent,
   ExtractionInput,
   LinkingInput,
-  VaultClassifyDeps,
   FragmentDeps,
   PersistDeps,
   WikiClassifyDeps,
@@ -12,7 +11,6 @@ import type {
   EntityExtractDeps,
   EntityExtractResult,
 } from './types.js'
-import { vaultClassify } from './vault-classify.js'
 import { fragment } from './fragment.js'
 import { persist } from './persist.js'
 import { entityExtract } from './entity-extract.js'
@@ -22,7 +20,6 @@ import { fragRelate } from './frag-relate.js'
 // ── Orchestrator Dep Types ──────────────────────────────────────────────────
 
 export interface ExtractionOrchestratorDeps {
-  vaultClassifyDeps: VaultClassifyDeps
   fragmentDeps: FragmentDeps
   entityExtractDeps: EntityExtractDeps
   persistDeps: PersistDeps
@@ -32,7 +29,6 @@ export interface ExtractionOrchestratorDeps {
     type: 'link'
     fragmentKey: string
     entryKey: string
-    vaultId: string
     fragmentContent: string
   }) => Promise<void>
 }
@@ -41,7 +37,6 @@ export interface ExtractionResult {
   entryKey: string
   fragmentKeys: string[]
   personKeys: string[]
-  vaultId: string
 }
 
 export interface LinkingOrchestratorDeps {
@@ -87,13 +82,7 @@ export async function runExtraction(
         status: 'started',
       })
 
-      // Stage 1: vault classify
-      const vaultResult = await vaultClassify(deps.vaultClassifyDeps, {
-        content: input.content,
-        userSelectedVaultId: input.userSelectedVaultId,
-      })
-
-      // Stage 2: fragment + entity-extract in parallel (entity-extract fail-open)
+      // Stage 1: fragment + entity-extract in parallel (entity-extract fail-open)
       const [fragSettled, entitySettled] = await Promise.allSettled([
         fragment(deps.fragmentDeps, {
           content: input.content,
@@ -123,11 +112,10 @@ export async function runExtraction(
         })
       }
 
-      // Stage 3: persist
+      // Stage 2: persist
       const persistResult = await persist(deps.persistDeps, {
         entryKey: input.entryKey,
         entryContent: input.content,
-        vaultId: vaultResult.data.vaultId,
         source: input.source,
         fragments: fragResult.data.fragments,
         primaryTopic: fragResult.data.primaryTopic,
@@ -147,7 +135,6 @@ export async function runExtraction(
           type: 'link',
           fragmentKey: fragKey,
           entryKey: input.entryKey,
-          vaultId: vaultResult.data.vaultId,
           fragmentContent: fragContent,
         })
       }
@@ -159,7 +146,6 @@ export async function runExtraction(
         status: 'completed',
         metadata: {
           fragmentCount: persistResult.data.fragmentKeys.length,
-          vaultId: vaultResult.data.vaultId,
         },
       })
 
@@ -167,7 +153,6 @@ export async function runExtraction(
         entryKey: input.entryKey,
         fragmentKeys: persistResult.data.fragmentKeys,
         personKeys: entityResult ? Array.from(entityResult.peopleMap.values()) : [],
-        vaultId: vaultResult.data.vaultId,
       }
     }
   )
@@ -206,7 +191,6 @@ export async function runLinking(
       const wikiResult = await wikiClassify(deps.wikiClassifyDeps, {
         fragmentContent: input.fragmentContent,
         fragmentKey: input.fragmentKey,
-        vaultId: input.vaultId,
         jobId: input.jobId,
         entryKey: input.entryKey,
       })

@@ -15,7 +15,6 @@ search.get('/', async (c) => {
     limit: c.req.query('limit'),
     tables: c.req.query('tables'),
     mode: c.req.query('mode'),
-    vaultId: c.req.query('vaultId'),
   })
   if (!parsed.success)
     return c.json({ error: 'Validation failed', fields: parsed.error.flatten() }, 400)

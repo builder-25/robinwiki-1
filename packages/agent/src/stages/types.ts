@@ -1,6 +1,5 @@
 import type {
   PeopleExtractionOutput,
-  VaultClassificationOutput,
   FragmentationOutput,
   WikiClassificationOutput,
   FragmentRelevanceOutput,
@@ -19,7 +18,6 @@ export interface StageResult<T> {
 export interface ExtractionInput {
   content: string
   entryKey: string
-  userSelectedVaultId: string | null
   source: string
   jobId: string
 }
@@ -28,7 +26,6 @@ export interface LinkingInput {
   fragmentKey: string
   fragmentContent: string
   entryKey: string
-  vaultId: string
   jobId: string
 }
 
@@ -44,20 +41,6 @@ export type EmitEvent = (event: {
 }) => Promise<void>
 
 // ── Per-Stage Dependencies ───────────────────────────────────────────────────
-
-export interface VaultClassifyDeps {
-  listVaults: () => Promise<Array<{ id: string; name: string; slug: string }>>
-  llmCall: (system: string, user: string) => Promise<VaultClassificationOutput>
-  confidenceThreshold: number
-  fallbackVaultId: string
-}
-
-export interface VaultClassifyResult {
-  vaultId: string
-  vaultName: string
-  confidence: number
-  wasUserSelected: boolean
-}
 
 export interface FragmentDeps {
   llmCall: (system: string, user: string) => Promise<FragmentationOutput>

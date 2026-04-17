@@ -15,7 +15,6 @@ export type {
 export type {
   ExtractionInput,
   LinkingInput,
-  VaultClassifyDeps,
   FragmentDeps,
   WikiClassifyDeps,
   FragRelateDeps,

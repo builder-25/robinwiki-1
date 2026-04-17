@@ -9,7 +9,6 @@ import {
   fragments,
   wikis,
   people,
-  vaults,
   auditLog,
   entries,
   edges,
@@ -146,8 +145,7 @@ usersRouter.get('/activity', async (c) => {
 
 // POST /users/export — export all data as JSON
 usersRouter.post('/export', async (c) => {
-  const [userVaults, userWikis, userFragments, userPeople] = await Promise.all([
-    db.select().from(vaults),
+  const [userWikis, userFragments, userPeople] = await Promise.all([
     db.select().from(wikis),
     db.select().from(fragments),
     db.select().from(people),
@@ -156,7 +154,6 @@ usersRouter.post('/export', async (c) => {
   return c.json(
     exportDataResponseSchema.parse({
       exportedAt: new Date().toISOString(),
-      vaults: userVaults,
       wikis: userWikis,
       fragments: userFragments,
       people: userPeople,
@@ -171,7 +168,6 @@ usersRouter.delete('/data', async (c) => {
     db.delete(entries),
     db.delete(wikis),
     db.delete(people),
-    db.delete(vaults),
     db.delete(auditLog),
   ])
 

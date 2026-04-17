@@ -14,7 +14,6 @@ export async function wikiClassify(
   input: {
     fragmentContent: string
     fragmentKey: string
-    vaultId: string
     jobId: string
     entryKey: string
   }

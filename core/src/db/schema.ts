@@ -87,20 +87,24 @@ export const verifications = pgTable('verifications', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
-// ─── Vaults (config table — no shared base columns, preserved as-is) ───
+// ─── Groups (wiki organisation — replaces vaults) ───
 
-export const vaults = pgTable('vaults', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  slug: text('slug').notNull(),
-  icon: text('icon').notNull().default(''),
-  description: text('description').notNull().default(''),
-  profile: text('profile').notNull().default(''),
-  color: text('color').notNull().default(''),
-  type: text('type').notNull().default('user'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-})
+export const groups = pgTable(
+  'groups',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    name: text('name').notNull(),
+    slug: text('slug').notNull(),
+    icon: text('icon').notNull().default(''),
+    color: text('color').notNull().default(''),
+    description: text('description').notNull().default(''),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex('groups_slug_uidx').on(t.slug)]
+)
 
 // ─── Configs (normalized config store — single-user) ───
 
@@ -175,9 +179,6 @@ export const entries = pgTable(
       channel?: string
       sessionId?: string
     }>(),
-    vaultId: text('vault_id').references(() => vaults.id, {
-      onDelete: 'set null',
-    }),
     ingestStatus: text('ingest_status').notNull().default('pending'),
     lastError: text('last_error'),
     lastAttemptAt: timestamp('last_attempt_at'),
@@ -200,9 +201,6 @@ export const fragments = pgTable(
     entryId: text('entry_id').references(() => entries.lookupKey, {
       onDelete: 'cascade',
     }),
-    vaultId: text('vault_id').references(() => vaults.id, {
-      onDelete: 'set null',
-    }),
     embedding: vector('embedding', { dimensions: 1536 }),
     searchVector: tsvector('search_vector'),
   },
@@ -216,9 +214,6 @@ export const wikis = pgTable(
     name: text('name').notNull(),
     type: text('type').notNull().default('log'),
     prompt: text('prompt').notNull().default(''),
-    vaultId: text('vault_id').references(() => vaults.id, {
-      onDelete: 'set null',
-    }),
     lastRebuiltAt: timestamp('last_rebuilt_at'),
     published: boolean('published').notNull().default(false),
     publishedSlug: text('published_slug'),
@@ -236,6 +231,20 @@ export const wikis = pgTable(
     uniqueIndex('wikis_slug_uidx').on(t.slug),
     uniqueIndex('wikis_published_slug_uidx').on(t.publishedSlug),
   ]
+)
+
+export const groupWikis = pgTable(
+  'group_wikis',
+  {
+    groupId: text('group_id')
+      .notNull()
+      .references(() => groups.id, { onDelete: 'cascade' }),
+    wikiId: text('wiki_id')
+      .notNull()
+      .references(() => wikis.lookupKey, { onDelete: 'cascade' }),
+    addedAt: timestamp('added_at').defaultNow().notNull(),
+  },
+  (t) => [index('group_wikis_wiki_idx').on(t.wikiId)]
 )
 
 export const people = pgTable(

@@ -3,7 +3,6 @@ import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import type { OpenRouterConfig } from './openrouter-config.js'
 
 export interface IngestAgents {
-  vaultClassifier: Agent
   fragmenter: Agent
   entityExtractor: Agent
   wikiClassifier: Agent
@@ -20,12 +19,6 @@ export function createIngestAgents(config: OpenRouterConfig): IngestAgents {
   const model = openrouter(config.chatModel)
 
   return {
-    vaultClassifier: new Agent({
-      id: 'vault-classifier',
-      name: 'VaultClassifier',
-      instructions: '',
-      model,
-    }),
     fragmenter: new Agent({
       id: 'fragmenter',
       name: 'Fragmenter',

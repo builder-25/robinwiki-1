@@ -1,48 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { ZodError } from 'zod'
 import {
-  loadVaultClassificationSpec,
   loadWikiClassificationSpec,
   loadPeopleExtractionSpec,
   loadFragmentationSpec,
   loadWikiRelevanceSpec,
 } from '../../prompts/index'
-
-describe('vault-classification', () => {
-  const fixtures = {
-    content: 'I went running today and tracked my heart rate',
-    vaults: 'health, work, personal',
-  }
-
-  it('loads and returns a valid PromptResult', () => {
-    const result = loadVaultClassificationSpec(fixtures)
-    expect(result).toHaveProperty('system')
-    expect(result).toHaveProperty('user')
-    expect(result).toHaveProperty('meta')
-    expect(result.meta).toHaveProperty('temperature')
-    expect(result.meta).toHaveProperty('outputSchema')
-  })
-
-  it('renders system message with Marcel persona', () => {
-    const result = loadVaultClassificationSpec(fixtures)
-    expect(result.system).toContain('Marcel')
-  })
-
-  it('renders user template with substituted variables', () => {
-    const result = loadVaultClassificationSpec(fixtures)
-    expect(result.user).toContain('health, work, personal')
-    expect(result.user).toContain('I went running today')
-    expect(result.user).not.toContain('{{content}}')
-    expect(result.user).not.toContain('{{vaults}}')
-  })
-
-  it('throws ZodError when required content is missing', () => {
-    expect(() =>
-      loadVaultClassificationSpec({ content: '', vaults: 'health' } as any)
-    ).not.toThrow()
-    expect(() => loadVaultClassificationSpec({ vaults: 'health' } as any)).toThrow(ZodError)
-  })
-})
 
 describe('wiki-classification', () => {
   const fixtures = {
@@ -176,13 +139,6 @@ describe('wiki-relevance', () => {
 })
 
 describe('modification stack', () => {
-  it('vault-classification has output.strict: true (classification)', () => {
-    const result = loadVaultClassificationSpec({ content: 'test', vaults: 'v1' })
-    // The spec itself has strict: true — verified via the loadSpec which parsed it
-    // We verify the temperature matches classification specs
-    expect(result.meta.temperature).toBe(0.1)
-  })
-
   it('wiki-classification has output.strict: true (classification)', () => {
     const result = loadWikiClassificationSpec({ content: 'test', wikis: 't1' })
     expect(result.meta.temperature).toBe(0.1)
