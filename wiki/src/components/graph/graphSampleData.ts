@@ -14,6 +14,8 @@ export type GraphNode = {
   size: number;
   /** Wiki or fragment sub-type label. Drives node color. */
   subtype?: GraphNodeSubtype;
+  /** Optional slug/key for entity page navigation. Falls back to id. */
+  lookupKey?: string;
 };
 
 export type GraphEdge = {
