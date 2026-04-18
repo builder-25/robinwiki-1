@@ -85,7 +85,7 @@ const contentsData: SidebarSectionData = {
       children: [{ label: "The Berlin years", href: "/wiki/article" }],
     },
     {
-      label: "Goal",
+      label: "Objective",
       arrow: "right",
       children: [
         { label: "Ship the atlas by Q3", href: "/wiki/example/ship-the-atlas" },

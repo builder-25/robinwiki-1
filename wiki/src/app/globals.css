@@ -136,9 +136,9 @@
   --wiki-type-project-bg: rgba(6, 182, 212, 0.10);
   --wiki-type-project-text: #0891b2;
   --wiki-type-project-border: #0891b2;
-  --wiki-type-goal-bg: rgba(245, 158, 11, 0.10);
-  --wiki-type-goal-text: #d97706;
-  --wiki-type-goal-border: #d97706;
+  --wiki-type-objective-bg: rgba(245, 158, 11, 0.10);
+  --wiki-type-objective-text: #d97706;
+  --wiki-type-objective-border: #d97706;
   --wiki-type-skill-bg: rgba(16, 185, 129, 0.10);
   --wiki-type-skill-text: #059669;
   --wiki-type-skill-border: #059669;
@@ -148,9 +148,9 @@
   --wiki-type-voice-bg: rgba(236, 72, 153, 0.10);
   --wiki-type-voice-text: #db2777;
   --wiki-type-voice-border: #db2777;
-  --wiki-type-principle-bg: rgba(244, 63, 94, 0.10);
-  --wiki-type-principle-text: #e11d48;
-  --wiki-type-principle-border: #e11d48;
+  --wiki-type-principles-bg: rgba(244, 63, 94, 0.10);
+  --wiki-type-principles-text: #e11d48;
+  --wiki-type-principles-border: #e11d48;
   /* People — kept yellow (our deviation from os.robin's blue) */
   --wiki-type-people-bg: #fef9c3;
   --wiki-type-people-text: #854d0e;

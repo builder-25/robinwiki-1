@@ -17,8 +17,8 @@ export const WIKI_INTRO_LEAD_PLAINTEXT =
 const CHIP_LABEL_TO_WIKI_TYPE: Record<string, string> = {
   Research: "research",
   Project: "project",
-  Goal: "goal",
-  Principle: "principle",
+  Objective: "objective",
+  Principles: "principles",
   Skill: "skill",
   Agent: "agent",
   Voice: "voice",

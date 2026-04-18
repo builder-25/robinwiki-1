@@ -422,9 +422,9 @@ function ProgressMarkersBlock({
 }
 
 export function WikiProgressMarkersSection({
-  variant = "goal",
+  variant = "objective",
 }: {
-  variant?: "goal" | "project";
+  variant?: "objective" | "project";
 }) {
   const row1Body =
     variant === "project"

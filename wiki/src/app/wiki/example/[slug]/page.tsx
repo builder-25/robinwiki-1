@@ -50,7 +50,7 @@ const EXAMPLES: Record<string, ExampleEntry> = {
   },
   "ship-the-atlas": {
     slug: "ship-the-atlas",
-    chipLabel: "Goal",
+    chipLabel: "Objective",
     title: "Ship the atlas by Q3",
     lede:
       "The atlas has to be in readers' hands before the autumn conference. That means copy frozen by late June, plates to the printer by mid-July, and a two-week buffer I will almost certainly burn through.",

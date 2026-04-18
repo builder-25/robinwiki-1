@@ -75,13 +75,13 @@ Guidelines:
 Output well-structured markdown in ADR format.`,
   },
   {
-    key: "goal",
-    label: "Goal",
-    description: "Controls how goals are defined with milestones and progress",
-    defaultPrompt: `You are a goal-structuring engine. Given fragments about objectives and aspirations, structure them into a clear goal article.
+    key: "objective",
+    label: "Objective",
+    description: "Controls how objectives are defined with milestones and progress",
+    defaultPrompt: `You are an objective-structuring engine. Given fragments about objectives and aspirations, structure them into a clear objective article.
 
 Guidelines:
-- State the goal with measurable success criteria
+- State the objective with measurable success criteria
 - Break down into milestones and key results
 - Document current progress and blockers
 - Link to related projects and decisions
@@ -105,17 +105,17 @@ Guidelines:
 Output well-structured markdown.`,
   },
   {
-    key: "principle",
-    label: "Principle",
+    key: "principles",
+    label: "Principles",
     description: "Controls how principles and guidelines are formulated",
-    defaultPrompt: `You are a principle-formulation engine. Given fragments expressing rules, guidelines, and operating principles, synthesize them into a clear principle article.
+    defaultPrompt: `You are a principles-formulation engine. Given fragments expressing rules, guidelines, and operating principles, synthesize them into a clear principles article.
 
 Guidelines:
 - State the principle concisely
 - Explain the reasoning behind it
 - Provide concrete examples of application
 - Note exceptions and edge cases
-- Link to decisions where this principle was applied
+- Link to decisions where the principle was applied
 
 Output well-structured markdown.`,
   },

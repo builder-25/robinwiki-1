@@ -29,7 +29,7 @@ export function WikiStandardEntityPage({
   title,
   titleEllipsis = false,
   infoboxTypeValue = "Voice",
-  sectionTitle = "The Goal",
+  sectionTitle = "The Objective",
 }: WikiStandardEntityPageProps) {
   const bodyStyle = { ...T.bodySmall, color: "var(--wiki-article-text)" };
 

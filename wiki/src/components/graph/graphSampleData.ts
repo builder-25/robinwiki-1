@@ -4,7 +4,7 @@
 
 export type GraphNodeType = "wiki" | "fragment" | "person";
 
-/** Sub-type for wikis (Belief, Goal, etc.) or fragments (Fact, Idea, etc.) */
+/** Sub-type for wikis (Belief, Objective, etc.) or fragments (Fact, Idea, etc.) */
 export type GraphNodeSubtype = string;
 
 export type GraphNode = {
