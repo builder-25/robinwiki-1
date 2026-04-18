@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { T } from "@/lib/typography";
+import { useProfile } from "@/hooks/useProfile";
 import { ActionButton } from "@/components/ui/action-button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -27,8 +29,11 @@ function Logo() {
 
 export default function CompleteStep() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { data: profile, isLoading: profileLoading } = useProfile();
   const [copied, setCopied] = useState(false);
-  const mcpEndpoint = "http://localhost:3001/mcp";
+  const [completing, setCompleting] = useState(false);
+  const mcpEndpoint = profile?.mcpEndpointUrl ?? "";
 
   const handleCopy = async () => {
     try {
@@ -95,7 +100,7 @@ export default function CompleteStep() {
                   color: "var(--card-desc)",
                 }}
               >
-                {mcpEndpoint}
+                {profileLoading ? "Loading..." : mcpEndpoint || "Unavailable"}
               </span>
             </div>
             <button
@@ -172,13 +177,26 @@ export default function CompleteStep() {
         </CardContent>
       </Card>
 
-      {/* CREATE NOTE BUTTON */}
+      {/* GO TO WIKI BUTTON */}
       <ActionButton
         type="button"
-        onClick={() => router.push("/wiki")}
+        onClick={async () => {
+          setCompleting(true);
+          try {
+            await fetch("/api/users/onboard", {
+              method: "PATCH",
+              credentials: "include",
+            });
+            await queryClient.invalidateQueries({ queryKey: ["profile"] });
+          } catch {
+            // proceed even if onboard call fails -- user can retry
+          }
+          router.push("/wiki");
+        }}
+        disabled={completing}
         className="mt-10"
       >
-        Go to your wiki
+        {completing ? "Finishing..." : "Go to your wiki"}
       </ActionButton>
     </div>
   );
