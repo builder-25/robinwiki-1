@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   Suspense,
   useEffect,
@@ -11,17 +10,21 @@ import {
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BookOpen, FileCode, UserRound } from "lucide-react";
 import WikiSearchBar from "@/components/wiki/WikiSearchBar";
+import { useSession } from "@/hooks/useSession";
+import { T } from "@/lib/typography";
 
-const CHIP = {
-  fontFamily: "var(--font-inter), Inter, sans-serif",
-  fontSize: 12,
-  fontWeight: 400,
-  lineHeight: 1.5,
-  letterSpacing: "-0.0288px",
-  color: "rgba(140, 140, 140, 0.7)",
-} as const;
+type HeroFilter = "people" | "fragments" | "wiki";
 
-function HomeSearchBlock() {
+const FILTER_COLORS: Record<HeroFilter, { fg: string; bg: string }> = {
+  // People stays yellow (our deviation)
+  people: { fg: "#854d0e", bg: "#fef9c3" },
+  // Fragments — pick a neutral fragment color; using the Fact/sky shade
+  fragments: { fg: "#0284c7", bg: "rgba(14, 165, 233, 0.10)" },
+  // Wiki — uses the wiki-link blue
+  wiki: { fg: "#3366cc", bg: "rgba(51, 102, 204, 0.10)" },
+};
+
+function HomeSearchBlock({ activeFilter }: { activeFilter: HeroFilter | null }) {
   const pathname = usePathname();
   const router = useRouter();
   const sp = useSearchParams();
@@ -48,7 +51,8 @@ function HomeSearchBlock() {
   const submit = () => {
     const t = draft.trim();
     if (!t) return;
-    router.push(`/wiki/search?q=${encodeURIComponent(t)}`);
+    const typeParam = activeFilter ? `&type=${activeFilter}` : "";
+    router.push(`/wiki/search?q=${encodeURIComponent(t)}${typeParam}`);
   };
 
   return (
@@ -56,7 +60,6 @@ function HomeSearchBlock() {
       className="w-full max-w-[591px] min-w-0 overflow-hidden"
       style={{
         background: "var(--wiki-chat-bg)",
-        borderRadius: 12,
         boxSizing: "border-box",
       }}
     >
@@ -73,34 +76,63 @@ function HomeSearchBlock() {
 }
 
 function FilterChip({
-  href,
+  id,
   icon,
   label,
+  active,
+  onToggle,
 }: {
-  href: string;
+  id: HeroFilter;
   icon: ReactNode;
   label: string;
+  active: boolean;
+  onToggle: (id: HeroFilter) => void;
 }) {
+  const colors = FILTER_COLORS[id];
+  const idleColor = "#a6a6a6";
+  const idleBg = "#f5f5f5";
   return (
-    <Link
-      href={href}
-      className="inline-flex shrink-0 items-center justify-center gap-1"
+    <button
+      type="button"
+      onClick={() => onToggle(id)}
+      className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-1"
       style={{
         padding: "2px 8px",
-        background: "var(--wiki-search-chip-bg)",
-        textDecoration: "none",
+        background: active ? colors.bg : idleBg,
+        border: `1px solid ${active ? colors.fg : idleBg}`,
+        color: active ? colors.fg : idleColor,
+        transition: "background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease",
       }}
     >
-      <span className="flex h-3 w-3 shrink-0 items-center justify-center text-[rgba(140,140,140,0.7)]">
+      <span
+        className="flex h-3 w-3 shrink-0 items-center justify-center"
+        style={{ color: active ? colors.fg : idleColor }}
+      >
         {icon}
       </span>
-      <span style={CHIP}>{label}</span>
-    </Link>
+      <span
+        style={{
+          ...T.micro,
+          letterSpacing: "-0.0288px",
+          color: "inherit",
+        }}
+      >
+        {label}
+      </span>
+    </button>
   );
 }
 
 /** Figma ROBIN 217:35527 — title + chat search + filter chips (wiki home only) */
 export default function WikiHomeHero() {
+  const { session } = useSession();
+  // Single-select filter state. Clicking the active chip deactivates it.
+  const [activeFilter, setActiveFilter] = useState<HeroFilter | null>(null);
+  const greeting = session?.user?.name ?? "Welcome back";
+  const toggleFilter = (id: HeroFilter) => {
+    setActiveFilter((prev) => (prev === id ? null : id));
+  };
+
   return (
     <div
       className="flex w-full flex-col items-center"
@@ -113,11 +145,7 @@ export default function WikiHomeHero() {
         <h1
           className="wiki-home-title m-0 text-center"
           style={{
-            fontFamily:
-              "var(--font-source-serif-4), 'Source Serif 4', 'Source Serif Pro', serif",
-            fontSize: 40,
-            fontWeight: 400,
-            lineHeight: "35px",
+            ...T.hero,
             color: "var(--wiki-title)",
             maxWidth: "100%",
             paddingLeft: 8,
@@ -126,7 +154,7 @@ export default function WikiHomeHero() {
             whiteSpace: "normal",
           }}
         >
-          Antellopia, Returns!
+          {greeting}
         </h1>
       </div>
 
@@ -138,12 +166,12 @@ export default function WikiHomeHero() {
           fallback={
             <div
               className="h-[88px] w-full max-w-[591px] shrink-0"
-              style={{ background: "var(--wiki-chat-bg)", borderRadius: 12 }}
+              style={{ background: "var(--wiki-chat-bg)" }}
               aria-hidden
             />
           }
         >
-          <HomeSearchBlock />
+          <HomeSearchBlock activeFilter={activeFilter} />
         </Suspense>
 
         <div
@@ -151,18 +179,24 @@ export default function WikiHomeHero() {
           style={{ gap: 8 }}
         >
           <FilterChip
-            href="/wiki/people"
+            id="people"
             label="People"
+            active={activeFilter === "people"}
+            onToggle={toggleFilter}
             icon={<UserRound size={12} strokeWidth={1.5} aria-hidden />}
           />
           <FilterChip
-            href="/wiki/article"
+            id="fragments"
             label="Fragments"
+            active={activeFilter === "fragments"}
+            onToggle={toggleFilter}
             icon={<FileCode size={12} strokeWidth={1.5} aria-hidden />}
           />
           <FilterChip
-            href="/wiki/research"
+            id="wiki"
             label="Wiki"
+            active={activeFilter === "wiki"}
+            onToggle={toggleFilter}
             icon={<BookOpen size={12} strokeWidth={1.5} aria-hidden />}
           />
         </div>

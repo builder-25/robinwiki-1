@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 
+import { T } from "@/lib/typography";
+import { ActionButton } from "@/components/ui/action-button";
+import { Textarea } from "@/components/ui/textarea";
+
 interface PromptDetailStepProps {
   onNext: () => void;
 }
@@ -48,12 +52,11 @@ export default function PromptDetailStep({ onNext }: PromptDetailStepProps) {
   const [prompt, setPrompt] = useState(defaultPrompt);
 
   return (
-    <div className="flex flex-col items-start" style={{ width: 288 }}>
+    <div className="flex flex-col items-start" style={{ width: 320 }}>
       <p
-        className="text-[13px] font-normal uppercase whitespace-nowrap"
+        className="whitespace-nowrap"
         style={{
-          fontFamily: "var(--font-inter), 'Inter', sans-serif",
-          lineHeight: "35px",
+          ...T.overline,
           color: "var(--section-label)",
         }}
       >
@@ -61,12 +64,9 @@ export default function PromptDetailStep({ onNext }: PromptDetailStepProps) {
       </p>
 
       <h1
-        className="text-[28px] whitespace-nowrap"
+        className="whitespace-nowrap"
         style={{
-          fontFamily:
-            "var(--font-source-serif-4), 'Source Serif 4', serif",
-          fontWeight: 400,
-          lineHeight: "35px",
+          ...T.h1,
           color: "var(--heading-color)",
         }}
       >
@@ -74,11 +74,10 @@ export default function PromptDetailStep({ onNext }: PromptDetailStepProps) {
       </h1>
 
       <p
-        className="text-[12px] font-normal w-full"
+        className="w-full"
         style={{
           marginTop: 8,
-          fontFamily: "var(--font-inter), 'Inter', sans-serif",
-          lineHeight: "19px",
+          ...T.micro,
           color: "var(--section-label)",
         }}
       >
@@ -99,11 +98,8 @@ export default function PromptDetailStep({ onNext }: PromptDetailStepProps) {
             <UserIcon />
           </div>
           <span
-            className="font-semibold"
             style={{
-              fontSize: 12.17,
-              fontFamily: "var(--font-inter), 'Inter', sans-serif",
-              lineHeight: "14.604px",
+              ...T.cardTitle,
               color: "var(--card-title)",
             }}
           >
@@ -112,30 +108,16 @@ export default function PromptDetailStep({ onNext }: PromptDetailStepProps) {
         </div>
 
         {/* Editable prompt textarea */}
-        <textarea
+        <Textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          className="w-full resize-none"
+          className="resize-none min-h-[200px]"
           rows={10}
-          style={{
-            padding: 14,
-            borderRadius: 4,
-            border: "0.608px solid var(--card-border)",
-            backgroundColor: "var(--input-bg)",
-            color: "var(--card-title)",
-            fontFamily: "var(--font-inter), 'Inter', sans-serif",
-            fontSize: 10,
-            lineHeight: "16px",
-            outline: "none",
-          }}
         />
 
         <span
-          className="font-medium"
           style={{
-            fontSize: 9.736,
-            fontFamily: "var(--font-inter), 'Inter', sans-serif",
-            lineHeight: "14.604px",
+            ...T.cardDesc,
             color: "#616161",
           }}
         >
@@ -144,24 +126,9 @@ export default function PromptDetailStep({ onNext }: PromptDetailStepProps) {
         </span>
       </div>
 
-      <button
-        onClick={onNext}
-        className="self-end cursor-pointer rounded-[2px] text-center text-[14px] font-bold transition-opacity hover:opacity-90"
-        style={{
-          marginTop: 50,
-          height: 32,
-          minWidth: 32,
-          maxWidth: 448,
-          padding: "4px 12px",
-          lineHeight: "20px",
-          fontFamily: "var(--font-inter), 'Inter', sans-serif",
-          backgroundColor: "var(--btn-primary-bg)",
-          color: "var(--btn-primary-text)",
-          border: "none",
-        }}
-      >
+      <ActionButton type="button" onClick={onNext} className="mt-12 self-end">
         Continue
-      </button>
+      </ActionButton>
     </div>
   );
 }

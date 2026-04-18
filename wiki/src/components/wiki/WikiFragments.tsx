@@ -1,57 +1,41 @@
 "use client";
 
 import Link from "next/link";
+import { T } from "@/lib/typography";
 import { useFragments } from "@/hooks/useFragments";
 
-const IBM = "var(--font-ibm-plex-sans), 'IBM Plex Sans', sans-serif";
-
 function FragmentListItem({
-  fragment,
   index,
+  text,
+  href,
 }: {
-  fragment: { id: string; title: string };
   index: number;
+  text: string;
+  href: string;
 }) {
-  const indexColorVar =
-    index % 2 === 0
-      ? "var(--wiki-fragment-index-1)"
-      : "var(--wiki-fragment-index-2)";
-
   return (
     <div
       style={{
-        position: "relative",
         display: "flex",
-        flex: "1 0 0",
-        alignItems: "flex-start",
+        alignItems: "baseline",
         gap: 8,
+        padding: "4px 16px",
         minWidth: 0,
-        paddingLeft: 16,
       }}
     >
       <span
         style={{
+          ...T.micro,
           flexShrink: 0,
-          width: 20,
-          alignSelf: "stretch",
-          fontFamily: IBM,
-          fontSize: 14,
-          fontWeight: 400,
-          lineHeight: "20px",
-          letterSpacing: "0.16px",
-          color: indexColorVar,
+          color: "var(--wiki-fragment-index-1)",
         }}
       >
-        {index + 1}.
+        {index}.
       </span>
       <Link
-        href={`/wiki/fragment/${fragment.id}`}
+        href={href}
         style={{
-          fontFamily: IBM,
-          fontSize: 16,
-          fontWeight: 400,
-          lineHeight: "20px",
-          letterSpacing: "0.16px",
+          ...T.bodySmall,
           color: "var(--wiki-fragment-link)",
           textDecoration: "underline",
           textDecorationSkipInk: "none",
@@ -60,21 +44,15 @@ function FragmentListItem({
           textOverflow: "ellipsis",
         }}
       >
-        {fragment.title}
+        {text}
       </Link>
     </div>
   );
 }
 
 export default function WikiFragments() {
-  const { data, isLoading, error } = useFragments({ limit: 12 });
-  const fragments = data?.fragments ?? [];
-
-  // Pair fragments into rows of 2
-  const rows: Array<[typeof fragments[0], typeof fragments[0] | undefined]> = [];
-  for (let i = 0; i < fragments.length; i += 2) {
-    rows.push([fragments[i], fragments[i + 1]]);
-  }
+  const fragmentsQuery = useFragments({ limit: 12 });
+  const fragments = fragmentsQuery.data?.fragments ?? [];
 
   return (
     <section
@@ -82,30 +60,22 @@ export default function WikiFragments() {
         display: "flex",
         width: "100%",
         flexDirection: "column",
-        alignItems: "flex-start",
-        gap: 20,
-        paddingBottom: 20,
         border: "1px solid var(--wiki-card-border)",
         boxSizing: "border-box",
       }}
     >
+      {/* Header */}
       <div
         style={{
-          width: "100%",
-          flexShrink: 0,
-          borderTop: "1px solid var(--wiki-card-border)",
           borderBottom: "1px solid var(--wiki-card-border)",
           padding: "10px 16px",
-          boxSizing: "border-box",
+          backgroundColor: "var(--profile-item-border)",
         }}
       >
         <p
           style={{
+            ...T.h4,
             margin: 0,
-            fontFamily: "var(--font-inter), Inter, sans-serif",
-            fontSize: 16,
-            fontWeight: 600,
-            lineHeight: "20px",
             color: "var(--wiki-card-header)",
           }}
         >
@@ -113,55 +83,30 @@ export default function WikiFragments() {
         </p>
       </div>
 
+      {/* Two-column list */}
       <div
         style={{
-          display: "flex",
-          width: "100%",
-          flexDirection: "column",
-          alignItems: "flex-start",
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "4px 0",
+          padding: "12px 0",
+          backgroundColor: "var(--color-background)",
         }}
       >
-        {isLoading && (
-          <div style={{ padding: "0 16px" }}>
-            <p style={{ color: "var(--wiki-item-date)", fontSize: 12 }}>Loading fragments...</p>
-          </div>
+        {fragments.length === 0 && !fragmentsQuery.isLoading ? (
+          <p style={{ padding: "4px 16px", ...T.bodySmall, color: "var(--wiki-fragment-index-1)" }}>
+            No fragments yet.
+          </p>
+        ) : (
+          fragments.map((frag, i) => (
+            <FragmentListItem
+              key={frag.id}
+              index={i + 1}
+              text={frag.title}
+              href={`/wiki/fragment/${frag.lookupKey}`}
+            />
+          ))
         )}
-        {error && (
-          <div style={{ padding: "0 16px" }}>
-            <p style={{ color: "var(--wiki-item-date)", fontSize: 12 }}>Failed to load fragments</p>
-          </div>
-        )}
-        {!isLoading && !error && fragments.length === 0 && (
-          <div style={{ padding: "0 16px" }}>
-            <p style={{ color: "var(--wiki-item-date)", fontSize: 12, fontStyle: "italic" }}>
-              No fragments yet
-            </p>
-          </div>
-        )}
-        <div
-          style={{
-            display: "flex",
-            width: "100%",
-            flexDirection: "column",
-            alignItems: "flex-start",
-            gap: 13,
-          }}
-        >
-          {rows.map(([left, right], rowIdx) => (
-            <div
-              key={rowIdx}
-              style={{
-                display: "flex",
-                width: "100%",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <FragmentListItem fragment={left} index={rowIdx * 2} />
-              {right && <FragmentListItem fragment={right} index={rowIdx * 2 + 1} />}
-            </div>
-          ))}
-        </div>
       </div>
     </section>
   );

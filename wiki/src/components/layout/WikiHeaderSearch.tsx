@@ -40,7 +40,7 @@ function WikiHeaderSearchInner() {
       className="flex min-h-0 min-w-0 w-full max-w-[591px] items-stretch justify-center"
       style={{
         background: "var(--wiki-chat-bg)",
-        borderRadius: 24,
+        borderRadius: 0,
         padding: "6px 10px",
         boxSizing: "border-box",
       }}

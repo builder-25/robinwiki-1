@@ -8,15 +8,13 @@ import WikiHomeHero from "@/components/wiki/WikiHomeHero";
 
 export default function WikiArticlePage() {
   return (
-    <div className="wiki-page-wrapper wiki-home-page flex w-full flex-col items-center">
+    <div className="wiki-page wiki-page--home">
       <WikiHomeHero />
 
       {/* Figma 217:35526 — 104px gap below hero (y 203 → 307) */}
       <div
-        className="wiki-cards-container wiki-home-cards"
+        className="wiki-cards-container wiki-home-cards wiki-page__content wiki-page__content--centered"
         style={{
-          width: 920,
-          maxWidth: "calc(100% - 48px)",
           display: "flex",
           flexDirection: "column",
           gap: 24,

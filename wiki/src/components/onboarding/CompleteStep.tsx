@@ -2,6 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check, Copy } from "lucide-react";
+
+import { T } from "@/lib/typography";
+import { ActionButton } from "@/components/ui/action-button";
+import { Card, CardContent } from "@/components/ui/card";
 
 function Logo() {
   return (
@@ -26,22 +31,24 @@ export default function CompleteStep() {
   const mcpEndpoint = "http://localhost:3001/mcp";
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(mcpEndpoint);
+    try {
+      await navigator.clipboard.writeText(mcpEndpoint);
+    } catch {
+      // clipboard may be unavailable (insecure context / iframe); still show feedback
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="flex flex-col items-center" style={{ width: 348 }}>
+    <div className="flex flex-col items-center" style={{ width: 320 }}>
       <Logo />
 
       <h1
-        className="text-[28px] whitespace-nowrap"
+        className="whitespace-nowrap"
         style={{
           marginTop: 12,
-          fontFamily: "var(--font-source-serif-4), 'Source Serif 4', serif",
-          fontWeight: 400,
-          lineHeight: "35px",
+          ...T.h1,
           color: "var(--heading-color)",
         }}
       >
@@ -49,11 +56,10 @@ export default function CompleteStep() {
       </h1>
 
       <p
-        className="text-center text-[14px] font-normal"
+        className="text-center"
         style={{
           marginTop: 12,
-          fontFamily: "var(--font-inter), 'Inter', sans-serif",
-          lineHeight: "22px",
+          ...T.bodySmall,
           width: 245,
           color: "var(--body-text)",
         }}
@@ -62,22 +68,11 @@ export default function CompleteStep() {
       </p>
 
       {/* MCP ENDPOINT CARD */}
-      <div
-        className="flex w-full"
-        style={{
-          marginTop: 50,
-          gap: 10,
-          padding: 14,
-          borderRadius: 1,
-          border: "0.6px solid var(--card-border)",
-        }}
-      >
-        <div className="flex flex-1 flex-col" style={{ gap: 6 }}>
+      <Card size="sm" className="w-full rounded-none" style={{ marginTop: 50 }}>
+        <CardContent className="flex flex-col" style={{ gap: 6 }}>
           <span
-            className="text-[12px] font-semibold"
             style={{
-              fontFamily: "var(--font-inter), 'Inter', sans-serif",
-              lineHeight: "15px",
+              ...T.cardTitle,
               color: "var(--mcp-endpoint-label)",
             }}
           >
@@ -94,9 +89,9 @@ export default function CompleteStep() {
               }}
             >
               <span
-                className="text-[11px] font-medium truncate"
+                className="truncate"
                 style={{
-                  fontFamily: "var(--font-inter), 'Inter', sans-serif",
+                  ...T.helper,
                   color: "var(--card-desc)",
                 }}
               >
@@ -114,67 +109,31 @@ export default function CompleteStep() {
               aria-label="Copy endpoint"
             >
               {copied ? (
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="var(--card-desc)"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
+                <Check size={14} strokeWidth={2} style={{ color: "var(--card-desc)" }} />
               ) : (
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="var(--card-desc)"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
+                <Copy size={14} strokeWidth={2} style={{ color: "var(--card-desc)" }} />
               )}
             </button>
           </div>
 
           <span
-            className="text-[10px] font-medium"
             style={{
-              fontFamily: "var(--font-inter), 'Inter', sans-serif",
-              lineHeight: "15px",
+              ...T.micro,
               color: "var(--card-desc)",
             }}
           >
             Add fragments yourself through the UI. Paste notes, write thoughts,
             log decisions.
           </span>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* QUICK SETUP CARD */}
-      <div
-        className="flex w-full"
-        style={{
-          marginTop: 12,
-          gap: 10,
-          padding: 14,
-          borderRadius: 1,
-          border: "0.6px solid var(--card-border)",
-        }}
-      >
-        <div className="flex flex-1 flex-col" style={{ gap: 6 }}>
+      <Card size="sm" className="w-full rounded-none" style={{ marginTop: 12 }}>
+        <CardContent className="flex flex-col" style={{ gap: 6 }}>
           <span
-            className="text-[12px] font-semibold"
             style={{
-              fontFamily: "var(--font-inter), 'Inter', sans-serif",
-              lineHeight: "15px",
+              ...T.cardTitle,
               color: "var(--mcp-endpoint-label)",
             }}
           >
@@ -187,46 +146,40 @@ export default function CompleteStep() {
               className="flex items-start"
               style={{
                 gap: 6,
-                fontFamily: "var(--font-inter), 'Inter', sans-serif",
               }}
             >
               <span
-                className="shrink-0 text-[10px] font-medium whitespace-nowrap"
-                style={{ lineHeight: "15px", color: "var(--setup-number)" }}
+                className="shrink-0 whitespace-nowrap"
+                style={{
+                  ...T.micro,
+                  color: "var(--setup-number)",
+                }}
               >
                 {num}
               </span>
               <span
-                className="flex-1 text-[10px] font-medium"
-                style={{ lineHeight: "15px", color: "var(--setup-text)" }}
+                className="flex-1"
+                style={{
+                  ...T.micro,
+                  color: "var(--setup-text)",
+                }}
               >
                 Add fragments yourself through the UI. Paste notes, write
                 thoughts, log decisions.
               </span>
             </div>
           ))}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* CREATE NOTE BUTTON */}
-      <button
+      <ActionButton
+        type="button"
         onClick={() => router.push("/wiki")}
-        className="cursor-pointer rounded-[2px] text-center text-[14px] font-bold transition-opacity hover:opacity-90"
-        style={{
-          marginTop: 40,
-          height: 32,
-          minWidth: 32,
-          maxWidth: 448,
-          padding: "4px 12px",
-          lineHeight: "20px",
-          fontFamily: "var(--font-inter), 'Inter', sans-serif",
-          backgroundColor: "var(--btn-primary-bg)",
-          color: "var(--btn-primary-text)",
-          border: "none",
-        }}
+        className="mt-10"
       >
-        Create a your first note
-      </button>
+        Go to your wiki
+      </ActionButton>
     </div>
   );
 }

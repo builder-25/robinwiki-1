@@ -1,5 +1,7 @@
 "use client";
 
+import { T } from "@/lib/typography";
+
 function SendArrowIcon({ size }: { size: number }) {
   return (
     <svg
@@ -109,11 +111,9 @@ export default function WikiSearchBar({
               className="wiki-chat-input min-w-0 w-full bg-transparent outline-none"
               style={{
                 height: 20,
-                fontFamily: "var(--font-inter), Inter, sans-serif",
-                fontSize: 14,
-                fontWeight: 400,
-                lineHeight: "20px",
+                ...T.input,
                 letterSpacing: 0,
+                lineHeight: "20px",
                 color: "var(--wiki-title)",
                 fontFeatureSettings: "'ss01' 1, 'cv01' 1",
               }}
@@ -178,11 +178,9 @@ export default function WikiSearchBar({
             className="wiki-chat-input min-w-0 flex-1 bg-transparent outline-none"
             style={{
               height: compact ? 18 : 20,
-              fontFamily: "var(--font-inter), Inter, sans-serif",
-              fontSize: 14,
-              fontWeight: 400,
-              lineHeight: compact ? "18px" : "20px",
+              ...T.input,
               letterSpacing: 0,
+              lineHeight: compact ? "18px" : "20px",
               color: "var(--wiki-title)",
               fontFeatureSettings: "'ss01' 1, 'cv01' 1",
             }}

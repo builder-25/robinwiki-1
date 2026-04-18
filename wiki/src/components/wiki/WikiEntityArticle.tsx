@@ -1,18 +1,44 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import {
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import AddWikiModal from "@/components/layout/AddWikiModal";
+import InlineEditor from "@/components/editor/InlineEditor";
+import WikiHistoryTimeline from "@/components/wiki/WikiHistoryTimeline";
+import { T, FONT } from "@/lib/typography";
+import {
+  EDITABLE_WIKI_TYPES,
+  getWikiTypeColors,
+  getWikiTypeIcon,
+  isPeopleWikiType,
+  WikiTypeBadge,
+  type WikiType,
+} from "@/components/wiki/WikiTypeBadge";
+import {
+  Combobox,
+  ComboboxCollection,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+  ComboboxValue,
+} from "@/components/ui/combobox";
+import { useWikiEntityEditMode } from "@/components/wiki/useWikiEntityEditMode";
 import { wikiEntitySettingsPrefill } from "@/lib/wikiSettingsPrefill";
 import {
   Check,
   CircleDot,
   Flag,
-  UserRound,
   type LucideIcon,
 } from "lucide-react";
-
-const IBM = "var(--font-ibm-plex-sans), 'IBM Plex Sans', sans-serif";
-const HELV_MED = "'Helvetica Neue', Helvetica, Arial, sans-serif";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 const FragmentTitle =
   "Andrew Tate Biography | The Real World Portal";
@@ -22,7 +48,7 @@ function EyeOpenIcon() {
     <svg width={17} height={13} viewBox="0 0 17 13" fill="none" aria-hidden>
       <path
         d="M8.5 0.25C4.636 0.25 1.34 2.66 0 6.25C1.34 9.84 4.636 12.25 8.5 12.25C12.364 12.25 15.66 9.84 17 6.25C15.66 2.66 12.364 0.25 8.5 0.25ZM8.5 10.25C6.291 10.25 4.5 8.459 4.5 6.25C4.5 4.041 6.291 2.25 8.5 2.25C10.709 2.25 12.5 4.041 12.5 6.25C12.5 8.459 10.709 10.25 8.5 10.25ZM8.5 4.25C7.395 4.25 6.5 5.145 6.5 6.25C6.5 7.355 7.395 8.25 8.5 8.25C9.605 8.25 10.5 7.355 10.5 6.25C10.5 5.145 9.605 4.25 8.5 4.25Z"
-        fill="var(--wiki-tab-text)"
+        fill="rgba(0, 0, 0, 1)"
       />
     </svg>
   );
@@ -33,7 +59,7 @@ function EyeClosedIcon() {
     <svg width={17} height={15} viewBox="0 0 17 15" fill="none" aria-hidden>
       <path
         d="M8.5 2.5C10.709 2.5 12.5 4.291 12.5 6.5C12.5 7.02 12.39 7.51 12.21 7.97L14.54 10.3C15.77 9.29 16.73 7.99 17 6.5C15.66 2.91 12.364 0.5 8.5 0.5C7.474 0.5 6.49 0.68 5.57 0.99L7.28 2.7C7.74 2.52 8.22 2.5 8.5 2.5ZM0.94 1.37L2.69 3.12L3.08 3.51C1.73 4.55 0.68 5.93 0 6.5C1.34 10.09 4.636 12.5 8.5 12.5C9.63 12.5 10.71 12.28 11.71 11.89L12.08 12.26L14.38 14.56L15.33 13.61L1.89 0.42L0.94 1.37ZM5.18 5.61L6.32 6.75C6.29 6.83 6.27 6.92 6.27 7C6.27 8.105 7.165 9 8.27 9C8.35 9 8.44 8.98 8.52 8.95L9.66 10.09C9.24 10.3 8.78 10.43 8.27 10.43C6.061 10.43 4.27 8.639 4.27 6.43C4.27 5.92 4.4 5.46 4.61 5.04L5.18 5.61ZM8.36 4.08L10.69 6.41L10.71 6.27C10.71 5.165 9.815 4.27 8.71 4.27L8.36 4.08Z"
-        fill="var(--wiki-tab-text)"
+        fill="rgba(0, 0, 0, 1)"
       />
     </svg>
   );
@@ -76,18 +102,13 @@ export function WikiLink({
 }
 
 const infoboxLabel = {
-  fontFamily: HELV_MED,
+  ...T.micro,
   fontWeight: 700 as const,
-  fontSize: 12,
-  lineHeight: "16px",
   color: "var(--wiki-infobox-title)",
 };
 
 const infoboxBodyMuted = {
-  fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
-  fontWeight: 400 as const,
-  fontSize: 12,
-  lineHeight: "16px",
+  ...T.micro,
   color: "var(--wiki-infobox-text)",
   opacity: 0.7,
 };
@@ -201,8 +222,7 @@ export function WikiInfoboxGoalStyle({
         gap: 20,
         boxSizing: "border-box",
         alignSelf: "flex-start",
-        fontSize: 12,
-        lineHeight: "16px",
+        ...T.micro,
       }}
     >
       {showSettings ? (
@@ -258,6 +278,7 @@ function ProgressMarkersBlock({
     <div
       style={{
         border: "1px solid #282828",
+        borderRadius: 0,
         display: "flex",
         flexDirection: "column",
         gap: 8,
@@ -331,10 +352,8 @@ function ProgressMarkersBlock({
               <p
                 style={{
                   margin: 0,
-                  fontFamily: IBM,
-                  fontSize: 16,
+                  ...T.h4,
                   fontWeight: 500,
-                  lineHeight: "20px",
                   letterSpacing: "0.16px",
                   color: "#d5d5d5",
                   whiteSpace: "normal",
@@ -346,10 +365,7 @@ function ProgressMarkersBlock({
               <p
                 style={{
                   margin: 0,
-                  fontFamily: "var(--font-inter), Inter, sans-serif",
-                  fontSize: 14,
-                  fontWeight: 400,
-                  lineHeight: "22px",
+                  ...T.bodySmall,
                   color: "var(--wiki-article-text)",
                 }}
               >
@@ -377,10 +393,8 @@ function ProgressMarkersBlock({
                 <p
                   style={{
                     margin: 0,
-                    fontFamily: IBM,
-                    fontSize: 16,
+                    ...T.h4,
                     fontWeight: 500,
-                    lineHeight: "20px",
                     letterSpacing: "0.16px",
                     color: "#d5d5d5",
                     whiteSpace: "nowrap",
@@ -391,10 +405,7 @@ function ProgressMarkersBlock({
                 <p
                   style={{
                     margin: 0,
-                    fontFamily: "var(--font-inter), Inter, sans-serif",
-                    fontSize: 14,
-                    fontWeight: 400,
-                    lineHeight: "22px",
+                    ...T.bodySmall,
                     color: "var(--wiki-article-text)",
                     maxWidth: 171,
                   }}
@@ -448,6 +459,7 @@ export function WikiProgressMarkersSection({
         flexDirection: "column",
         gap: 24,
         width: "100%",
+        borderRadius: 0,
       }}
     >
       <div
@@ -462,11 +474,7 @@ export function WikiProgressMarkersSection({
         <h2
           style={{
             margin: 0,
-            fontFamily:
-              "var(--font-source-serif-4), 'Source Serif 4', 'Source Serif Pro', serif",
-            fontSize: 24,
-            fontWeight: 400,
-            lineHeight: "30px",
+            ...T.h2,
             color: "var(--wiki-article-h2)",
           }}
         >
@@ -490,10 +498,7 @@ export function WikiIntroLead() {
     <p
       style={{
         margin: 0,
-        fontFamily: "var(--font-inter), Inter, sans-serif",
-        fontSize: 14,
-        fontWeight: 400,
-        lineHeight: "22px",
+        ...T.bodySmall,
         color: "var(--wiki-article-text)",
       }}
     >
@@ -540,10 +545,8 @@ export function WikiDesktopH4Lorem({ paragraphs = 1 }: { paragraphs?: 1 | 2 }) {
         style={{
           margin: 0,
           paddingTop: 6,
-          fontFamily: HELV_MED,
-          fontSize: 14,
+          ...T.bodySmall,
           fontWeight: 700,
-          lineHeight: "22.4px",
           color: "var(--wiki-article-text)",
         }}
       >
@@ -552,10 +555,7 @@ export function WikiDesktopH4Lorem({ paragraphs = 1 }: { paragraphs?: 1 | 2 }) {
       <p
         style={{
           margin: 0,
-          fontFamily: "var(--font-inter), Inter, sans-serif",
-          fontSize: 14,
-          fontWeight: 400,
-          lineHeight: "22px",
+          ...T.bodySmall,
           color: "var(--wiki-article-text)",
         }}
       >
@@ -568,10 +568,7 @@ export function WikiDesktopH4Lorem({ paragraphs = 1 }: { paragraphs?: 1 | 2 }) {
         <p
           style={{
             margin: 0,
-            fontFamily: "var(--font-inter), Inter, sans-serif",
-            fontSize: 14,
-            fontWeight: 400,
-            lineHeight: "22px",
+            ...T.bodySmall,
             color: "var(--wiki-article-text)",
           }}
         >
@@ -585,7 +582,7 @@ export function WikiDesktopH4Lorem({ paragraphs = 1 }: { paragraphs?: 1 | 2 }) {
   );
 }
 
-export function WikiSectionH2({ title }: { title: string }) {
+export function WikiSectionH2({ title, count }: { title: string; count?: number }) {
   return (
     <div
       style={{
@@ -599,15 +596,26 @@ export function WikiSectionH2({ title }: { title: string }) {
       <h2
         style={{
           margin: 0,
-          fontFamily:
-            "var(--font-source-serif-4), 'Source Serif 4', 'Source Serif Pro', serif",
-          fontSize: 24,
-          fontWeight: 400,
-          lineHeight: "30px",
+          ...T.h2,
           color: "var(--wiki-article-h2)",
+          display: "flex",
+          alignItems: "baseline",
+          gap: 8,
         }}
       >
-        {title}
+        <span>{title}</span>
+        {count !== undefined ? (
+          <span
+            style={{
+              ...T.bodySmall,
+              fontFamily: FONT.SANS,
+              fontWeight: 400,
+              color: "var(--wiki-count)",
+            }}
+          >
+            ({count})
+          </span>
+        ) : null}
       </h2>
       <div
         style={{
@@ -623,190 +631,158 @@ export function WikiSectionH2({ title }: { title: string }) {
 function MemberFragmentsSection() {
   return (
     <section style={{ width: "100%" }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ display: "flex", flexDirection: "column", width: "100%" }}>
-          <p
-            style={{
-              margin: 0,
-              fontFamily: HELV_MED,
-              fontSize: 14,
-              fontWeight: 500,
-              lineHeight: "26.88px",
-              color: "#9c9c9c",
-            }}
-          >
-            MEMBER FRAGMENTS (4)
-          </p>
-          <div style={{ height: 1, width: "100%", background: "#313131" }} />
-        </div>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-            paddingTop: 20,
-          }}
-        >
-          {[1, 2, 3, 4].map((n) => (
-            <div
-              key={n}
-              style={{ display: "flex", alignItems: "center", gap: 6 }}
+      <WikiSectionH2 title="Member fragments" count={4} />
+      <ul
+        style={{
+          listStyle: "disc",
+          paddingLeft: 20,
+          margin: "12px 0 0 0",
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          color: "var(--wiki-bullet)",
+        }}
+      >
+        {[1, 2, 3, 4].map((n) => (
+          <li key={n} style={{ lineHeight: "22px" }}>
+            <a
+              href="#"
+              className="wiki-fragment-link"
+              style={{
+                ...T.body,
+                fontFamily: FONT.SANS,
+                lineHeight: "22px",
+                color: "var(--wiki-fragment-link)",
+                textDecoration: "none",
+              }}
             >
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "2px 8px",
-                  flexShrink: 0,
-                  fontFamily: "var(--font-inter), Inter, sans-serif",
-                  fontSize: 12,
-                  fontWeight: 400,
-                  lineHeight: 1.5,
-                  letterSpacing: "-0.0288px",
-                  color: "rgba(242, 229, 229, 0.7)",
-                }}
-              >
-                {n}.
-              </span>
-                  <a
-                    href="#"
-                    className="wiki-fragment-link"
-                    style={{
-                      fontFamily: IBM,
-                      fontSize: 16,
-                      fontWeight: 400,
-                      lineHeight: "20px",
-                      letterSpacing: "0.16px",
-                      color: "var(--wiki-fragment-link)",
-                      textDecoration: "underline",
-                      textDecorationSkipInk: "none",
-                    }}
-                  >
-                {FragmentTitle}
-              </a>
-            </div>
-          ))}
-        </div>
-      </div>
+              {FragmentTitle}
+            </a>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
 
-function MentionedPeopleSection() {
-  const Person = () => (
-    <>
-      <div
-        style={{
-          width: 40,
-          height: 40,
-          flexShrink: 0,
-          background: "#191919",
-          overflow: "hidden",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <UserRound size={24} color="#6b6b6b" aria-hidden />
-      </div>
-      <div
-        style={{
-          flex: 1,
-          minWidth: 0,
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-        }}
-      >
-        <p
-          style={{
-            margin: 0,
-            fontFamily: IBM,
-            fontSize: 16,
-            fontWeight: 500,
-            lineHeight: "20px",
-            letterSpacing: "0.16px",
-            color: "#d5d5d5",
-          }}
-        >
-          Marcus Chen
-        </p>
-        <p
-          style={{
-            margin: 0,
-            fontFamily: "var(--font-inter), Inter, sans-serif",
-            fontSize: 14,
-            fontWeight: 400,
-            lineHeight: "22px",
-            color: "var(--wiki-article-text)",
-          }}
-        >
-          Colleague. Frequent discussions about politics, leadership, and
-          presidential decision-making
-        </p>
-        <div
-          style={{
-            display: "flex",
-            gap: 3,
-            alignItems: "center",
-            fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
-            fontSize: 12,
-            lineHeight: "17px",
-            color: "#444",
-            whiteSpace: "nowrap",
-          }}
-        >
-          <span>Mentioned in 7 fragments </span>
-          <span style={{ lineHeight: "10px" }}>•</span>
-          <span>Last seen 1 week ago</span>
-        </div>
-      </div>
-    </>
-  );
+interface MentionedPerson {
+  name: string;
+  role: string;
+  description: string;
+  mentionCount: number;
+  lastSeen: string;
+  tags: string[];
+}
 
+const MENTIONED_PEOPLE: MentionedPerson[] = [
+  {
+    name: "Priya Natarajan",
+    role: "Mentor",
+    description:
+      "Long conversations about astrophysics, dark matter, and the ethics of public science",
+    mentionCount: 12,
+    lastSeen: "3 days ago",
+    tags: ["Mentor", "Science"],
+  },
+  {
+    name: "Jamal Okafor",
+    role: "Friend",
+    description:
+      "Recurring debates on jazz history, improvisation, and the weight of the blues tradition",
+    mentionCount: 5,
+    lastSeen: "2 weeks ago",
+    tags: ["Friend", "Music"],
+  },
+];
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function MentionedPersonCard({ person }: { person: MentionedPerson }) {
   return (
-    <section className="wiki-mentioned-section" style={{ width: "100%", maxWidth: 864 }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            paddingBottom: 16,
-            width: "100%",
-          }}
-        >
+    <Card className="cursor-pointer rounded-none border-[var(--card-border)] shadow-none transition-colors hover:bg-[#fafafa]">
+      <CardContent className="flex items-start gap-3.5 p-4">
+        <Avatar size="lg" className="shrink-0 rounded-none after:rounded-none">
+          <AvatarFallback className="rounded-none bg-[#f0f0f0] text-[#6b6b6b]">
+            {getInitials(person.name)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p
+              style={{
+                margin: 0,
+                ...T.h4,
+                fontWeight: 500,
+                letterSpacing: "0.16px",
+                color: "rgba(0, 0, 0, 1)",
+              }}
+            >
+              {person.name}
+            </p>
+            {person.tags.map((tag) => (
+              <Badge
+                key={tag}
+                variant="secondary"
+                className="rounded-none bg-[#f5f5f5] text-[#545353] font-normal"
+              >
+                {tag}
+              </Badge>
+            ))}
+          </div>
           <p
             style={{
               margin: 0,
-              fontFamily: HELV_MED,
-              fontSize: 14,
-              fontWeight: 500,
-              lineHeight: "26.88px",
-              color: "#9c9c9c",
+              ...T.bodySmall,
+              color: "var(--wiki-article-text)",
             }}
           >
-            MENTIONED PEOPLE (2)
+            {person.description}
           </p>
-          <div style={{ height: 1, width: "100%", background: "#313131" }} />
-        </div>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 24,
-            paddingTop: 4,
-            paddingBottom: 4,
-          }}
-        >
-          <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-            <Person />
-          </div>
-          <div style={{ height: 1, width: "100%", background: "#141414" }} />
-          <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-            <Person />
+          <div
+            style={{
+              display: "flex",
+              gap: 3,
+              alignItems: "center",
+              ...T.micro,
+              color: "#444",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span>Mentioned in {person.mentionCount} fragments </span>
+            <span style={{ lineHeight: "10px" }}>•</span>
+            <span>Last seen {person.lastSeen}</span>
           </div>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MentionedPeopleSection() {
+  return (
+    <section
+      className="wiki-mentioned-section"
+      style={{ width: "100%", maxWidth: 864 }}
+    >
+      <WikiSectionH2
+        title="Mentioned people"
+        count={MENTIONED_PEOPLE.length}
+      />
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+          paddingTop: 16,
+        }}
+      >
+        {MENTIONED_PEOPLE.map((person, i) => (
+          <MentionedPersonCard key={i} person={person} />
+        ))}
       </div>
     </section>
   );
@@ -817,15 +793,28 @@ export type WikiEntityInfoboxConfig =
   | { kind: "extended"; typeValue: string; showSettings?: boolean };
 
 export type WikiEntityArticleProps = {
-  chipIcon: LucideIcon;
+  chipIcon?: LucideIcon;
   chipLabel: string;
   title: string;
   titleEllipsis?: boolean;
-  /** Voice layout: full-width rule before member fragments */
-  dividerBeforeFragments?: boolean;
   /** Figma agent: divider under title row is hidden */
   showTitleUnderline?: boolean;
+  /** Show/hide infobox panel + eye toggle button */
+  showInfobox?: boolean;
   infobox: WikiEntityInfoboxConfig;
+  /**
+   * Optional custom infobox renderer used by pages that keep the shared shell
+   * but need a type-specific infobox content/layout.
+   */
+  renderCustomInfobox?: (args: { onSettingsClick?: () => void }) => ReactNode;
+  /**
+   * If false, don't render default Member Fragments + Mentioned People sections.
+   */
+  showDefaultBottomSections?: boolean;
+  /**
+   * Optional sections rendered after divider and before modal.
+   */
+  customBottomSections?: ReactNode;
   children: ReactNode;
 };
 
@@ -856,23 +845,55 @@ export function WikiEntityArticle({
   chipLabel,
   title,
   titleEllipsis = false,
-  dividerBeforeFragments = false,
   showTitleUnderline = true,
+  showInfobox = true,
   infobox,
+  renderCustomInfobox,
+  showDefaultBottomSections = true,
+  customBottomSections,
   children,
 }: WikiEntityArticleProps) {
   const [infoVisible, setInfoVisible] = useState(true);
   const [wikiSettingsOpen, setWikiSettingsOpen] = useState(false);
+  const readContentRef = useRef<HTMLDivElement | null>(null);
+  const {
+    isEditing,
+    isViewingHistory,
+    draftContent,
+    savedContent,
+    draftTitle,
+    savedTitle,
+    draftChipLabel,
+    savedChipLabel,
+    revisions,
+    setDraftContent,
+    setDraftTitle,
+    setDraftChipLabel,
+    enterEditMode,
+    openHistory,
+    closeHistory,
+    handleSave,
+    handleCancel,
+  } = useWikiEntityEditMode({
+    infoVisible,
+    setInfoVisible,
+  });
+
+  const displayTitle = savedTitle ?? title;
+  const displayChipLabel = savedChipLabel ?? chipLabel;
+  const displayChipIcon = getWikiTypeIcon(displayChipLabel);
+  const draftChipColors = getWikiTypeColors(draftChipLabel);
+  const wikiTypeLocked = isPeopleWikiType(displayChipLabel);
 
   const wikiSettingsPrefill = useMemo(
-    () => wikiEntitySettingsPrefill({ title, chipLabel }),
-    [title, chipLabel],
+    () => wikiEntitySettingsPrefill({ title: displayTitle, chipLabel: displayChipLabel }),
+    [displayTitle, displayChipLabel],
   );
 
   const tabs = ["Read", "Edit", "View history"] as const;
 
   return (
-    <div className="wiki-article-wrapper">
+    <div className="wiki-page wiki-page--article">
       <div
         style={{
           width: "100%",
@@ -898,37 +919,79 @@ export function WikiEntityArticle({
               width: "100%",
             }}
           >
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 4,
-                padding: "2px 8px",
-                background: "#141414",
-                width: "fit-content",
-              }}
-            >
-              <ChipIcon
-                size={12}
-                strokeWidth={1.5}
-                color="rgba(140, 140, 140, 0.7)"
-                aria-hidden
-              />
-              <span
-                style={{
-                  fontFamily: "var(--font-inter), Inter, sans-serif",
-                  fontSize: 12,
-                  fontWeight: 400,
-                  lineHeight: 1.5,
-                  letterSpacing: "-0.0288px",
-                  color: "rgba(140, 140, 140, 0.7)",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {chipLabel}
-              </span>
-            </div>
+            {isEditing ? (
+              wikiTypeLocked ? (
+                <div style={{ display: "inline-flex", flexDirection: "column", gap: 6 }}>
+                  <WikiTypeBadge type={displayChipLabel} icon={displayChipIcon} />
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: "inline-flex",
+                    flexDirection: "column",
+                    gap: 0,
+                    alignItems: "flex-start",
+                  }}
+                >
+                  <Combobox
+                    value={draftChipLabel}
+                    items={EDITABLE_WIKI_TYPES}
+                    filter={null}
+                    onValueChange={(value) => setDraftChipLabel(String(value))}
+                  >
+                    <ComboboxTrigger
+                      className="inline-flex w-fit items-center gap-1 rounded-sm border border-border bg-white text-xs [&>svg]:text-black"
+                      render={<button type="button" />}
+                      style={{
+                        paddingLeft: 6,
+                        paddingRight: 6,
+                        paddingTop: 3,
+                        paddingBottom: 3,
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          backgroundColor: draftChipColors.bg,
+                          color: "rgba(0, 0, 0, 1)",
+                          borderColor: draftChipColors.border,
+                          borderWidth: 1,
+                          borderStyle: "solid",
+                          borderRadius: 2,
+                          padding: "2px 8px",
+                          lineHeight: "16px",
+                        }}
+                      >
+                        {(() => {
+                          const DraftIcon = getWikiTypeIcon(draftChipLabel);
+                          return <DraftIcon />;
+                        })()}
+                        <ComboboxValue />
+                      </span>
+                    </ComboboxTrigger>
+                    <ComboboxContent className="rounded-none px-2 py-1">
+                      <ComboboxEmpty>No wiki type found.</ComboboxEmpty>
+                      <ComboboxList>
+                        <ComboboxCollection>
+                          {(item) => {
+                            const type = item as WikiType;
+                            return (
+                              <ComboboxItem value={type}>
+                                <WikiTypeBadge type={type} />
+                              </ComboboxItem>
+                            );
+                          }}
+                        </ComboboxCollection>
+                      </ComboboxList>
+                    </ComboboxContent>
+                  </Combobox>
+                </div>
+              )
+            ) : (
+              <WikiTypeBadge type={displayChipLabel} icon={displayChipIcon ?? ChipIcon} />
+            )}
 
             <div
               style={{
@@ -936,106 +999,178 @@ export function WikiEntityArticle({
                 flexDirection: "column",
                 gap: 4,
                 width: "100%",
+                padding: "4px 8px",
               }}
             >
               <div
                 className="wiki-article-title-wrap"
                 style={{
-                  position: "relative",
-                  minHeight: 35,
+                  display: "flex",
+                  alignItems: "flex-end",
+                  justifyContent: "space-between",
                   width: "100%",
+                  borderBottom: showTitleUnderline
+                    ? "1px solid var(--wiki-search-section-line)"
+                    : "none",
                 }}
               >
-                <h1
-                  className="wiki-article-h1"
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    top: "calc(50% - 17.5px)",
-                    margin: 0,
-                    maxWidth: "calc(100% - 200px)",
-                    fontFamily:
-                      "var(--font-source-serif-4), 'Source Serif 4', 'Source Serif Pro', serif",
-                    fontSize: 28,
-                    fontWeight: 400,
-                    lineHeight: "35px",
-                    color: "var(--wiki-title)",
-                    overflow: titleEllipsis ? "hidden" : undefined,
-                    textOverflow: titleEllipsis ? "ellipsis" : undefined,
-                    whiteSpace: titleEllipsis ? "nowrap" : undefined,
-                  }}
-                >
-                  {title}
-                </h1>
+                {isEditing ? (
+                  <input
+                    value={draftTitle}
+                    onChange={(event) => setDraftTitle(event.target.value)}
+                    aria-label="Wiki title"
+                    style={{
+                      margin: 0,
+                      paddingBottom: 7,
+                      ...T.h1,
+                      fontFamily: FONT.SERIF,
+                      color: "var(--wiki-title)",
+                      minWidth: 0,
+                      flex: 1,
+                      border: "none",
+                      outline: "none",
+                      background: "transparent",
+                    }}
+                  />
+                ) : (
+                  <h1
+                    className="wiki-article-h1"
+                    style={{
+                      margin: 0,
+                      paddingBottom: 7,
+                      ...T.h1,
+                      fontFamily: FONT.SERIF,
+                      color: "var(--wiki-title)",
+                      overflow: titleEllipsis ? "hidden" : undefined,
+                      textOverflow: titleEllipsis ? "ellipsis" : undefined,
+                      whiteSpace: titleEllipsis ? "nowrap" : undefined,
+                      minWidth: 0,
+                      flex: 1,
+                    }}
+                  >
+                    {displayTitle}
+                  </h1>
+                )}
                 <div
                   className="wiki-article-tabs"
                   style={{
-                    position: "absolute",
-                    right: 0,
-                    top: -4.12,
                     display: "flex",
                     alignItems: "flex-end",
                     gap: 13,
-                    height: 49,
+                    flexShrink: 0,
                   }}
                 >
-                  {tabs.map((tab, i) => (
+                  {isEditing ? (
+                    <>
+                      <button
+                        type="button"
+                        className="wiki-article-tab"
+                        onClick={handleSave}
+                        style={{
+                          background: "none",
+                          borderTop: "none",
+                          borderLeft: "none",
+                          borderRight: "none",
+                          cursor: "pointer",
+                          ...T.bodySmall,
+                          fontFamily: FONT.SANS,
+                          lineHeight: "20px",
+                          paddingBottom: 7,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        className="wiki-article-tab-muted"
+                        onClick={handleCancel}
+                        style={{
+                          background: "none",
+                          borderTop: "none",
+                          borderLeft: "none",
+                          borderRight: "none",
+                          cursor: "pointer",
+                          ...T.bodySmall,
+                          fontFamily: FONT.SANS,
+                          lineHeight: "20px",
+                          paddingBottom: 7,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    tabs.map((tab) => {
+                      const active =
+                        (tab === "Read" && !isViewingHistory) ||
+                        (tab === "View history" && isViewingHistory);
+                      return (
+                        <button
+                          key={tab}
+                          type="button"
+                          className={
+                            active
+                              ? "wiki-article-tab wiki-article-tab-active"
+                              : "wiki-article-tab"
+                          }
+                          onClick={() => {
+                            if (tab === "Edit") {
+                              enterEditMode({
+                                currentHtml: readContentRef.current?.innerHTML ?? "",
+                                currentTitle: displayTitle,
+                                currentChipLabel: displayChipLabel,
+                              });
+                            } else if (tab === "View history") {
+                              openHistory({
+                                currentHtml: readContentRef.current?.innerHTML ?? "",
+                                currentTitle: displayTitle,
+                                currentChipLabel: displayChipLabel,
+                              });
+                            } else if (tab === "Read") {
+                              if (isViewingHistory) closeHistory();
+                            }
+                          }}
+                          style={{
+                            background: "none",
+                            borderTop: "none",
+                            borderLeft: "none",
+                            borderRight: "none",
+                            cursor: "pointer",
+                            ...T.bodySmall,
+                            fontFamily: FONT.SANS,
+                            lineHeight: "20px",
+                            paddingBottom: 7,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {tab}
+                        </button>
+                      );
+                    })
+                  )}
+                  {showInfobox && !isEditing && !isViewingHistory ? (
                     <button
-                      key={tab}
                       type="button"
+                      title={infoVisible ? "Hide infobox" : "Show infobox"}
+                      onClick={() => setInfoVisible((v) => !v)}
                       style={{
                         background: "none",
                         border: "none",
-                        borderBottom:
-                          i === 0
-                            ? "1px solid #aebdcf"
-                            : "1px solid transparent",
                         cursor: "pointer",
-                        fontFamily: "var(--font-inter), Inter, sans-serif",
-                        fontSize: 14,
-                        fontWeight: 400,
-                        lineHeight: "20px",
-                        color: "var(--wiki-tab-text)",
-                        padding: "16px 0 7px",
-                        whiteSpace: "nowrap",
-                        boxSizing: "border-box",
-                        minHeight: 49,
                         display: "flex",
-                        alignItems: "flex-end",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: 24,
+                        paddingBottom: 7,
                       }}
                     >
-                      {tab}
+                      {infoVisible ? <EyeOpenIcon /> : <EyeClosedIcon />}
                     </button>
-                  ))}
-                  <button
-                    type="button"
-                    title={infoVisible ? "Hide infobox" : "Show infobox"}
-                    onClick={() => setInfoVisible((v) => !v)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: 24,
-                      height: "100%",
-                      padding: 0,
-                    }}
-                  >
-                    {infoVisible ? <EyeOpenIcon /> : <EyeClosedIcon />}
-                  </button>
+                  ) : null}
                 </div>
               </div>
-              {showTitleUnderline ? (
-                <div
-                  style={{
-                    height: 1,
-                    width: "100%",
-                    background: "var(--wiki-search-section-line)",
-                  }}
-                />
-              ) : null}
             </div>
           </div>
 
@@ -1058,41 +1193,61 @@ export function WikiEntityArticle({
                 gap: 8,
               }}
             >
-              {children}
+              {isEditing ? (
+                <InlineEditor
+                  content={draftContent}
+                  onChange={setDraftContent}
+                  editable
+                />
+              ) : isViewingHistory ? (
+                <WikiHistoryTimeline revisions={revisions} />
+              ) : (
+                <div ref={readContentRef}>
+                  {savedContent ? (
+                    <div
+                      className="wiki-richtext-rendered"
+                      dangerouslySetInnerHTML={{ __html: savedContent }}
+                    />
+                  ) : (
+                    children
+                  )}
+                </div>
+              )}
             </div>
 
-            {infoVisible
-              ? renderInfobox(
-                  infobox,
-                  (infobox.kind === "simple" || infobox.kind === "extended") &&
+            {showInfobox && infoVisible && !isEditing && !isViewingHistory
+              ? (() => {
+                  const onSettingsClick =
+                    (infobox.kind === "simple" || infobox.kind === "extended") &&
                     infobox.showSettings
-                    ? () => setWikiSettingsOpen(true)
-                    : undefined,
-                )
+                      ? () => setWikiSettingsOpen(true)
+                      : undefined;
+
+                  if (renderCustomInfobox) {
+                    return renderCustomInfobox({ onSettingsClick });
+                  }
+
+                  return renderInfobox(infobox, onSettingsClick);
+                })()
               : null}
           </div>
         </div>
 
-        {dividerBeforeFragments ? (
-          <div
-            style={{
-              height: 1,
-              width: "100%",
-              background: "#161616",
-              flexShrink: 0,
-            }}
-          />
+        {showDefaultBottomSections ? (
+          <>
+            <MemberFragmentsSection />
+            <MentionedPeopleSection />
+          </>
         ) : null}
 
-        <MemberFragmentsSection />
-        <MentionedPeopleSection />
+        {customBottomSections}
       </div>
 
       <AddWikiModal
         open={wikiSettingsOpen}
         onClose={() => setWikiSettingsOpen(false)}
         title="Wiki Settings"
-        confirmLabel="Edit Wiki"
+        confirmLabel="Edit Wiki Settings"
         prefill={wikiSettingsPrefill}
       />
     </div>

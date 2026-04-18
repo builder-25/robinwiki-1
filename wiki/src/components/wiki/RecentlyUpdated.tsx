@@ -1,7 +1,19 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
+import { T } from "@/lib/typography";
 import { useWikis } from "@/hooks/useWikis";
+
+function timeAgo(dateStr: string): string {
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const diffDay = Math.floor(diffMs / 86_400_000);
+  if (diffDay < 1) return "today";
+  if (diffDay < 30) return `${diffDay}d ago`;
+  const diffWeek = Math.floor(diffDay / 7);
+  if (diffWeek < 8) return `${diffWeek}w ago`;
+  return new Date(dateStr).toLocaleDateString();
+}
 
 const BulletDot = () => (
   <svg
@@ -21,16 +33,32 @@ const BulletDot = () => (
 );
 
 export default function RecentlyUpdated() {
-  const { data, isLoading, error } = useWikis({ limit: 5 });
-  const wikis = data?.threads ?? [];
+  const wikisQuery = useWikis({ limit: 5 });
+
+  const items = useMemo(() => {
+    const threads = wikisQuery.data?.threads ?? [];
+    // Sort by updatedAt descending and take the first 5
+    return [...threads]
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 5)
+      .map((t) => ({
+        title: t.name,
+        updatedAgo: timeAgo(t.updatedAt),
+        href: `/wiki/${t.lookupKey}`,
+      }));
+  }, [wikisQuery.data]);
 
   return (
     <div
       className="wiki-recently-updated"
       style={{
         border: "1px solid var(--wiki-card-border)",
+        backgroundColor: "var(--profile-item-border)",
+        display: "flex",
+        flexDirection: "column" as const,
       }}
     >
+      {/* Header */}
       <div
         style={{
           borderBottom: "1px solid var(--wiki-card-border)",
@@ -39,10 +67,7 @@ export default function RecentlyUpdated() {
       >
         <p
           style={{
-            fontFamily: "var(--font-inter), Inter, sans-serif",
-            fontSize: 16,
-            fontWeight: 600,
-            lineHeight: "20px",
+            ...T.h4,
             color: "var(--wiki-card-header)",
             whiteSpace: "nowrap",
           }}
@@ -51,88 +76,73 @@ export default function RecentlyUpdated() {
         </p>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        {isLoading && (
-          <div style={{ padding: "8px 12px" }}>
-            <p style={{ color: "var(--wiki-item-date)", fontSize: 12 }}>Loading...</p>
+      {/* Items */}
+      <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-evenly", flex: 1, backgroundColor: "var(--color-background)" }}>
+        {items.length === 0 && !wikisQuery.isLoading ? (
+          <div style={{ padding: "12px 16px", ...T.bodySmall, color: "var(--wiki-item-date)" }}>
+            No wikis yet.
           </div>
-        )}
-        {error && (
-          <div style={{ padding: "8px 12px" }}>
-            <p style={{ color: "var(--wiki-item-date)", fontSize: 12 }}>Failed to load</p>
-          </div>
-        )}
-        {wikis.length === 0 && !isLoading && !error && (
-          <div style={{ padding: "8px 12px" }}>
-            <p style={{ color: "var(--wiki-item-date)", fontSize: 12, fontStyle: "italic" }}>
-              No wikis yet
-            </p>
-          </div>
-        )}
-        {wikis.map((wiki) => (
-          <div
-            key={wiki.id}
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 8,
-              padding: "8px 12px",
-            }}
-          >
+        ) : (
+          items.map((item, i) => (
             <div
-              style={{
-                width: 18,
-                height: 20,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <BulletDot />
-            </div>
-            <div
+              key={i}
               style={{
                 display: "flex",
-                alignItems: "baseline",
-                justifyContent: "space-between",
-                flex: 1,
-                minWidth: 0,
-                lineHeight: "20px",
+                alignItems: "flex-start",
+                gap: 8,
+                padding: "5px 12px 0px",
               }}
             >
-              <Link
-                href={`/wiki/${wiki.id}`}
+              <div
                 style={{
-                  fontFamily: "var(--font-inter), Inter, sans-serif",
-                  fontSize: 14,
-                  fontWeight: 400,
-                  lineHeight: "20px",
-                  color: "var(--wiki-item-link)",
-                  textDecoration: "none",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
+                  width: 18,
+                  height: 20,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
                 }}
               >
-                {wiki.name}
-              </Link>
-              <span
+                <BulletDot />
+              </div>
+              <div
                 style={{
-                  fontFamily: "var(--font-inter), Inter, sans-serif",
-                  fontSize: 10,
-                  fontWeight: 400,
+                  display: "flex",
+                  alignItems: "baseline",
+                  justifyContent: "space-between",
+                  flex: 1,
+                  minWidth: 0,
                   lineHeight: "20px",
-                  color: "var(--wiki-item-date)",
-                  whiteSpace: "nowrap",
-                  marginLeft: 8,
                 }}
               >
-                ({wiki.lastUpdated?.slice(0, 10) ?? ""})
-              </span>
+                <Link
+                  href={item.href}
+                  style={{
+                    ...T.bodySmall,
+                    color: "var(--wiki-item-link)",
+                    textDecoration: "none",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {item.title}
+                </Link>
+                <span
+                  style={{
+                    ...T.tiny,
+                    color: "var(--wiki-item-date)",
+                    whiteSpace: "nowrap",
+                    marginLeft: 8,
+                    padding: "4px 5px",
+                  }}
+                >
+                  {item.updatedAgo}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );

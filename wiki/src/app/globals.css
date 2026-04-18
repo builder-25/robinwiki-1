@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
 
 :root,
 [data-theme="light"] {
@@ -56,7 +56,7 @@
   --wiki-chat-send-icon: #72777d;
   --wiki-header-user: #72777d;
   --wiki-header-icon: #54595d;
-  --wiki-card-border: #e0e0e0;
+  --wiki-card-border: #a2a9b1;
   --wiki-card-header: #333333;
   --wiki-fragment-index-1: #000000;
   --wiki-fragment-index-2: #6f6f6f;
@@ -80,10 +80,10 @@
   --wiki-meta-label: #888888;
   --wiki-meta-date: #333333;
   --wiki-meta-line: #a2a9b1;
-  --wiki-search-border: #c8ccd1;
+  --wiki-search-border: #a2a9b1;
   --wiki-search-placeholder: #72777d;
   --wiki-search-icon: #72777d;
-  --wiki-search-section-line: #d0d0d0;
+  --wiki-search-section-line: #a2a9b1;
   --wiki-search-chip-bg: #eaeaea;
   --wiki-search-chip-active-bg: #dadada;
   --wiki-search-avatar-bg: #e8e8e8;
@@ -118,122 +118,65 @@
   --profile-reprofile-border: #d0d0d0;
   --profile-reprofile-text: #333333;
   --profile-copy-icon: #888888;
+
+  /* Wiki type badge colors (bg = color at 10% alpha / text = full / border = text)
+     Palette aligned with os.robin — except People stays yellow (our deviation). */
+  --wiki-type-log-bg: rgba(100, 116, 139, 0.10);
+  --wiki-type-log-text: #475569;
+  --wiki-type-log-border: #475569;
+  --wiki-type-research-bg: rgba(167, 139, 250, 0.10);
+  --wiki-type-research-text: #7c3aed;
+  --wiki-type-research-border: #7c3aed;
+  --wiki-type-belief-bg: rgba(59, 130, 246, 0.10);
+  --wiki-type-belief-text: #2563eb;
+  --wiki-type-belief-border: #2563eb;
+  --wiki-type-decision-bg: rgba(249, 115, 22, 0.10);
+  --wiki-type-decision-text: #ea580c;
+  --wiki-type-decision-border: #ea580c;
+  --wiki-type-project-bg: rgba(6, 182, 212, 0.10);
+  --wiki-type-project-text: #0891b2;
+  --wiki-type-project-border: #0891b2;
+  --wiki-type-goal-bg: rgba(245, 158, 11, 0.10);
+  --wiki-type-goal-text: #d97706;
+  --wiki-type-goal-border: #d97706;
+  --wiki-type-skill-bg: rgba(16, 185, 129, 0.10);
+  --wiki-type-skill-text: #059669;
+  --wiki-type-skill-border: #059669;
+  --wiki-type-agent-bg: rgba(217, 70, 239, 0.10);
+  --wiki-type-agent-text: #c026d3;
+  --wiki-type-agent-border: #c026d3;
+  --wiki-type-voice-bg: rgba(236, 72, 153, 0.10);
+  --wiki-type-voice-text: #db2777;
+  --wiki-type-voice-border: #db2777;
+  --wiki-type-principle-bg: rgba(244, 63, 94, 0.10);
+  --wiki-type-principle-text: #e11d48;
+  --wiki-type-principle-border: #e11d48;
+  /* People — kept yellow (our deviation from os.robin's blue) */
+  --wiki-type-people-bg: #fef9c3;
+  --wiki-type-people-text: #854d0e;
+  --wiki-type-people-border: #fde047;
+
+  /* Fragment type colors — os.robin palette */
+  --fragment-type-fact-bg: rgba(14, 165, 233, 0.10);
+  --fragment-type-fact-text: #0284c7;
+  --fragment-type-fact-border: #0284c7;
+  --fragment-type-question-bg: rgba(168, 85, 247, 0.10);
+  --fragment-type-question-text: #9333ea;
+  --fragment-type-question-border: #9333ea;
+  --fragment-type-idea-bg: rgba(234, 179, 8, 0.10);
+  --fragment-type-idea-text: #ca8a04;
+  --fragment-type-idea-border: #ca8a04;
+  --fragment-type-action-bg: rgba(34, 197, 94, 0.10);
+  --fragment-type-action-text: #16a34a;
+  --fragment-type-action-border: #16a34a;
+  --fragment-type-quote-bg: rgba(99, 102, 241, 0.10);
+  --fragment-type-quote-text: #4f46e5;
+  --fragment-type-quote-border: #4f46e5;
+  --fragment-type-reference-bg: rgba(20, 184, 166, 0.10);
+  --fragment-type-reference-text: #0d9488;
+  --fragment-type-reference-border: #0d9488;
 }
 
-[data-theme="dark"] {
-  --bg: #0d0d0d;
-  --heading-color: #ffffff;
-  --heading-secondary: #ffffff;
-  --section-label: #878d96;
-  --subtitle: #878d96;
-  --subtitle-soft: #c1c7cd;
-  --input-bg: #1a1a1a;
-  --input-border: rgba(255, 255, 255, 0.15);
-  --input-label: #c6c6c6;
-  --input-placeholder: #a8a8a8;
-  --helper-text: #616161;
-  --btn-primary-bg: #ffffff;
-  --btn-primary-text: #000000;
-  --btn-disabled-bg: #191919;
-  --btn-disabled-text: #474747;
-  --step-active: #d9d9d9;
-  --step-inactive: #343a3f;
-  --card-border: rgba(255, 255, 255, 0.1);
-  --card-title: #ffffff;
-  --card-desc: #616161;
-  --radio-fill: #ffffff;
-  --radio-border: rgba(255, 255, 255, 0.3);
-  --mcp-input-bg: #131313;
-  --mcp-endpoint-label: #c6c6c6;
-  --mcp-copy-bg: #131313;
-  --setup-number: #a7a7a7;
-  --setup-text: #616161;
-  --logo-color: #ffffff;
-  --body-text: #c1c7cd;
-  --toggle-color: #878d96;
-  --card-border-subtle: rgba(255, 255, 255, 0.06);
-  --prompt-wiki-icon-stroke: #c4e456;
-  --skip-link: #878d96;
-  --mcp-url-text: #c6c6c6;
-  --setup-step-text: #878d96;
-  --setup-title: #ffffff;
-  --endpoint-label: #878d96;
-  --wiki-link: #9bbce5;
-  --wiki-sidebar-text: #7d7d7d;
-  --wiki-nav-border: #969696;
-  --wiki-toc-border: #dadde3;
-  --wiki-count: #444444;
-  --wiki-chevron: #7d7d7d;
-  --wiki-title: #e0e0e0;
-  --wiki-chat-bg: rgba(185, 185, 185, 0.04);
-  --wiki-chat-placeholder: #929292;
-  --wiki-chat-send-bg: rgba(255, 255, 255, 0.04);
-  --wiki-chat-send-icon: #818181;
-  --wiki-header-user: #787a7d;
-  --wiki-header-icon: #cacaca;
-  --wiki-card-border: #292929;
-  --wiki-card-header: #c3c3c3;
-  --wiki-fragment-index-1: #ffffff;
-  --wiki-fragment-index-2: #cdcdcd;
-  --wiki-fragment-link: #6b9fd4;
-  --wiki-featured-link: #6a87b9;
-  --wiki-featured-desc: #808383;
-  --wiki-featured-meta: #444444;
-  --wiki-featured-readmore: #4566a8;
-  --wiki-chip-bg: #100c32;
-  --wiki-chip-border: #185ba3;
-  --wiki-chip-text: #628ed0;
-  --wiki-category-name: #c3c3c3;
-  --wiki-item-link: #6b9fd4;
-  --wiki-item-date: rgba(255, 255, 255, 0.33);
-  --wiki-bullet: #54595d;
-  --wiki-badge-stroke: #c3c3c3;
-  --wiki-article-text: #b9b9b9;
-  --wiki-article-link: #9bbce5;
-  --wiki-article-h2: #ececec;
-  --wiki-tab-text: #aebdcf;
-  --wiki-meta-label: #686868;
-  --wiki-meta-date: #bdbdbd;
-  --wiki-meta-line: #a2a9b1;
-  --wiki-search-border: #272727;
-  --wiki-search-placeholder: #72777d;
-  --wiki-search-icon: #72777d;
-  --wiki-search-section-line: #313131;
-  --wiki-search-chip-bg: #141414;
-  --wiki-search-chip-active-bg: #1f1f1f;
-  --wiki-search-avatar-bg: #191919;
-  --wiki-infobox-title: #d9d9d9;
-  --wiki-infobox-text: rgba(185, 185, 185, 0.7);
-  --wiki-star: #aebdcf;
-  --profile-section-label: #4a7c59;
-  --profile-subtitle: #686868;
-  --profile-status-text: #888888;
-  --profile-connected: #4caf50;
-  --profile-endpoint-bg: #1a1a1a;
-  --profile-endpoint-text: #c6c6c6;
-  --profile-endpoint-border: #292929;
-  --profile-card-border: #292929;
-  --profile-stat-number: #e0e0e0;
-  --profile-stat-label: #686868;
-  --profile-stat-divider: #292929;
-  --profile-vault-name: #e0e0e0;
-  --profile-vault-meta: #686868;
-  --profile-vault-border: #292929;
-  --profile-item-title: #e0e0e0;
-  --profile-item-desc: #686868;
-  --profile-item-border: #1a1a1a;
-  --profile-icon: #686868;
-  --profile-toggle-on: #42a5f5;
-  --profile-toggle-off: #555555;
-  --profile-toggle-knob: #ffffff;
-  --profile-danger: #e53935;
-  --profile-delete-bg: #e53935;
-  --profile-delete-text: #ffffff;
-  --profile-reprofile-bg: transparent;
-  --profile-reprofile-border: #555555;
-  --profile-reprofile-text: #e0e0e0;
-  --profile-copy-icon: #686868;
-}
 
 @theme inline {
   --font-source-serif: var(--font-source-serif-4);
@@ -282,8 +225,6 @@
 }
 
 * {
-  margin: 0;
-  padding: 0;
   box-sizing: border-box;
 }
 
@@ -294,10 +235,11 @@ body {
 }
 
 body {
-  background: var(--bg);
+  background: #f8f9fa ;
   color: var(--heading-color);
   font-family: var(--font-inter), "Inter", sans-serif;
   transition: background-color 0.2s ease, color 0.2s ease;
+  overflow-x: hidden;
 }
 
 input::placeholder {
@@ -348,8 +290,8 @@ input:focus {
   .wiki-shell,
   .profile-outer-shell,
   .home-outer-shell {
-    width: calc(100% * 11 / 12);
-    max-width: none;
+    width: 99.75rem;
+    max-width: 100%;
   }
 }
 
@@ -360,6 +302,156 @@ input:focus {
   min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  background-color: var(--color-background);
+}
+
+/* Search-results filter chips — ghost by default, fill on active */
+.wiki-search-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 3px 10px;
+  background: transparent;
+  border: 1px solid var(--wiki-card-border);
+  border-radius: 2px;
+  color: var(--wiki-sidebar-text);
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.wiki-search-filter-chip:hover {
+  background: #d9e2ff;
+  color: var(--wiki-link);
+  border-color: var(--wiki-link);
+}
+.wiki-search-filter-chip--active,
+.wiki-search-filter-chip--active:hover {
+  background: var(--wiki-link);
+  border-color: var(--wiki-link);
+  color: #ffffff;
+}
+
+/* Article tab row — only needs left margin when it sits beside the title at lg+ */
+@media (min-width: 1024px) {
+  .wiki-article-tabs {
+    margin-left: 16px;
+  }
+}
+
+/* Wiki article tabs (Read / Edit / View history) — Wikipedia-style */
+.wiki-article-tab {
+  color: var(--wiki-link);
+  border-bottom: 2px solid transparent;
+}
+.wiki-article-tab:hover {
+  color: var(--wiki-link);
+  border-bottom: 2px solid var(--wiki-link);
+}
+.wiki-article-tab-active,
+.wiki-article-tab-active:hover {
+  color: #000000;
+  border-bottom: 2px solid #000000;
+}
+
+/* Cancel action — black text, black underline on hover */
+.wiki-article-tab-muted {
+  color: #000000;
+  border-bottom: 2px solid transparent;
+}
+.wiki-article-tab-muted:hover {
+  color: #000000;
+  border-bottom: 2px solid #000000;
+}
+
+/* Add Wiki header button — blue ghost, light-blue hover background */
+.wiki-add-wiki-btn {
+  transition: background-color 0.12s ease;
+}
+.wiki-add-wiki-btn:hover {
+  background: #d9e2ff !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Unified page layout — single source of truth for all main
+   routes (wiki home, search, graph, article variants, profile).
+   ───────────────────────────────────────────────────────────── */
+.wiki-page {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100dvh;
+  background-color: var(--color-background);
+  padding-top: 122px;
+  padding-bottom: 60px;
+  padding-left: 24px;
+  padding-right: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Sidebar-aware left gutter at lg+ (sidebar: left 24, width 202, + 24 gap) */
+@media (min-width: 1024px) {
+  .wiki-page {
+    padding-left: 250px;
+  }
+}
+
+/* Narrow phones */
+@media (max-width: 480px) {
+  .wiki-page {
+    padding-top: 96px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+/* Content column inside a page — anchored to sidebar edge, caps at 864 */
+.wiki-page__content {
+  width: 100%;
+  max-width: 864px;
+}
+
+/* Centered variant — for pages where the content column should sit in the
+   middle of the remaining space (e.g. home, where the hero is centered). */
+.wiki-page__content--centered {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Variants */
+.wiki-page--home {
+  padding-top: 99px;
+}
+@media (max-width: 1023px) {
+  .wiki-page--home { padding-top: 96px; }
+}
+
+/* Home-only: when the sidebar is closed (or hidden below lg), the home page
+   re-centers across the full viewport instead of hugging the sidebar gutter. */
+@media (min-width: 1024px) {
+  .wiki-shell[data-sidebar="closed"] .wiki-page--home {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
+.wiki-page--fullbleed {
+  height: 100vh;
+  overflow: hidden;
+  padding-bottom: 24px;
+}
+
+/* Fullbleed pages (e.g. graph): when sidebar is closed, expand to fill the
+   full viewport width instead of leaving the sidebar gutter. */
+@media (min-width: 1024px) {
+  .wiki-shell[data-sidebar="closed"] .wiki-page--fullbleed {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
+.wiki-page--article {
+  /* Article keeps its three-column layout via internal rules; padding stays unified */
+  padding-bottom: 60px;
 }
 
 .wiki-main::-webkit-scrollbar {
@@ -371,24 +463,11 @@ input:focus {
 }
 
 .wiki-main::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.1);
   border-radius: 3px;
 }
 
-[data-theme="light"] .wiki-main::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.1);
-}
-
-/* Wiki page responsive */
-.wiki-article-wrapper {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-  padding-top: 134px;
-  padding-bottom: 60px;
-  padding-left: 282px;
-  padding-right: 40px;
-}
+/* (Legacy shells removed — all pages now use .wiki-page.) */
 
 .wiki-cards-row {
   display: flex;
@@ -408,21 +487,11 @@ input:focus {
   flex-shrink: 0;
 }
 
-/* ROBIN wiki home — Figma 217:32119 */
-.wiki-page-wrapper.wiki-home-page {
-  padding-top: 99px;
-  padding-bottom: 60px;
-}
-
 .wiki-home-cards {
   margin-top: 104px;
 }
 
 @media (max-width: 1023px) {
-  .wiki-page-wrapper.wiki-home-page {
-    padding-top: 96px !important;
-  }
-
   .wiki-home-cards {
     margin-top: 56px !important;
   }
@@ -445,14 +514,7 @@ input:focus {
     gap: 24px 0;
   }
 
-  .wiki-page-wrapper {
-    padding-top: 120px !important;
-    padding-left: 16px !important;
-    padding-right: 16px !important;
-  }
-
   .wiki-cards-container {
-    max-width: calc(100% - 24px) !important;
     width: 100% !important;
   }
 
@@ -474,13 +536,6 @@ input:focus {
   .wiki-aside-infobox {
     width: 100% !important;
     max-width: 100% !important;
-  }
-
-  .wiki-article-wrapper {
-    padding-left: 16px !important;
-    padding-right: 16px !important;
-    padding-top: 96px !important;
-    padding-bottom: 48px !important;
   }
 
   /* Stack title + tabs (absolute Figma layout → column) */
@@ -552,12 +607,6 @@ input:focus {
     max-width: 100% !important;
   }
 
-  .wiki-search-page-shell {
-    padding-top: 88px !important;
-    padding-left: 12px !important;
-    padding-right: 12px !important;
-  }
-
   .wiki-search-results-root {
     max-width: min(864px, 100%) !important;
   }
@@ -599,38 +648,7 @@ input:focus {
   }
 }
 
-@media (max-width: 768px) {
-  .wiki-page-wrapper.wiki-home-page {
-    padding-top: 94px !important;
-  }
-
-  .wiki-page-wrapper {
-    padding-top: 112px !important;
-  }
-
-  .profile-content {
-    padding-left: 20px !important;
-    padding-right: 20px !important;
-  }
-}
-
 @media (max-width: 480px) {
-  .wiki-article-wrapper {
-    padding-left: 12px !important;
-    padding-right: 12px !important;
-    padding-top: 88px !important;
-  }
-
-  .wiki-page-wrapper.wiki-home-page {
-    padding-top: 92px !important;
-  }
-
-  .wiki-page-wrapper {
-    padding-top: 104px !important;
-    padding-left: 12px !important;
-    padding-right: 12px !important;
-  }
-
   .profile-content {
     padding-left: 16px !important;
     padding-right: 16px !important;
@@ -649,6 +667,93 @@ input:focus {
 .wiki-article-content a {
   color: var(--wiki-article-link);
   text-decoration: none;
+}
+
+/* Keep TipTap-edited output visually aligned with wiki article sections */
+.wiki-richtext-editor .ProseMirror,
+.wiki-richtext-rendered {
+  color: var(--wiki-article-text);
+  font-family: var(--font-inter), Inter, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+}
+
+.wiki-richtext-editor .ProseMirror:focus {
+  outline: none;
+}
+
+.wiki-richtext-editor .ProseMirror p,
+.wiki-richtext-rendered p {
+  margin: 0;
+  font-family: var(--font-inter), Inter, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+  white-space: pre-wrap;
+}
+
+.wiki-richtext-editor .ProseMirror p + p,
+.wiki-richtext-rendered p + p {
+  margin-top: 8px;
+}
+
+.wiki-richtext-editor .ProseMirror h2,
+.wiki-richtext-rendered h2 {
+  margin: 20px 0 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--wiki-meta-line);
+  font-family: var(--font-source-serif-4), "Source Serif 4", "Source Serif Pro", serif;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 30px;
+  color: var(--wiki-article-h2);
+}
+
+.wiki-richtext-editor .ProseMirror h3,
+.wiki-richtext-rendered h3 {
+  margin: 16px 0 0;
+  font-family: var(--font-source-serif-4), "Source Serif 4", "Source Serif Pro", serif;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 24px;
+  color: var(--wiki-article-h2);
+}
+
+.wiki-richtext-editor .ProseMirror ul,
+.wiki-richtext-editor .ProseMirror ol,
+.wiki-richtext-rendered ul,
+.wiki-richtext-rendered ol {
+  margin: 0 0 10px 20px;
+  padding: 0;
+}
+
+.wiki-richtext-editor .ProseMirror li,
+.wiki-richtext-rendered li {
+  margin: 0 0 4px 0;
+}
+
+.wiki-richtext-editor .ProseMirror :is(h2, h3) + *,
+.wiki-richtext-rendered :is(h2, h3) + * {
+  margin-top: 8px;
+}
+
+.wiki-richtext-editor .ProseMirror blockquote,
+.wiki-richtext-rendered blockquote {
+  margin: 0 0 12px 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--wiki-card-border);
+  color: #555;
+  background: #f8f8f8;
+}
+
+.wiki-richtext-editor .ProseMirror pre,
+.wiki-richtext-rendered pre {
+  margin: 0 0 12px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--wiki-card-border);
+  background: #fafafa;
+  overflow-x: auto;
 }
 
 :root {
@@ -686,39 +791,6 @@ input:focus {
   --sidebar-ring: oklch(0.708 0 0);
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-}
 
 @layer base {
   * {

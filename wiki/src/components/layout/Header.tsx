@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { T } from "@/lib/typography";
 import { usePathname, useRouter } from "next/navigation";
-import { useTheme } from "@/context/ThemeContext";
+
 import AddWikiModal from "@/components/layout/AddWikiModal";
 import WikiHeaderSearch from "@/components/layout/WikiHeaderSearch";
 
@@ -15,11 +16,9 @@ export default function Header({ onMenuToggle }: HeaderProps) {
   const [addWikiOpen, setAddWikiOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  const { theme } = useTheme();
   const isWikiHome = pathname === "/wiki";
 
-  const addWikiBg = theme === "dark" ? "#161616" : "#ebebeb";
-  const addWikiFg = theme === "dark" ? "#b2b0b0" : "#444444";
+  const addWikiFg = "var(--wiki-link)";
 
   return (
     <header className="flex h-full w-full min-h-0 items-center gap-3">
@@ -67,13 +66,13 @@ export default function Header({ onMenuToggle }: HeaderProps) {
         <button
           type="button"
           onClick={() => setAddWikiOpen(true)}
-          className="flex cursor-pointer items-center justify-center"
+          className="wiki-add-wiki-btn flex cursor-pointer items-center justify-center"
           style={{
             gap: 4,
             padding: "8px 12px",
             height: 35,
             boxSizing: "border-box",
-            background: addWikiBg,
+            background: "transparent",
             border: "none",
             borderRadius: 2,
           }}
@@ -95,9 +94,8 @@ export default function Header({ onMenuToggle }: HeaderProps) {
           </svg>
           <span
             style={{
-              fontFamily: "var(--font-inter), Inter, sans-serif",
-              fontSize: 14,
-              fontWeight: 400,
+              ...T.bodySmall,
+              fontWeight: 600,
               lineHeight: "normal",
               letterSpacing: "-0.0336px",
               color: addWikiFg,
@@ -112,17 +110,13 @@ export default function Header({ onMenuToggle }: HeaderProps) {
           <div className="flex items-start">
           <span
             style={{
-              fontFamily: "var(--font-inter), Inter, sans-serif",
-              fontSize: 14,
-              fontWeight: 400,
-              lineHeight: "22px",
+              ...T.bodySmall,
               letterSpacing: "-0.042px",
               color: "var(--wiki-header-user)",
               padding: "0 6px",
               whiteSpace: "nowrap",
             }}
           >
-            {/* TODO: read from session data when auth is wired */}
             antellopia
           </span>
           </div>
@@ -205,9 +199,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
                   padding: "8px 14px",
                   background: "none",
                   border: "none",
-                  fontFamily: "var(--font-inter), Inter, sans-serif",
-                  fontSize: 13,
-                  fontWeight: 400,
+                  ...T.caption,
                   color: "var(--heading-color)",
                 }}
                 onMouseEnter={(e) =>
@@ -234,9 +226,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
                   padding: "8px 14px",
                   background: "none",
                   border: "none",
-                  fontFamily: "var(--font-inter), Inter, sans-serif",
-                  fontSize: 13,
-                  fontWeight: 400,
+                  ...T.caption,
                   color: "var(--heading-color)",
                 }}
                 onMouseEnter={(e) =>

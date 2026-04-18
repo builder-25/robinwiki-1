@@ -13,7 +13,8 @@ export default function WikiLayout({
 
   return (
     <div
-      className="wiki-shell relative h-screen overflow-hidden"
+      className="wiki-shell relative"
+      data-sidebar={sidebarOpen ? "open" : "closed"}
       style={{ background: "var(--bg)" }}
     >
       {/* Header */}
@@ -33,21 +34,21 @@ export default function WikiLayout({
         />
       )}
 
-      {/* Desktop sidebar — toggleable */}
-      <aside
-        className="wiki-desktop-sidebar hidden lg:block absolute z-10 overflow-y-auto"
-        style={{
-          top: 118,
-          left: 24,
-          width: 202,
-          bottom: 0,
-          scrollbarWidth: "none",
-          transform: sidebarOpen ? "translateX(0)" : "translateX(-260px)",
-          transition: "transform 0.25s ease",
-        }}
-      >
-        <Sidebar />
-      </aside>
+      {/* Desktop sidebar */}
+      {sidebarOpen && (
+        <aside
+          className="wiki-desktop-sidebar hidden lg:block absolute z-10 overflow-y-auto"
+          style={{
+            top: 118,
+            left: 24,
+            width: 202,
+            bottom: 0,
+            scrollbarWidth: "none",
+          }}
+        >
+          <Sidebar />
+        </aside>
+      )}
 
       {/* Mobile sidebar — drawer when open */}
       {sidebarOpen && (

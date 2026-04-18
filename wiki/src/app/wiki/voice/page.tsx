@@ -8,6 +8,7 @@ import {
   WikiIntroLead,
   WikiSectionH2,
 } from "@/components/wiki/WikiEntityArticle";
+import { T } from "@/lib/typography";
 
 function WikiBiographyShort() {
   return (
@@ -35,19 +36,13 @@ function WikiBiographyShort() {
 }
 
 export default function WikiVoicePage() {
-  const bodyStyle = {
-    fontFamily: "var(--font-inter), Inter, sans-serif" as const,
-    fontSize: 14,
-    lineHeight: "22px" as const,
-    color: "var(--wiki-article-text)",
-  };
+  const bodyStyle = { ...T.bodySmall, color: "var(--wiki-article-text)" };
 
   return (
     <WikiEntityArticle
       chipIcon={AudioWaveform}
       chipLabel="Voice"
       title="Written Voice"
-      dividerBeforeFragments
       infobox={{ kind: "simple", typeLabel: "Agent", showSettings: true }}
     >
       <WikiIntroLead />

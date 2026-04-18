@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useCallback, useMemo, useState, type CSSProperties } from "react";
-import { useWikis } from "@/hooks/useWikis";
-import { useWikiTypes } from "@/hooks/useWikiTypes";
+import { T } from "@/lib/typography";
+
+const ACTIVE_COLOR = "#000000";
+const ACTIVE_WEIGHT = 700;
 
 type ArrowState = "none" | "right" | "down";
 
@@ -47,59 +50,94 @@ const navigationData: SidebarSectionData = {
   title: "Navigation",
   items: [
     { label: "Main page", arrow: "none", href: "/wiki" },
-    {
-      label: "Recent Fragments",
-      arrow: "right",
-      href: "/wiki?view=fragments",
-    },
-    { label: "Knowledge Graph", arrow: "none", href: "/wiki" },
-    { label: "Search", arrow: "none", href: "/wiki/search" },
+    { label: "Explorer", arrow: "none", href: "/wiki/explorer" },
+    { label: "Knowledge Graph", arrow: "none", href: "/wiki/graph" },
   ],
 };
 
-function useWikiTypesSection(): SidebarSectionData {
-  const { data: wikiTypes } = useWikiTypes();
-  const { data: wikis } = useWikis();
-
-  return useMemo(() => {
-    const topItem: NavItem = { label: "(Top)", arrow: "none", bold: true, href: "/wiki" };
-
-    if (!wikiTypes?.wikiTypes) {
-      return { title: "Wiki Types", items: [topItem] };
-    }
-
-    const wikisByType = new Map<string, Array<{ name: string; id: string }>>();
-    if (wikis?.threads) {
-      for (const wiki of wikis.threads) {
-        const existing = wikisByType.get(wiki.type) ?? [];
-        existing.push({ name: wiki.name, id: wiki.id });
-        wikisByType.set(wiki.type, existing);
-      }
-    }
-
-    const typeItems: NavItem[] = wikiTypes.wikiTypes.map((wt) => {
-      const typeWikis = wikisByType.get(wt.slug) ?? [];
-      const children: NavChild[] = typeWikis.slice(0, 5).map((w) => ({
-        label: w.name,
-        href: `/wiki/${w.id}`,
-      }));
-      return {
-        label: wt.name,
-        arrow: children.length > 0 ? ("right" as const) : ("none" as const),
-        count: typeWikis.length || undefined,
-        href: `/wiki?type=${wt.slug}`,
-        children: children.length > 0 ? children : undefined,
-      };
-    });
-
-    return { title: "Wiki Types", items: [topItem, ...typeItems] };
-  }, [wikiTypes, wikis]);
-}
+const contentsData: SidebarSectionData = {
+  title: "Wiki Types",
+  items: [
+    {
+      label: "Log",
+      arrow: "right",
+      children: [
+        { label: "Morning journal — Apr 16", href: "/wiki/example/morning-journal" },
+      ],
+    },
+    {
+      label: "Research",
+      arrow: "right",
+      children: [
+        { label: "Spatial memory in corvids", href: "/wiki/example/spatial-memory-corvids" },
+      ],
+    },
+    {
+      label: "Belief",
+      arrow: "right",
+      children: [
+        { label: "Craft compounds over time", href: "/wiki/example/craft-compounds" },
+      ],
+    },
+    {
+      label: "Decision",
+      arrow: "down",
+      children: [{ label: "The Berlin years", href: "/wiki/article" }],
+    },
+    {
+      label: "Goal",
+      arrow: "right",
+      children: [
+        { label: "Ship the atlas by Q3", href: "/wiki/example/ship-the-atlas" },
+      ],
+    },
+    {
+      label: "Project",
+      arrow: "right",
+      children: [
+        { label: "Robin personal wiki", href: "/wiki/example/robin-personal-wiki" },
+      ],
+    },
+    {
+      label: "Principles",
+      arrow: "right",
+      children: [
+        { label: "Measure twice, cut once", href: "/wiki/example/measure-twice" },
+      ],
+    },
+    {
+      label: "Skill",
+      arrow: "right",
+      children: [
+        { label: "Type design fundamentals", href: "/wiki/example/type-design-fundamentals" },
+      ],
+    },
+    {
+      label: "Agent",
+      arrow: "right",
+      children: [
+        { label: "Research assistant", href: "/wiki/example/research-assistant" },
+      ],
+    },
+    {
+      label: "Voice",
+      arrow: "right",
+      children: [
+        { label: "Quiet morning tone", href: "/wiki/example/quiet-morning-tone" },
+      ],
+    },
+    {
+      label: "Works",
+      arrow: "right",
+      children: [
+        { label: "Zami: A New Spelling of My Name", href: "/wiki/example/zami" },
+      ],
+    },
+  ],
+};
 
 const linkStyle: CSSProperties = {
-  fontFamily: "var(--font-inter), Inter, sans-serif",
-  fontSize: 14,
-  fontWeight: 400,
+  ...T.bodySmall,
   lineHeight: "20px",
   color: "var(--wiki-link)",
   textDecoration: "none",
@@ -118,6 +156,8 @@ function SidebarSection({
   sectionId: string;
 }) {
   const [sectionVisible, setSectionVisible] = useState(true);
+  const pathname = usePathname();
+  const isActiveHref = (href?: string) => !!href && pathname === href;
 
   const initialExpanded = useMemo(() => {
     const init: Record<string, boolean> = {};
@@ -163,9 +203,7 @@ function SidebarSection({
         >
           <p
             style={{
-              fontFamily: "var(--font-inter), Inter, sans-serif",
-              fontSize: 14,
-              fontWeight: 400,
+              ...T.bodySmall,
               lineHeight: "20px",
               color: "var(--wiki-sidebar-text)",
             }}
@@ -201,38 +239,44 @@ function SidebarSection({
         >
           {section.items.map((item, i) => {
             const key = `${sectionId}-${i}`;
-            const hasChildren = (item.children?.length ?? 0) > 0;
+            const childCount = item.children?.length ?? 0;
+            const hasChildren = childCount > 0;
             const isOpen = expanded[key] ?? false;
             const showChevron = item.arrow !== "none";
+            // Prefer an explicit count (e.g. for categories whose children
+            // aren't fully enumerated in the sidebar), otherwise fall back to
+            // the number of children actually listed.
+            const displayCount = item.count ?? (hasChildren ? childCount : undefined);
 
             const labelInner = (
               <>
                 {item.label}
-                {item.count !== undefined && (
+                {displayCount !== undefined && (
                   <>
                     {" "}
                     <span
                       style={{
-                        fontSize: 10,
+                        ...T.tiny,
                         lineHeight: "20px",
                         color: "var(--wiki-count)",
-                        fontWeight: 400,
                       }}
                     >
-                      ({item.count})
+                      ({displayCount})
                     </span>
                   </>
                 )}
               </>
             );
 
+            const itemActive = isActiveHref(item.href);
+
             const labelEl =
               item.bold ? (
                 <span
                   style={{
                     ...linkStyle,
-                    color: "var(--wiki-sidebar-text)",
-                    fontWeight: 700,
+                    color: itemActive ? ACTIVE_COLOR : "var(--wiki-sidebar-text)",
+                    fontWeight: ACTIVE_WEIGHT,
                     cursor: item.href ? "pointer" : "default",
                   }}
                 >
@@ -245,7 +289,14 @@ function SidebarSection({
                   )}
                 </span>
               ) : item.href ? (
-                <Link href={item.href} style={{ ...linkStyle, fontWeight: 400 }}>
+                <Link
+                  href={item.href}
+                  style={{
+                    ...linkStyle,
+                    fontWeight: itemActive ? ACTIVE_WEIGHT : 400,
+                    color: itemActive ? ACTIVE_COLOR : linkStyle.color,
+                  }}
+                >
                   {labelInner}
                 </Link>
               ) : (
@@ -337,10 +388,9 @@ function SidebarSection({
                         {item.bold ? (
                           <span
                             style={{
-                              fontFamily: "var(--font-inter), Inter, sans-serif",
-                              fontSize: 14,
-                              fontWeight: 700,
+                              ...T.bodySmall,
                               lineHeight: "20px",
+                              fontWeight: 700,
                               color: "var(--wiki-sidebar-text)",
                               cursor: "pointer",
                             }}
@@ -350,9 +400,7 @@ function SidebarSection({
                         ) : (
                           <span
                             style={{
-                              fontFamily: "var(--font-inter), Inter, sans-serif",
-                              fontSize: 14,
-                              fontWeight: 400,
+                              ...T.bodySmall,
                               lineHeight: "20px",
                               color: "var(--wiki-link)",
                               cursor: "pointer",
@@ -369,38 +417,52 @@ function SidebarSection({
                 </div>
 
                 {hasChildren && isOpen
-                  ? item.children!.map((child, j) => (
-                      <div key={j} style={{ paddingLeft: 28 }}>
+                  ? item.children!.map((child, j) => {
+                      const childActive = isActiveHref(child.href);
+                      return (
+                      <div
+                        key={j}
+                        style={{ paddingLeft: 28, minWidth: 0, maxWidth: "100%" }}
+                      >
                         {child.href ? (
                           <Link
                             href={child.href}
+                            title={child.label}
                             style={{
-                              fontFamily: "var(--font-inter), Inter, sans-serif",
-                              fontSize: 14,
-                              fontWeight: 400,
+                              ...T.bodySmall,
                               lineHeight: "20px",
-                              color: "var(--wiki-link)",
+                              color: childActive ? ACTIVE_COLOR : "var(--wiki-link)",
+                              fontWeight: childActive ? ACTIVE_WEIGHT : 400,
                               textDecoration: "none",
-                              display: "inline-block",
+                              display: "block",
+                              maxWidth: "100%",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
                             }}
                           >
                             {child.label}
                           </Link>
                         ) : (
                           <span
+                            title={child.label}
                             style={{
-                              fontFamily: "var(--font-inter), Inter, sans-serif",
-                              fontSize: 14,
-                              fontWeight: 400,
+                              ...T.bodySmall,
                               lineHeight: "20px",
                               color: "var(--wiki-link)",
+                              display: "block",
+                              maxWidth: "100%",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
                             }}
                           >
                             {child.label}
                           </span>
                         )}
                       </div>
-                    ))
+                      );
+                    })
                   : null}
               </div>
             );
@@ -412,8 +474,6 @@ function SidebarSection({
 }
 
 export default function Sidebar() {
-  const contentsData = useWikiTypesSection();
-
   return (
     <nav>
       <SidebarSection

@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import ThemeToggle from "@/components/ThemeToggle";
-import StepIndicator from "@/components/onboarding/StepIndicator";
+
 import WelcomeStep from "@/components/onboarding/WelcomeStep";
 import AccountStep from "@/components/onboarding/AccountStep";
 import CustomizeStep from "@/components/onboarding/CustomizeStep";
@@ -15,15 +14,11 @@ export default function Home() {
   const nextStep = () => setStep((s) => Math.min(s + 1, 4));
   const prevStep = () => setStep((s) => Math.max(s - 1, 0));
 
-  const indicatorStep = Math.min(step, 2);
-
   return (
     <div
       className="home-outer-shell relative flex h-full min-h-screen w-full flex-col items-center justify-center transition-colors duration-200"
-      style={{ backgroundColor: "var(--bg)" }}
+      style={{ backgroundColor: "var(--color-background)" }}
     >
-      <ThemeToggle />
-
       {step > 0 && (
         <button
           type="button"
@@ -48,12 +43,6 @@ export default function Home() {
             />
           </svg>
         </button>
-      )}
-
-      {step < 4 && (
-        <div className="absolute left-1/2 top-[106px] -translate-x-1/2">
-          <StepIndicator currentStep={indicatorStep} />
-        </div>
       )}
 
       <div className="flex w-full items-center justify-center px-6">
