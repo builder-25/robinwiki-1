@@ -6,6 +6,7 @@ import * as schema from './db/schema.js'
 import { sql } from 'drizzle-orm'
 import { producer } from './queue/producer.js'
 import { logger } from './lib/logger.js'
+import { ensureFirstUser } from './bootstrap/jit-provision.js'
 
 const log = logger.child({ component: 'auth' })
 
@@ -47,6 +48,10 @@ export const auth = betterAuth({
   hooks: {
     before: async (rawCtx) => {
       const ctx = rawCtx as Record<string, unknown>
+      // JIT provisioning: ensure the first user exists before sign-in
+      if (ctx.path === '/sign-in/email') {
+        await ensureFirstUser()
+      }
       // Single-user gate: block sign-up if any user exists
       if (ctx.path === '/sign-up/email') {
         const [row] = await db.execute<{ count: number }>(sql`SELECT count(*)::int AS count FROM users`)

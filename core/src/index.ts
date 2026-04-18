@@ -29,7 +29,6 @@ import { publishedRoutes } from './routes/published.js'
 import { startWorkers } from './queue/worker.js'
 import { bullBoardApp } from './routes/bull-board.js'
 import { adminRoutes } from './routes/admin.js'
-import { seedFirstUser } from './bootstrap/seed-first-user.js'
 import { checkOpenRouterKey } from './bootstrap/check-openrouter-key.js'
 import { loadMasterKey } from './lib/crypto.js'
 
@@ -127,12 +126,6 @@ app.route('/audit-log', auditRoutes)
 
 // Fail fast on missing MASTER_KEY before any crypto ops run
 loadMasterKey()
-
-// Seed the single user from INITIAL_USERNAME/INITIAL_PASSWORD if users table is empty
-await seedFirstUser().catch((err) => {
-  logger.fatal({ err }, 'seed-first-user failed')
-  process.exit(1)
-})
 
 // Warn loudly if the OpenRouter key is missing — non-fatal so non-ingest traffic still works
 await checkOpenRouterKey().catch((err) => {
