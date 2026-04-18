@@ -40,8 +40,8 @@ export const auth = betterAuth({
   advanced: {
     useSecureCookies: process.env.BETTER_AUTH_URL?.startsWith('https://') ?? false,
     defaultCookieAttributes: {
-      sameSite: 'none' as const,
-      secure: true,
+      sameSite: (process.env.BETTER_AUTH_URL?.startsWith('https://') ? 'none' : 'lax') as 'none' | 'lax',
+      secure: process.env.BETTER_AUTH_URL?.startsWith('https://') ?? false,
     },
   },
 

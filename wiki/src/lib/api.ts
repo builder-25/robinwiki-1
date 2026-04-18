@@ -16,6 +16,11 @@ client.setConfig({
   credentials: 'include',
 })
 
+// Request interceptor: ensure credentials are included for cookie-based auth
+client.interceptors.request.use((request) => {
+  return new Request(request, { credentials: 'include' })
+})
+
 // Response interceptor: throw ApiError on non-OK responses
 client.interceptors.response.use(async (response) => {
   if (!response.ok) {

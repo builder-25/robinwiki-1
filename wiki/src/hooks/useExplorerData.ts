@@ -25,7 +25,7 @@ function capitalize(s: string): string {
 }
 
 export function useExplorerData(filters: ExplorerFilters) {
-  const wikisQuery = useWikis({ limit: 500 })
+  const wikisQuery = useWikis({ limit: 200 })
   const fragmentsQuery = useFragments({ limit: 500 })
   const peopleQuery = usePeople({ limit: 500 })
   const groupsQuery = useGroups()
