@@ -39,7 +39,7 @@
             echo "postgres: initializing data directory..."
             ${pkgs.postgresql_16}/bin/initdb \
               --pgdata="$PG_DATA" \
-              --username=robin \
+              --username=postgres \
               --auth=trust \
               --no-locale \
               --encoding=UTF8 \
@@ -63,9 +63,9 @@ PGCONF
 
           head -1 "$PG_DATA/postmaster.pid" > "$PG_PID"
 
-          if ! ${pkgs.postgresql_16}/bin/psql -h 127.0.0.1 -U robin -lqt 2>/dev/null | grep -qw robin_dev; then
-            echo "postgres: creating database robin_dev..."
-            ${pkgs.postgresql_16}/bin/createdb -h 127.0.0.1 -U robin robin_dev
+          if ! ${pkgs.postgresql_16}/bin/psql -h 127.0.0.1 -U postgres -lqt 2>/dev/null | grep -qw robinwiki; then
+            echo "postgres: creating database robinwiki..."
+            ${pkgs.postgresql_16}/bin/createdb -h 127.0.0.1 -U postgres robinwiki
           fi
 
           echo "postgres: ready (pid $(cat "$PG_PID"))"
@@ -220,7 +220,7 @@ PGCONF
         WIKI_PID="$ROBIN_DEV_DIR/wiki/wiki.pid"
 
         if [ -f "$PG_PID" ] && kill -0 "$(cat "$PG_PID")" 2>/dev/null; then
-          if ${pkgs.postgresql_16}/bin/pg_isready -h 127.0.0.1 -p 5432 -U robin -q 2>/dev/null; then
+          if ${pkgs.postgresql_16}/bin/pg_isready -h 127.0.0.1 -p 5432 -U postgres -q 2>/dev/null; then
             echo "postgres: UP (pid $(cat "$PG_PID"), accepting connections)"
           else
             echo "postgres: UP (pid $(cat "$PG_PID"), NOT accepting connections)"
