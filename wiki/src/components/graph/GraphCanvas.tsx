@@ -154,6 +154,9 @@ export default function GraphCanvas({
     duration: 400,
   });
 
+  // Touch tracking ref for tap detection
+  const touchStartPosRef = useRef({ x: 0, y: 0 });
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dims, setDims] = useState({ width: 0, height: 0 });
 
@@ -756,6 +759,102 @@ export default function GraphCanvas({
     zoomRef.current = 1;
   }, []);
 
+  // Touch handlers — mirror mouse behavior for mobile/tablet
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent<HTMLCanvasElement>) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const rect = canvasRef.current!.getBoundingClientRect();
+      const sx = touch.clientX - rect.left;
+      const sy = touch.clientY - rect.top;
+      touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+
+      const { x: wx, y: wy } = screenToWorld(sx, sy);
+      const node = findNodeAt(wx, wy);
+      if (node) {
+        dragRef.current = { nodeId: node.id, isPanning: false, startX: sx, startY: sy, startPanX: 0, startPanY: 0 };
+        const sim = nodesRef.current.find((n) => n.id === node.id);
+        if (sim) {
+          sim.fx = sim.x;
+          sim.fy = sim.y;
+        }
+      } else {
+        dragRef.current = {
+          nodeId: null,
+          isPanning: true,
+          startX: sx,
+          startY: sy,
+          startPanX: panRef.current.x,
+          startPanY: panRef.current.y,
+        };
+      }
+    },
+    [screenToWorld, findNodeAt],
+  );
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent<HTMLCanvasElement>) => {
+      e.preventDefault();
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const rect = canvasRef.current!.getBoundingClientRect();
+      const sx = touch.clientX - rect.left;
+      const sy = touch.clientY - rect.top;
+
+      if (dragRef.current.nodeId) {
+        const { x: wx, y: wy } = screenToWorld(sx, sy);
+        const node = nodesRef.current.find((n) => n.id === dragRef.current.nodeId);
+        if (node) {
+          node.fx = wx;
+          node.fy = wy;
+          node.x = wx;
+          node.y = wy;
+        }
+        return;
+      }
+      if (dragRef.current.isPanning) {
+        panRef.current = {
+          x: dragRef.current.startPanX + (sx - dragRef.current.startX),
+          y: dragRef.current.startPanY + (sy - dragRef.current.startY),
+        };
+      }
+    },
+    [screenToWorld],
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    // Tap detection: if touch moved < 10px, treat as tap (select/focus)
+    const startPos = touchStartPosRef.current;
+    const drag = dragRef.current;
+
+    // Release pinned node
+    if (drag.nodeId) {
+      const node = nodesRef.current.find((n) => n.id === drag.nodeId);
+      if (node) {
+        node.fx = null;
+        node.fy = null;
+      }
+    }
+
+    // Check tap distance using the canvas-relative start position
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (rect) {
+      const sx = startPos.x - rect.left;
+      const sy = startPos.y - rect.top;
+      const movedX = sx - drag.startX;
+      const movedY = sy - drag.startY;
+      if (Math.sqrt(movedX * movedX + movedY * movedY) < 10) {
+        const { x: wx, y: wy } = screenToWorld(sx, sy);
+        const node = findNodeAt(wx, wy);
+        setSelectedId(node?.id ?? null);
+        onSelect?.(node ?? null);
+        onFocusChange(node?.id ?? null);
+      }
+    }
+
+    dragRef.current = { nodeId: null, isPanning: false, startX: 0, startY: 0, startPanX: 0, startPanY: 0 };
+  }, [screenToWorld, findNodeAt, onSelect, onFocusChange]);
+
   return (
     <div ref={containerRef} style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
       <canvas
@@ -767,6 +866,9 @@ export default function GraphCanvas({
         onMouseLeave={handleMouseUp}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       />
     </div>
   );
