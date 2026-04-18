@@ -2,7 +2,9 @@
 
 import { useCallback, useMemo, useState } from "react";
 import GraphCanvas from "@/components/graph/GraphCanvas";
-import { GraphFiltersPanel, GraphLegend } from "@/components/graph/GraphOverlays";
+import { GraphLegend } from "@/components/graph/GraphOverlays";
+import { GraphDetailPanel } from "@/components/graph/GraphDetailPanel";
+import { GraphDepthSlider } from "@/components/graph/GraphDepthSlider";
 import { type GraphData, type GraphNode, type GraphNodeType } from "@/components/graph/graphSampleData";
 import { Spinner } from "@/components/ui/spinner";
 import { useGraph } from "@/hooks/useGraph";
@@ -48,6 +50,8 @@ export default function WikiGraphPage() {
     () => new Set<GraphNodeType>(["wiki", "fragment", "person"]),
   );
   const [selected, setSelected] = useState<GraphNode | null>(null);
+  const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+  const [currentDepth, setCurrentDepth] = useState(2);
 
   const handleToggle = useCallback((type: GraphNodeType) => {
     setActiveTypes((prev) => {
@@ -56,6 +60,11 @@ export default function WikiGraphPage() {
       else next.add(type);
       return next;
     });
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setSelected(null);
+    setFocusNodeId(null);
   }, []);
 
   return (
@@ -79,6 +88,9 @@ export default function WikiGraphPage() {
             data={graphData}
             activeTypes={activeTypes}
             onSelect={setSelected}
+            focusNodeId={focusNodeId}
+            onFocusChange={setFocusNodeId}
+            currentDepth={currentDepth}
           />
         )}
         <div
@@ -115,50 +127,20 @@ export default function WikiGraphPage() {
           </span>
         </div>
         <GraphLegend style={{ top: 48 }} />
-        <GraphFiltersPanel
+        <GraphDetailPanel
           data={graphData}
           activeTypes={activeTypes}
           onToggle={handleToggle}
+          selectedNode={selected}
+          onClearSelection={handleClearSelection}
+          focusNodeId={focusNodeId}
         />
-        {selected ? (
-          <div
-            style={{
-              position: "absolute",
-              bottom: 12,
-              left: 12,
-              background: "#ffffff",
-              border: "1px solid var(--wiki-card-border)",
-              padding: "10px 12px",
-              maxWidth: 320,
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-            }}
-          >
-            <div
-              style={{
-                ...T.bodySmall,
-                fontFamily: FONT.SANS,
-                fontWeight: 600,
-                color: "var(--wiki-title)",
-              }}
-            >
-              {selected.label}
-            </div>
-            <div
-              style={{
-                ...T.caption,
-                fontFamily: FONT.SANS,
-                color: "var(--wiki-sidebar-text)",
-                textTransform: "capitalize",
-              }}
-            >
-              {selected.type}
-            </div>
-          </div>
-        ) : null}
+        <GraphDepthSlider
+          depth={currentDepth}
+          onDepthChange={setCurrentDepth}
+          hasFocus={focusNodeId !== null}
+        />
       </div>
-
     </div>
   );
 }
