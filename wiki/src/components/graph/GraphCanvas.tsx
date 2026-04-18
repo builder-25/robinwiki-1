@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GraphData, GraphEdge, GraphNode, GraphNodeType } from "./graphSampleData";
+import { buildAdjacencyMap, extractEgoSubgraph, shouldShowLabel } from "@/lib/graphUtils";
 
 type SimNode = GraphNode & {
   x: number;
@@ -16,29 +17,28 @@ type GraphCanvasProps = {
   data: GraphData;
   activeTypes: Set<GraphNodeType>;
   onSelect?: (node: GraphNode | null) => void;
+  focusNodeId: string | null;
+  onFocusChange: (nodeId: string | null) => void;
+  currentDepth: number;
 };
 
-// Edge / chrome palette (no sub-type tinting)
-const EDGE_BASE = "rgba(114, 119, 125, 0.5)"; // --wiki-chevron hue
+// Edge / chrome palette
+const EDGE_BASE = "rgba(114, 119, 125, 0.5)";
 const EDGE_WIKILINK = "rgba(51, 102, 204, 0.55)";
 const EDGE_HOVER = "#3366cc";
-const LABEL_COLOR = "#202122";                // --wiki-title
+const LABEL_COLOR = "#202122";
 const LABEL_COLOR_HOVER = "#000000";
 const SELECTED_STROKE = "#202122";
 const HOVER_STROKE = "#555555";
-const GRID_COLOR = "rgba(162, 169, 177, 0.18)"; // --wiki-meta-line softened
+const GRID_COLOR = "rgba(162, 169, 177, 0.18)";
 const TOOLTIP_BG = "#ffffff";
 const TOOLTIP_BORDER = "#a2a9b1";
 
-// Default fallbacks when a node has no subtype
-const PERSON_COLOR = "#854d0e";               // matches --wiki-type-people-text
-const WIKI_FALLBACK = "#475569";              // matches --wiki-type-log-text
-const FRAGMENT_FALLBACK = "#0284c7";          // matches --fragment-type-fact-text
+const PERSON_COLOR = "#854d0e";
+const WIKI_FALLBACK = "#475569";
+const FRAGMENT_FALLBACK = "#0284c7";
 
-// Sub-type → solid hex. Mirrors the CSS variables in globals.css. Canvas 2D
-// can't read CSS variables directly, so we duplicate the palette here.
 const SUBTYPE_COLOR: Record<string, string> = {
-  // Wiki types
   Log: "#475569",
   Research: "#7c3aed",
   Belief: "#2563eb",
@@ -49,7 +49,6 @@ const SUBTYPE_COLOR: Record<string, string> = {
   Agent: "#c026d3",
   Voice: "#db2777",
   Principle: "#e11d48",
-  // Fragment types
   Fact: "#0284c7",
   Question: "#9333ea",
   Idea: "#ca8a04",
@@ -58,7 +57,7 @@ const SUBTYPE_COLOR: Record<string, string> = {
   Reference: "#0d9488",
 };
 
-// Physics (straight port)
+// Physics constants
 const SPRING_LENGTH = 120;
 const REPULSION = 600;
 const SPRING_STRENGTH = 0.004;
@@ -67,13 +66,28 @@ const CENTER_GRAVITY = 0.0008;
 const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 3;
 
+// Ego-graph constants
+const RING_SPACING = 150;
+const RADIAL_STRENGTH = 0.001;
+const HOP_REVEAL_DURATION = 300; // ms per hop level
+
+// Hop-level opacity
+const HOP_OPACITY = [1, 1, 0.7, 0.45] as const;
+
 function nodeColor(n: GraphNode): string {
   if (n.type === "person") return PERSON_COLOR;
   if (n.subtype && SUBTYPE_COLOR[n.subtype]) return SUBTYPE_COLOR[n.subtype];
   return n.type === "fragment" ? FRAGMENT_FALLBACK : WIKI_FALLBACK;
 }
 
-export default function GraphCanvas({ data, activeTypes, onSelect }: GraphCanvasProps) {
+export default function GraphCanvas({
+  data,
+  activeTypes,
+  onSelect,
+  focusNodeId,
+  onFocusChange,
+  currentDepth,
+}: GraphCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<SimNode[]>([]);
@@ -100,12 +114,61 @@ export default function GraphCanvas({ data, activeTypes, onSelect }: GraphCanvas
     startPanY: 0,
   });
 
+  // Ego-graph refs
+  const focusNodeIdRef = useRef<string | null>(null);
+  const currentDepthRef = useRef(2);
+  const adjMapRef = useRef<Map<string, string[]>>(new Map());
+  const nodeMapRef = useRef<Map<string, SimNode>>(new Map());
+  const egoSubgraphRef = useRef<{
+    visibleNodeIds: Set<string>;
+    nodeHopLevels: Map<string, number>;
+  }>({ visibleNodeIds: new Set(), nodeHopLevels: new Map() });
+
+  // Build-out animation ref
+  const buildAnimRef = useRef<{
+    phase: "idle" | "building";
+    currentRevealHop: number;
+    targetDepth: number;
+    hopTimestamp: number;
+    nodeAlphas: Map<string, number>;
+  }>({
+    phase: "idle",
+    currentRevealHop: 0,
+    targetDepth: 0,
+    hopTimestamp: 0,
+    nodeAlphas: new Map(),
+  });
+
+  // Pan animation ref
+  const panAnimRef = useRef<{
+    active: boolean;
+    startPan: { x: number; y: number };
+    targetPan: { x: number; y: number };
+    startTime: number;
+    duration: number;
+  }>({
+    active: false,
+    startPan: { x: 0, y: 0 },
+    targetPan: { x: 0, y: 0 },
+    startTime: 0,
+    duration: 400,
+  });
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dims, setDims] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
     activeTypesRef.current = activeTypes;
   }, [activeTypes]);
+
+  // Sync props to refs for render loop access
+  useEffect(() => {
+    focusNodeIdRef.current = focusNodeId;
+  }, [focusNodeId]);
+
+  useEffect(() => {
+    currentDepthRef.current = currentDepth;
+  }, [currentDepth]);
 
   // Initial layout: random positions around the center.
   useEffect(() => {
@@ -123,11 +186,73 @@ export default function GraphCanvas({ data, activeTypes, onSelect }: GraphCanvas
     edgesRef.current = data.edges;
   }, [data, dims.width, dims.height]);
 
-  // ResizeObserver — keep canvas sized to container.
+  // Rebuild adjacency map + node map when data changes
+  useEffect(() => {
+    adjMapRef.current = buildAdjacencyMap(data.edges);
+    // Node map rebuilt from sim nodes after init
+    const map = new Map<string, SimNode>();
+    for (const n of nodesRef.current) {
+      map.set(n.id, n);
+    }
+    nodeMapRef.current = map;
+  }, [data]);
+
+  // Recompute ego subgraph when focusNodeId or currentDepth changes
+  useEffect(() => {
+    if (focusNodeId) {
+      const result = extractEgoSubgraph(
+        data.edges,
+        focusNodeId,
+        currentDepth,
+        adjMapRef.current,
+      );
+      egoSubgraphRef.current = result;
+
+      // Trigger build-out animation
+      const anim = buildAnimRef.current;
+      anim.phase = "building";
+      anim.currentRevealHop = 0;
+      anim.targetDepth = currentDepth;
+      anim.hopTimestamp = performance.now();
+      anim.nodeAlphas = new Map();
+      // Initialize all node alphas to 0 except focus (hop 0)
+      for (const [nid, hop] of result.nodeHopLevels) {
+        anim.nodeAlphas.set(nid, hop === 0 ? 1 : 0);
+      }
+
+      // Pan to focus node
+      const focusNode = nodeMapRef.current.get(focusNodeId);
+      if (focusNode) {
+        const cx = dims.width / 2;
+        const cy = dims.height / 2;
+        const zoom = zoomRef.current;
+        panAnimRef.current = {
+          active: true,
+          startPan: { ...panRef.current },
+          targetPan: {
+            x: cx - focusNode.x * zoom,
+            y: cy - focusNode.y * zoom,
+          },
+          startTime: performance.now(),
+          duration: 400,
+        };
+      }
+    } else {
+      egoSubgraphRef.current = {
+        visibleNodeIds: new Set(),
+        nodeHopLevels: new Map(),
+      };
+      buildAnimRef.current.phase = "idle";
+      buildAnimRef.current.nodeAlphas = new Map();
+    }
+  }, [focusNodeId, currentDepth, data.edges, dims.width, dims.height]);
+
+  // ResizeObserver
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const update = () => setDims({ width: container.clientWidth, height: container.clientHeight });
+    const update = () =>
+      setDims({ width: container.clientWidth, height: container.clientHeight });
     update();
     const ro = new ResizeObserver(update);
     ro.observe(container);
@@ -148,8 +273,64 @@ export default function GraphCanvas({ data, activeTypes, onSelect }: GraphCanvas
       const nodes = nodesRef.current;
       const edges = edgesRef.current;
       const activeT = activeTypesRef.current;
+      const nodeMap = nodeMapRef.current;
       timeRef.current += 0.02;
       const t = timeRef.current;
+      const now = performance.now();
+
+      const egoActive = focusNodeIdRef.current !== null;
+      const visibleIds = egoSubgraphRef.current.visibleNodeIds;
+      const hopLevels = egoSubgraphRef.current.nodeHopLevels;
+      const buildAnim = buildAnimRef.current;
+      const focusId = focusNodeIdRef.current;
+
+      // Pan animation
+      const panAnim = panAnimRef.current;
+      if (panAnim.active) {
+        const elapsed = now - panAnim.startTime;
+        const progress = Math.min(1, elapsed / panAnim.duration);
+        // Ease-out quadratic: t * (2 - t)
+        const eased = progress * (2 - progress);
+        panRef.current = {
+          x: panAnim.startPan.x + (panAnim.targetPan.x - panAnim.startPan.x) * eased,
+          y: panAnim.startPan.y + (panAnim.targetPan.y - panAnim.startPan.y) * eased,
+        };
+        if (progress >= 1) panAnim.active = false;
+      }
+
+      // Build-out animation: hop-by-hop reveal
+      if (buildAnim.phase === "building") {
+        const elapsed = now - buildAnim.hopTimestamp;
+        if (elapsed >= HOP_REVEAL_DURATION && buildAnim.currentRevealHop < buildAnim.targetDepth) {
+          buildAnim.currentRevealHop++;
+          buildAnim.hopTimestamp = now;
+        }
+
+        for (const [nid, hop] of hopLevels) {
+          if (hop < buildAnim.currentRevealHop) {
+            buildAnim.nodeAlphas.set(nid, 1);
+          } else if (hop === buildAnim.currentRevealHop) {
+            const hopElapsed = now - buildAnim.hopTimestamp;
+            const alpha = Math.min(1, hopElapsed / HOP_REVEAL_DURATION);
+            buildAnim.nodeAlphas.set(nid, alpha);
+          } else {
+            buildAnim.nodeAlphas.set(nid, 0);
+          }
+        }
+
+        if (buildAnim.currentRevealHop >= buildAnim.targetDepth) {
+          // Check if all nodes are fully revealed
+          const allRevealed = Array.from(buildAnim.nodeAlphas.values()).every((a) => a >= 1);
+          if (allRevealed) {
+            buildAnim.phase = "idle";
+          }
+        }
+      }
+
+      // Rebuild node map (positions change each tick)
+      if (nodeMap.size !== nodes.length) {
+        nodeMapRef.current = new Map(nodes.map((n) => [n.id, n]));
+      }
 
       // Coulomb repulsion
       for (let i = 0; i < nodes.length; i++) {
@@ -159,6 +340,10 @@ export default function GraphCanvas({ data, activeTypes, onSelect }: GraphCanvas
           continue;
         }
         for (let j = i + 1; j < nodes.length; j++) {
+          // Skip pairs where both nodes are hidden in ego mode
+          if (egoActive && !visibleIds.has(nodes[i].id) && !visibleIds.has(nodes[j].id)) {
+            continue;
+          }
           const dx = nodes[j].x - nodes[i].x;
           const dy = nodes[j].y - nodes[i].y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -172,10 +357,10 @@ export default function GraphCanvas({ data, activeTypes, onSelect }: GraphCanvas
         }
       }
 
-      // Springs
+      // Springs — use Map lookup instead of nodes.find
       edges.forEach((e) => {
-        const s = nodes.find((n) => n.id === e.source);
-        const tgt = nodes.find((n) => n.id === e.target);
+        const s = nodeMap.get(e.source);
+        const tgt = nodeMap.get(e.target);
         if (!s || !tgt) return;
         const dx = tgt.x - s.x;
         const dy = tgt.y - s.y;
@@ -206,15 +391,33 @@ export default function GraphCanvas({ data, activeTypes, onSelect }: GraphCanvas
         n.y += n.vy;
       });
 
+      // Radial bias force when ego-graph is active
+      if (egoActive && focusId) {
+        const focusNode = nodeMap.get(focusId);
+        if (focusNode) {
+          for (const [nid, hop] of hopLevels) {
+            if (hop === 0) continue; // skip focus node itself
+            const n = nodeMap.get(nid);
+            if (!n || n.fx !== null) continue; // skip pinned nodes
+            const dx = n.x - focusNode.x;
+            const dy = n.y - focusNode.y;
+            const currentRadius = Math.sqrt(dx * dx + dy * dy) || 1;
+            const targetRadius = hop * RING_SPACING;
+            const radialForce = (targetRadius - currentRadius) * RADIAL_STRENGTH;
+            n.vx += (dx / currentRadius) * radialForce;
+            n.vy += (dy / currentRadius) * radialForce;
+          }
+        }
+      }
+
       // Render
       ctx.save();
       ctx.clearRect(0, 0, dims.width, dims.height);
 
-      // Background
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, dims.width, dims.height);
 
-      // Subtle grid (wiki-meta-line softened)
+      // Subtle grid
       const zoom = zoomRef.current;
       const pan = panRef.current;
       const gridSize = 40 * zoom;
@@ -238,11 +441,15 @@ export default function GraphCanvas({ data, activeTypes, onSelect }: GraphCanvas
       ctx.translate(pan.x, pan.y);
       ctx.scale(zoom, zoom);
 
-      // Edges
+      // Edges — use Map lookup
       edges.forEach((e) => {
-        const s = nodes.find((n) => n.id === e.source);
-        const tgt = nodes.find((n) => n.id === e.target);
+        const s = nodeMap.get(e.source);
+        const tgt = nodeMap.get(e.target);
         if (!s || !tgt) return;
+
+        // In ego mode, skip edges where either endpoint is not visible
+        if (egoActive && (!visibleIds.has(s.id) || !visibleIds.has(tgt.id))) return;
+
         const dimmed = !activeT.has(s.type) && !activeT.has(tgt.type);
         const connectedHover =
           hoveredRef.current && (s.id === hoveredRef.current || tgt.id === hoveredRef.current);
@@ -256,39 +463,75 @@ export default function GraphCanvas({ data, activeTypes, onSelect }: GraphCanvas
         const cpX = midX + (dy / dist) * curvature;
         const cpY = midY - (dx / dist) * curvature;
 
+        // Ego-graph alpha: minimum of both endpoints' build-out alpha
+        let egoAlpha = 1;
+        if (egoActive) {
+          const sAlpha = buildAnim.nodeAlphas.get(s.id) ?? 0;
+          const tAlpha = buildAnim.nodeAlphas.get(tgt.id) ?? 0;
+          egoAlpha = Math.min(sAlpha, tAlpha);
+        }
+
         ctx.beginPath();
         ctx.moveTo(s.x, s.y);
         ctx.quadraticCurveTo(cpX, cpY, tgt.x, tgt.y);
 
         if (dimmed) {
+          ctx.globalAlpha = egoAlpha;
           ctx.strokeStyle = "rgba(162, 169, 177, 0.15)";
           ctx.lineWidth = 0.5;
         } else if (connectedHover) {
           const pulse = Math.sin(t * 3) * 0.15 + 0.85;
+          ctx.globalAlpha = egoAlpha;
           ctx.strokeStyle = EDGE_HOVER;
           ctx.lineWidth = 1.75 * pulse;
         } else if (e.edgeType === "wikilink") {
+          ctx.globalAlpha = egoAlpha;
           ctx.strokeStyle = EDGE_WIKILINK;
           ctx.lineWidth = 1.25;
         } else {
+          ctx.globalAlpha = egoAlpha;
           ctx.strokeStyle = EDGE_BASE;
           ctx.lineWidth = 1;
         }
         ctx.stroke();
+        ctx.globalAlpha = 1;
       });
+
+      // Compute label ranks for progressive visibility (ego mode)
+      let labelRanks: Map<string, number> | null = null;
+      if (egoActive) {
+        const visibleNonFragment = Array.from(visibleIds)
+          .map((id) => nodeMap.get(id))
+          .filter((n): n is SimNode => n !== undefined && n.type !== "fragment")
+          .sort((a, b) => b.size - a.size);
+        labelRanks = new Map();
+        visibleNonFragment.forEach((n, i) => labelRanks!.set(n.id, i));
+      }
 
       // Nodes
       nodes.forEach((n) => {
+        // In ego mode, skip nodes not in visible set
+        if (egoActive && !visibleIds.has(n.id)) return;
+
         const dimmed = !activeT.has(n.type);
         const isHovered = hoveredRef.current === n.id;
         const isSelected = selectedId === n.id;
+        const isFocusNode = egoActive && n.id === focusId;
         const color = nodeColor(n);
         const size = n.size * (isHovered ? 1.15 : 1);
 
-        ctx.globalAlpha = dimmed ? 0.15 : 1;
+        // Compute combined alpha
+        let nodeAlpha = dimmed ? 0.15 : 1;
+        if (egoActive) {
+          const hop = hopLevels.get(n.id) ?? 0;
+          const hopAlpha = HOP_OPACITY[Math.min(hop, HOP_OPACITY.length - 1)];
+          const buildAlpha = buildAnim.nodeAlphas.get(n.id) ?? 1;
+          nodeAlpha = (dimmed ? 0.15 : hopAlpha) * buildAlpha;
+        }
+
+        ctx.globalAlpha = nodeAlpha;
         ctx.beginPath();
         if (n.type === "person") {
-          // Diamond
           ctx.moveTo(n.x, n.y - size);
           ctx.lineTo(n.x + size, n.y);
           ctx.lineTo(n.x, n.y + size);
@@ -305,19 +548,47 @@ export default function GraphCanvas({ data, activeTypes, onSelect }: GraphCanvas
           ctx.lineWidth = isSelected ? 2.5 : 1.5;
           ctx.stroke();
         }
-        ctx.globalAlpha = 1;
 
-        // Labels for wiki + person nodes
-        if ((n.type === "wiki" || n.type === "person") && !dimmed) {
-          ctx.font = `500 ${isHovered ? 12 : 11}px Inter, system-ui, sans-serif`;
-          ctx.fillStyle = isHovered ? LABEL_COLOR_HOVER : LABEL_COLOR;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "top";
-          ctx.fillText(n.label, n.x, n.y + size + 6);
+        // Ego-center ring
+        if (isFocusNode) {
+          ctx.globalAlpha = 0.8;
+          ctx.strokeStyle = SELECTED_STROKE;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, size + 4, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = nodeAlpha;
+        }
+
+        // Labels
+        if (egoActive) {
+          // Progressive labels in ego mode
+          if (n.type !== "fragment" && !dimmed) {
+            const rank = labelRanks?.get(n.id) ?? 0;
+            const labelAlpha = shouldShowLabel(n.id, focusId, rank, zoom) * nodeAlpha;
+            if (labelAlpha > 0) {
+              ctx.globalAlpha = labelAlpha;
+              ctx.font = `500 ${isHovered ? 12 : 11}px Inter, system-ui, sans-serif`;
+              ctx.fillStyle = isHovered ? LABEL_COLOR_HOVER : LABEL_COLOR;
+              ctx.textAlign = "center";
+              ctx.textBaseline = "top";
+              ctx.fillText(n.label, n.x, n.y + size + 6);
+            }
+          }
+        } else {
+          // Full-graph mode: show all wiki + person labels
+          if ((n.type === "wiki" || n.type === "person") && !dimmed) {
+            ctx.font = `500 ${isHovered ? 12 : 11}px Inter, system-ui, sans-serif`;
+            ctx.fillStyle = isHovered ? LABEL_COLOR_HOVER : LABEL_COLOR;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "top";
+            ctx.fillText(n.label, n.x, n.y + size + 6);
+          }
         }
 
         // Fragment hover tooltip
         if (isHovered && n.type === "fragment") {
+          ctx.globalAlpha = nodeAlpha;
           ctx.font = "500 10px Inter, system-ui, sans-serif";
           const tw = ctx.measureText(n.label).width + 12;
           const th = 22;
@@ -335,6 +606,8 @@ export default function GraphCanvas({ data, activeTypes, onSelect }: GraphCanvas
           ctx.textBaseline = "middle";
           ctx.fillText(n.label, n.x, ty + th / 2);
         }
+
+        ctx.globalAlpha = 1;
       });
 
       ctx.restore();
@@ -440,16 +713,23 @@ export default function GraphCanvas({ data, activeTypes, onSelect }: GraphCanvas
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const rect = canvasRef.current!.getBoundingClientRect();
-      const { x: wx, y: wy } = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      // Drag-distance check: ignore click if the mouse moved >5px from startX/startY
+      const dx = sx - dragRef.current.startX;
+      const dy = sy - dragRef.current.startY;
+      if (Math.sqrt(dx * dx + dy * dy) > 5) return;
+
+      const { x: wx, y: wy } = screenToWorld(sx, sy);
       const node = findNodeAt(wx, wy);
       setSelectedId(node?.id ?? null);
       onSelect?.(node ?? null);
+      onFocusChange(node?.id ?? null);
     },
-    [screenToWorld, findNodeAt, onSelect],
+    [screenToWorld, findNodeAt, onSelect, onFocusChange],
   );
 
-  // Native non-passive wheel listener — needed so preventDefault actually stops
-  // the page/ancestor from scrolling while zooming over the canvas.
+  // Native non-passive wheel listener
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
