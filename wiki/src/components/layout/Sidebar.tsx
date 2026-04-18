@@ -126,13 +126,6 @@ const contentsData: SidebarSectionData = {
         { label: "Quiet morning tone", href: "/wiki/example/quiet-morning-tone" },
       ],
     },
-    {
-      label: "Works",
-      arrow: "right",
-      children: [
-        { label: "Zami: A New Spelling of My Name", href: "/wiki/example/zami" },
-      ],
-    },
   ],
 };
 
