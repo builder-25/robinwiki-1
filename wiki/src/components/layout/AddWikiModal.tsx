@@ -68,8 +68,10 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 }
 
 const WIKI_TYPES = [
-  { value: "personal", label: "Personal" },
+  { value: "log", label: "Log" },
   { value: "research", label: "Research" },
+  { value: "belief", label: "Belief" },
+  { value: "decision", label: "Decision" },
   { value: "project", label: "Project" },
   { value: "objective", label: "Objective" },
   { value: "principles", label: "Principles" },
