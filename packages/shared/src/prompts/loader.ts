@@ -38,3 +38,16 @@ export function renderTemplate(template: string, variables: Record<string, unkno
   const compiled = Handlebars.compile(template, { noEscape: true })
   return compiled(variables)
 }
+
+/**
+ * Parse and validate a YAML blob (arbitrary string) through PromptSpecSchema.
+ * Unlike loadSpec, this does NOT read from disk and does NOT cache results.
+ * Throws YAMLException on syntax errors; throws ZodError on schema errors.
+ * Used by:
+ * - PUT /wiki-types/:slug validation pipeline (core)
+ * - regen.ts YAML-blob override path (core)
+ */
+export function parseSpecFromBlob(yaml: string): PromptSpec {
+  const parsed = loadYaml(yaml)
+  return PromptSpecSchema.parse(parsed)
+}
