@@ -102,7 +102,13 @@ app.route('/admin', adminRoutes)
 app.route('/auth', authRecoverRoutes)
 app.route('/published', publishedRoutes)
 app.use('/api/auth/*', (c) => auth.handler(c.req.raw))
-app.route('/admin/queues', bullBoardApp)
+
+// BullBoard exposes queue payloads (raw user fragments), retry controls, and
+// drain actions. It has no auth in front. Only mount outside production until
+// issue #73 ships a proper session gate.
+if (process.env.NODE_ENV !== 'production') {
+  app.route('/admin/queues', bullBoardApp)
+}
 
 /***********************************************************************
  * ## Authenticated API
