@@ -4,6 +4,8 @@ import { db } from '../db/client.js'
 import { users } from '../db/schema.js'
 import { generateDek, loadMasterKey, wrapDek } from '../lib/crypto.js'
 import { logger } from '../lib/logger.js'
+import { runMigrations } from './run-migrations.js'
+import { producer } from '../queue/producer.js'
 
 const log = logger.child({ component: 'jit-provision' })
 
@@ -17,6 +19,9 @@ let provisioned: boolean | null = null
  */
 export async function ensureFirstUser(): Promise<void> {
   if (provisioned === true) return
+
+  // Run any pending DB migrations before touching the users table
+  await runMigrations()
 
   const [row] = await db.execute<{ count: number }>(sql`SELECT count(*)::int AS count FROM users`)
   const userCount = row?.count ?? 0
@@ -65,6 +70,17 @@ export async function ensureFirstUser(): Promise<void> {
       passwordResetRequired: true,
     })
     .where(eq(users.id, userId))
+
+  // Fire-and-forget provision job for keypair generation
+  producer
+    .enqueueProvision({
+      type: 'provision',
+      jobId: `provision-${userId}`,
+      userId,
+      enqueuedAt: new Date().toISOString(),
+    })
+    .then(() => log.info({ userId }, 'enqueued provision job for keypair generation'))
+    .catch((err) => log.error({ userId, err }, 'failed to enqueue provision job'))
 
   provisioned = true
   log.info({ userId, email }, 'first user provisioned with DEK and password_reset_required=true')

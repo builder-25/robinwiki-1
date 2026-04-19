@@ -13,6 +13,7 @@ import {
   createRedisConnection,
   type ExtractionJob,
   type LinkJob,
+  type ProvisionJob,
   type JobResult,
 } from '@robin/queue'
 import {
@@ -42,6 +43,7 @@ import {
   entries,
   edges,
   people,
+  users,
   wikis,
 } from '../db/schema.js'
 import { entryLock, fragmentLock } from '../db/locks.js'
@@ -52,6 +54,7 @@ import { emitAuditEvent } from '../db/audit.js'
 import { producer } from './producer.js'
 import { processRegenJob } from './regen-worker.js'
 import { loadOpenRouterConfigFromDb } from '../lib/openrouter-config.js'
+import { generateKeypair } from '../keypair.js'
 import { logger } from '../lib/logger.js'
 
 const log = logger.child({ component: 'worker' })
@@ -471,16 +474,56 @@ async function processLinkJob(job: LinkJob): Promise<JobResult> {
   return { jobId: job.jobId, success: true, processedAt: new Date().toISOString() }
 }
 
+// ── Provision processor ─────────────────────────────────────────────────────
+
+export async function processProvisionJob(job: ProvisionJob): Promise<JobResult> {
+  log.info({ jobId: job.jobId, userId: job.userId }, 'processing provision job')
+
+  const [user] = await db
+    .select({
+      id: users.id,
+      publicKey: users.publicKey,
+      encryptedPrivateKey: users.encryptedPrivateKey,
+    })
+    .from(users)
+    .where(eq(users.id, job.userId))
+
+  if (!user) {
+    log.warn({ userId: job.userId }, 'provision: user not found')
+    return { jobId: job.jobId, success: false, error: 'user not found', processedAt: new Date().toISOString() }
+  }
+
+  if (user.publicKey && user.publicKey !== '') {
+    log.info({ userId: job.userId }, 'provision: keypair already exists, skipping keygen')
+    return { jobId: job.jobId, success: true, processedAt: new Date().toISOString() }
+  }
+
+  const secret = process.env.KEY_ENCRYPTION_SECRET
+  if (!secret) throw new Error('KEY_ENCRYPTION_SECRET env var is required')
+
+  const { publicKey, encryptedPrivateKey } = generateKeypair(secret)
+
+  await db
+    .update(users)
+    .set({ publicKey, encryptedPrivateKey })
+    .where(eq(users.id, job.userId))
+
+  log.info({ userId: job.userId }, 'provision: keypair generated and stored')
+  return { jobId: job.jobId, success: true, processedAt: new Date().toISOString() }
+}
+
 // ── Worker lifecycle ────────────────────────────────────────────────────────
 
 let extractionWorker: ReturnType<typeof bullWorker.startExtractionWorker> | null = null
 let linkWorker: ReturnType<typeof bullWorker.startLinkWorker> | null = null
 let regenWorker: ReturnType<typeof bullWorker.startRegenWorker> | null = null
+let provisionWorker: ReturnType<typeof bullWorker.startProvisionWorker> | null = null
 
 /**
  * Start global ingest workers. Single-user — one worker per queue, no per-user fan-out.
  * Extraction and link workers handle ingest; regen worker rebuilds wikis when
- * new fragments are linked via FRAGMENT_IN_WIKI edges.
+ * new fragments are linked via FRAGMENT_IN_WIKI edges. Provision worker generates
+ * Ed25519 keypairs for newly created users.
  */
 export function startWorkers(): void {
   if (extractionWorker || linkWorker) {
@@ -501,6 +544,10 @@ export function startWorkers(): void {
   regenWorker = bullWorker.startRegenWorker(processRegenJob)
   regenWorker.on('completed', (job) => log.info({ jobId: job.id }, 'regen completed'))
   regenWorker.on('failed', (job, err) => log.error({ jobId: job?.id, err }, 'regen failed'))
+
+  provisionWorker = bullWorker.startProvisionWorker(processProvisionJob)
+  provisionWorker.on('completed', (job) => log.info({ jobId: job.id }, 'provision completed'))
+  provisionWorker.on('failed', (job, err) => log.error({ jobId: job?.id, err }, 'provision failed'))
 
   log.info('ingest workers started')
 }
