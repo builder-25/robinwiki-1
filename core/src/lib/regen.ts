@@ -1,6 +1,6 @@
 import { eq, ne, and, inArray, desc, isNull } from 'drizzle-orm'
 import { createIngestAgents, createStringCaller, embedText } from '@robin/agent'
-import { loadWikiGenerationSpec } from '@robin/shared'
+import { loadWikiGenerationSpec, type WikiGenerationOverride } from '@robin/shared'
 import type { WikiType } from '@robin/shared'
 import { db as defaultDb, type DB } from '../db/client.js'
 import { wikis, wikiTypes, edges, fragments, edits } from '../db/schema.js'
@@ -139,22 +139,23 @@ export async function regenerateWiki(
     }).join('\n')
   }
 
-  // Resolve custom prompt override: wiki-level > type-level > YAML default
-  let customPrompt: string | undefined
-  if (wiki.prompt) {
-    customPrompt = wiki.prompt
+  // Resolve override hierarchy: wiki.prompt (systemMessage swap) > wikiTypes.prompt
+  // (YAML blob) > disk default. Per-wiki overrides short-circuit the type-level
+  // override entirely (locked decision).
+  let override: WikiGenerationOverride | undefined
+  if (wiki.prompt && wiki.prompt.trim().length > 0) {
+    override = { kind: 'systemMessage', text: wiki.prompt }
   } else {
-    const [wikiType] = await database
+    const [wikiTypeRow] = await database
       .select({ prompt: wikiTypes.prompt })
       .from(wikiTypes)
       .where(and(eq(wikiTypes.slug, wiki.type), eq(wikiTypes.userModified, true)))
-    if (wikiType?.prompt) {
-      customPrompt = wikiType.prompt
+    if (wikiTypeRow?.prompt) {
+      override = { kind: 'yaml', blob: wikiTypeRow.prompt }
     }
   }
 
-  // Load prompt spec and call LLM
-  const spec = loadWikiGenerationSpec(wiki.type as WikiType, {
+  const vars = {
     fragments: fragmentsText,
     title: wiki.name,
     date: new Date().toISOString().split('T')[0],
@@ -162,7 +163,23 @@ export async function regenerateWiki(
     existingWiki: previousContent || undefined,
     edits: editsSummary,
     relatedWikis: relatedWikisText,
-  }, customPrompt)
+  }
+
+  // Load prompt spec with runtime fallback on override parse/validation failure.
+  // A malformed stored YAML must not crash the regen worker — log a warn and retry
+  // with no override (disk default).
+  let spec
+  try {
+    spec = loadWikiGenerationSpec(wiki.type as WikiType, vars, override)
+  } catch (err) {
+    log.warn({
+      err: err instanceof Error ? { name: err.name, message: err.message } : err,
+      wikiKey,
+      wikiType: wiki.type,
+      overrideKind: override?.kind,
+    }, 'prompt override failed to parse/validate — falling back to disk YAML default')
+    spec = loadWikiGenerationSpec(wiki.type as WikiType, vars)
+  }
 
   const markdown = await callLlm(spec.system, spec.user)
 
