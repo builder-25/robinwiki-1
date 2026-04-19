@@ -1,6 +1,10 @@
 name: QuillTheWriter
 version: 1
 category: generation
+display_label: "Agent"
+display_description: "Documentation for a configured AI assistant's purpose, behavior, and capabilities"
+display_short_descriptor: "AI assistant docs"
+display_order: 80
 task: thread_wiki_agent
 description: Generates an agent wiki — documentation for a configured AI assistant.
 temperature: 0.3

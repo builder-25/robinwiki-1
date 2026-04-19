@@ -1,6 +1,10 @@
 name: QuillTheWriter
 version: 1
 category: generation
+display_label: "Belief"
+display_description: "A synthesis of a held position, mental model, or worldview with supporting evidence"
+display_short_descriptor: "Held position or model"
+display_order: 30
 task: thread_wiki_belief
 description: Generates a belief wiki — a synthesis of a held position or mental model.
 temperature: 0.3

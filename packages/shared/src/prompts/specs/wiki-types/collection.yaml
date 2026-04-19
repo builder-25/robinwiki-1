@@ -1,6 +1,10 @@
 name: QuillTheWriter
 version: 1
 category: generation
+display_label: "Collection"
+display_description: "A curated library organizing related bookmarks, references, or resources"
+display_short_descriptor: "Curated item library"
+display_order: 20
 task: thread_wiki_collection
 description: Generates a collection wiki — a curated library of related items.
 temperature: 0.3

@@ -1,6 +1,10 @@
 name: QuillTheWriter
 version: 1
 category: generation
+display_label: "Objective"
+display_description: "A high-level objective with measurable milestones and progress tracking"
+display_short_descriptor: "Objective with direction"
+display_order: 60
 task: thread_wiki_objective
 description: Generates an objective wiki — a high-level objective with measurable direction.
 temperature: 0.3

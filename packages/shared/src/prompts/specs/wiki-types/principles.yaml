@@ -1,6 +1,10 @@
 name: QuillTheWriter
 version: 1
 category: generation
+display_label: "Principles"
+display_description: "A document of operating rules, values, and commitments that guide behavior"
+display_short_descriptor: "Operating rules"
+display_order: 100
 task: thread_wiki_principles
 description: Generates a principles wiki — a document of operating rules and commitments.
 temperature: 0.3

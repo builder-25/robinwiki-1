@@ -1,6 +1,10 @@
 name: QuillTheWriter
 version: 1
 category: generation
+display_label: "Decision"
+display_description: "A record of a discrete choice, its context, alternatives considered, and reasoning"
+display_short_descriptor: "Choice and reasoning"
+display_order: 40
 task: thread_wiki_decision
 description: Generates a decision wiki — a record of a discrete choice and its reasoning.
 temperature: 0.3

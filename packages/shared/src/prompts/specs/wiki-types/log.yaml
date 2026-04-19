@@ -1,6 +1,10 @@
 name: QuillTheWriter
 version: 1
 category: generation
+display_label: "Log"
+display_description: "A chronological synthesis of events, observations, and activities over time"
+display_short_descriptor: "Chronological record"
+display_order: 10
 task: thread_wiki_log
 description: Generates a log wiki — a chronological synthesis of events and observations.
 temperature: 0.3

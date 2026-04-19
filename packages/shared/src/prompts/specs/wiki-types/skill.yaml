@@ -1,6 +1,10 @@
 name: QuillTheWriter
 version: 1
 category: generation
+display_label: "Skill"
+display_description: "A knowledge base documenting a capability being developed or maintained"
+display_short_descriptor: "Capability knowledge base"
+display_order: 70
 task: thread_wiki_skill
 description: Generates a skill wiki — a knowledge base for a capability being built.
 temperature: 0.3

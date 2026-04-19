@@ -1,6 +1,10 @@
 name: QuillTheWriter
 version: 1
 category: generation
+display_label: "Project"
+display_description: "A living document tracking an active initiative, its goals, progress, and status"
+display_short_descriptor: "Active initiative tracker"
+display_order: 50
 task: thread_wiki_project
 description: Generates a project wiki — a living document of an active initiative.
 temperature: 0.3
