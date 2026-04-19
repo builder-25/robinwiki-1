@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pencil } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { T } from "@/lib/typography";
 import { Button } from "@/components/ui/button";
@@ -101,6 +102,10 @@ export default function AddWikiModal({
 
   const isSettingsView = Boolean(prefill);
 
+  const queryClient = useQueryClient();
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   const { data: wikiTypesData, isLoading: typesLoading } = useWikiTypesList();
 
   // API returns YAML-backed types only; `people` has no YAML on disk.
@@ -133,6 +138,8 @@ export default function AddWikiModal({
     if (open) {
       if (!wasOpen.current) {
         setShowSavedToast(false);
+        setSubmitError(null);
+        setSubmitting(false);
         if (saveCloseTimerRef.current) {
           clearTimeout(saveCloseTimerRef.current);
           saveCloseTimerRef.current = null;
@@ -199,12 +206,13 @@ export default function AddWikiModal({
 
   const locked = isSettingsView && !fieldsEditable;
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (locked) {
       setFieldsEditable(true);
       return;
     }
     if (isSettingsView) {
+      // Plan 03 will wire PUT /api/wikis/:id here.
       if (saveCloseTimerRef.current) {
         clearTimeout(saveCloseTimerRef.current);
         saveCloseTimerRef.current = null;
@@ -217,7 +225,51 @@ export default function AddWikiModal({
       }, 2000);
       return;
     }
-    onClose();
+
+    // Create mode — hit POST /api/wikis.
+    const trimmedName = name.trim();
+    if (trimmedName.length < 3) {
+      setSubmitError("Name must be at least 3 characters.");
+      return;
+    }
+    if (!wikiType) {
+      setSubmitError("Pick a wiki type.");
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const trimmedPrompt = wikiPrompt.trim();
+      const body = {
+        name: trimmedName,
+        type: wikiType,
+        description: description.trim() || undefined,
+        prompt: trimmedPrompt.length > 0 ? trimmedPrompt : undefined,
+      };
+      const res = await fetch("/api/wikis", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        let message = `Create failed (${res.status})`;
+        try {
+          const parsed = (await res.json()) as { error?: string };
+          if (parsed?.error) message = parsed.error;
+        } catch {
+          /* ignore JSON parse */
+        }
+        setSubmitError(message);
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: ["wikis"] });
+      onClose();
+    } catch {
+      setSubmitError("Network error. Check your connection and retry.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -468,6 +520,16 @@ export default function AddWikiModal({
             </div>
           </div>
 
+          {submitError ? (
+            <div
+              role="alert"
+              className="px-5 pt-3 text-[13px]"
+              style={{ color: "#c0392b" }}
+            >
+              {submitError}
+            </div>
+          ) : null}
+
           </div>
           {/* /Scrollable body */}
 
@@ -478,9 +540,18 @@ export default function AddWikiModal({
             <Button
               type="button"
               onClick={handleConfirm}
+              disabled={submitting}
               className="rounded-none bg-[#3366cc] text-white hover:bg-[#2a56b0]"
             >
-              {locked ? confirmLabel : isSettingsView ? "Save" : confirmLabel}
+              {locked
+                ? confirmLabel
+                : isSettingsView
+                  ? submitting
+                    ? "Saving…"
+                    : "Save"
+                  : submitting
+                    ? "Creating…"
+                    : confirmLabel}
             </Button>
           </div>
         </DialogContent>
