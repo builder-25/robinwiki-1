@@ -1,6 +1,6 @@
 import type { NextConfig } from 'next'
 
-const ROBIN_SERVER = process.env.ROBIN_SERVER ?? 'http://localhost:3000'
+const ROBIN_SERVER = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
 const nextConfig: NextConfig = {
   async rewrites() {
