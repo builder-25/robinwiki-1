@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { Hono } from 'hono'
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
@@ -119,6 +119,72 @@ function putJson(path: string, body: unknown) {
     body: JSON.stringify(body),
   })
 }
+
+function postJson(path: string, body: unknown) {
+  return app.request(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+// Resolve every on-disk wiki-type YAML for the preview happy-path loop.
+const WIKI_TYPES_DIR = resolve(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  'packages',
+  'shared',
+  'src',
+  'prompts',
+  'specs',
+  'wiki-types'
+)
+
+const ALL_SLUGS = [
+  'agent',
+  'belief',
+  'collection',
+  'decision',
+  'log',
+  'objective',
+  'principles',
+  'project',
+  'skill',
+  'voice',
+] as const
+
+function readSlugYaml(slug: string): string {
+  return readFileSync(resolve(WIKI_TYPES_DIR, `${slug}.yaml`), 'utf-8')
+}
+
+// All 10 wiki types share the same quirk: `date` is declared required but not
+// referenced in any template. Flip it to required: false so the validation
+// pipeline accepts the blob for the preview render.
+function withDateOptional(y: string): string {
+  return y.replace(
+    /  - name: date\n    description: Current date\n    required: true/,
+    '  - name: date\n    description: Current date\n    required: false'
+  )
+}
+
+// Load the preview fixture at setup time to assert title appearance in renders.
+const FIXTURE_YAML_PATH = resolve(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  'packages',
+  'shared',
+  'src',
+  'prompts',
+  'fixtures',
+  'wiki-type-preview.yaml'
+)
+const FIXTURE_YAML = readFileSync(FIXTURE_YAML_PATH, 'utf-8')
+const { load: loadYaml } = await import('js-yaml')
+const FIXTURE = loadYaml(FIXTURE_YAML) as { title: string }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
 
@@ -353,5 +419,189 @@ describe('POST /wiki-types/:slug/reset', () => {
     ;(globalThis as any).__currentRows = []
     const res = await app.request('/wiki-types/nothing/reset', { method: 'POST' })
     expect(res.status).toBe(404)
+  })
+})
+
+describe('POST /wiki-types/:slug/preview', () => {
+  beforeEach(() => {
+    mockUpdateCalls.length = 0
+    mockInsertCalls.length = 0
+    // Preview is stateless — DB rows intentionally empty by default to prove
+    // the endpoint does not consult the DB. Individual tests may override.
+    ;(globalThis as any).__currentRows = []
+  })
+
+  afterEach(() => {
+    // Preview must not touch the DB. If a future refactor sneaks in a write,
+    // this assertion freezes the stateless contract in place.
+    expect(mockUpdateCalls).toHaveLength(0)
+    expect(mockInsertCalls).toHaveLength(0)
+  })
+
+  it.each(ALL_SLUGS)(
+    'happy path — slug %s renders with fixture title and no leftover mustaches',
+    async (slug) => {
+      const yaml = withDateOptional(readSlugYaml(slug))
+      const res = await postJson(`/wiki-types/${slug}/preview`, { promptYaml: yaml })
+      expect(res.status).toBe(200)
+      const json = (await res.json()) as {
+        renderedPrompt: string
+        warnings: Array<{ code: string; message: string }>
+      }
+      expect(typeof json.renderedPrompt).toBe('string')
+      expect(json.renderedPrompt.length).toBeGreaterThan(0)
+      // Every mustache should have been resolved — no literal {{...}} remains.
+      expect(json.renderedPrompt).not.toContain('{{')
+      // Fixture's title MUST appear somewhere in the render — proves the
+      // fixture was substituted, not a stale default.
+      expect(json.renderedPrompt).toContain(FIXTURE.title)
+      expect(Array.isArray(json.warnings)).toBe(true)
+      for (const w of json.warnings) {
+        expect(typeof w.code).toBe('string')
+        expect(typeof w.message).toBe('string')
+      }
+    }
+  )
+
+  it('rejects malformed YAML with 400 + code YAML_PARSE_ERROR', async () => {
+    const res = await postJson('/wiki-types/log/preview', {
+      promptYaml: 'name: [unclosed',
+    })
+    expect(res.status).toBe(400)
+    const json = (await res.json()) as { code: string }
+    expect(json.code).toBe('YAML_PARSE_ERROR')
+  })
+
+  it('rejects schema-invalid YAML with 400 + code YAML_SCHEMA_ERROR', async () => {
+    const res = await postJson('/wiki-types/log/preview', {
+      promptYaml: 'name: X\nversion: 1\ncategory: generation',
+    })
+    expect(res.status).toBe(400)
+    const json = (await res.json()) as { code: string }
+    expect(json.code).toBe('YAML_SCHEMA_ERROR')
+  })
+
+  it('rejects YAML > 32KB with 400 + code YAML_TOO_LARGE', async () => {
+    const bigYaml = LOG_YAML + '\n# pad\n' + 'x'.repeat(33 * 1024)
+    const res = await postJson('/wiki-types/log/preview', { promptYaml: bigYaml })
+    expect(res.status).toBe(400)
+    const json = (await res.json()) as { code: string }
+    expect(json.code).toBe('YAML_TOO_LARGE')
+  })
+
+  it('rejects disallowed helper with 400 + code DISALLOWED_HELPER', async () => {
+    const bad = LOG_YAML.replace('{{#if timeline}}', '{{#unless timeline}}').replace(
+      '{{/if}}',
+      '{{/unless}}'
+    )
+    const res = await postJson('/wiki-types/log/preview', { promptYaml: bad })
+    expect(res.status).toBe(400)
+    const json = (await res.json()) as { code: string }
+    expect(json.code).toBe('DISALLOWED_HELPER')
+  })
+
+  it('rejects block-params with 400 + code UNSUPPORTED_BLOCK_PARAM', async () => {
+    const blockParamYaml = `name: X
+version: 1
+category: generation
+task: t
+description: t
+temperature: 0.3
+system_message: hello
+template: |
+  {{#each items as |it|}}
+  - {{it}}
+  {{/each}}
+input_variables:
+  - name: items
+    description: list
+    required: true
+`
+    const res = await postJson('/wiki-types/log/preview', { promptYaml: blockParamYaml })
+    expect(res.status).toBe(400)
+    const json = (await res.json()) as { code: string }
+    expect(json.code).toBe('UNSUPPORTED_BLOCK_PARAM')
+  })
+
+  it('rejects missing required var with 400 + code MISSING_REQUIRED_VAR', async () => {
+    const missing = `name: X
+version: 1
+category: generation
+task: t
+description: t
+temperature: 0.3
+system_message: hello
+template: |
+  no variables here
+input_variables:
+  - name: foo
+    description: must be referenced
+    required: true
+`
+    const res = await postJson('/wiki-types/log/preview', { promptYaml: missing })
+    expect(res.status).toBe(400)
+    const json = (await res.json()) as { code: string; detail: { missing: string[] } }
+    expect(json.code).toBe('MISSING_REQUIRED_VAR')
+  })
+
+  it('returns 200 with UNKNOWN_VARIABLE warning when template references undeclared vars', async () => {
+    const withUnknown = `name: X
+version: 1
+category: generation
+task: t
+description: t
+temperature: 0.3
+system_message: hello
+template: |
+  {{declared}} and {{undeclared}}
+input_variables:
+  - name: declared
+    description: yes
+    required: true
+`
+    const res = await postJson('/wiki-types/log/preview', { promptYaml: withUnknown })
+    expect(res.status).toBe(200)
+    const json = (await res.json()) as {
+      renderedPrompt: string
+      warnings: Array<{ code: string; message: string }>
+    }
+    expect(Array.isArray(json.warnings)).toBe(true)
+    expect(
+      json.warnings.some(
+        (w) => w.code === 'UNKNOWN_VARIABLE' && w.message.includes('undeclared')
+      )
+    ).toBe(true)
+    // Every warning entry must be a structured {code, message} pair — never a
+    // bare string. This is the M-3 must-have made executable.
+    for (const w of json.warnings) {
+      expect(typeof w.code).toBe('string')
+      expect(typeof w.message).toBe('string')
+    }
+  })
+
+  it('rejects URL-encoded directory-traversal slug with 400 Invalid slug format', async () => {
+    const res = await postJson('/wiki-types/..%2Fetc%2Fpasswd/preview', {
+      promptYaml: LOG_YAML_VALID,
+    })
+    expect(res.status).toBe(400)
+    const json = (await res.json()) as { error: string }
+    expect(json.error).toBe('Invalid slug format')
+  })
+
+  it('rejects disallowed-char slug with 400 Invalid slug format', async () => {
+    const res = await postJson('/wiki-types/INVALID_SLUG/preview', {
+      promptYaml: LOG_YAML_VALID,
+    })
+    expect(res.status).toBe(400)
+    const json = (await res.json()) as { error: string }
+    expect(json.error).toBe('Invalid slug format')
+  })
+
+  it('succeeds with empty DB — preview is stateless and does not consult wiki_types rows', async () => {
+    ;(globalThis as any).__currentRows = []
+    const res = await postJson('/wiki-types/log/preview', { promptYaml: LOG_YAML_VALID })
+    expect(res.status).toBe(200)
+    const json = (await res.json()) as { renderedPrompt: string }
+    expect(json.renderedPrompt.length).toBeGreaterThan(0)
   })
 })
