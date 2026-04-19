@@ -1,7 +1,7 @@
 "use client";
 import { AlertCircle } from "lucide-react";
 import type { ApiErrorBody } from "./types";
-import { describeSaveError } from "./errorMessages";
+import { describeApiError } from "./errorMessages";
 import { cn } from "@/lib/utils";
 
 export interface ValidationBannerProps {
@@ -11,7 +11,7 @@ export interface ValidationBannerProps {
 
 export default function ValidationBanner({ error, className }: ValidationBannerProps) {
   if (!error) return null;
-  const message = describeSaveError(error);
+  const message = describeApiError(error);
   return (
     <div
       role="alert"

@@ -63,6 +63,7 @@ export default function PromptEditor({
   footerActions,
   mode: _mode = "full-yaml",
   onDirtyChange,
+  onYamlChange,
 }: PromptEditorProps) {
   // mode !== "full-yaml" is a Phase 3 extension point — this plan treats it the same as "full-yaml".
   const [yaml, setYaml] = useState(initialYaml);
@@ -81,6 +82,9 @@ export default function PromptEditor({
   useEffect(() => {
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
+  useEffect(() => {
+    onYamlChange?.(yaml);
+  }, [yaml, onYamlChange]);
 
   const handleInsertVariable = useCallback((name: string) => {
     const view = viewRef.current;

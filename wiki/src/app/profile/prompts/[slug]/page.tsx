@@ -7,7 +7,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { useSession } from "@/hooks/useSession";
 import { useWikiTypesList, findWikiType } from "@/hooks/useWikiTypesList";
 import PromptEditor from "@/components/prompts/PromptEditor";
+import PreviewPanel from "@/components/prompts/PreviewPanel";
 import ConfirmDialog from "@/components/prompts/ConfirmDialog";
+import { cn } from "@/lib/utils";
 
 export default function PromptEditorPage({
   params,
@@ -21,6 +23,9 @@ export default function PromptEditorPage({
   const [discardOpen, setDiscardOpen] = useState(false);
   const [pendingBack, setPendingBack] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [triggerToken, setTriggerToken] = useState(0);
+  const [liveYaml, setLiveYaml] = useState("");
 
   const item = findWikiType(wikiTypes.data, slug);
 
@@ -33,6 +38,11 @@ export default function PromptEditorPage({
     } else {
       goBack();
     }
+  };
+
+  const handlePreview = () => {
+    setPreviewOpen(true);
+    setTriggerToken((t) => t + 1);
   };
 
   if (sessionLoading || wikiTypes.isLoading) {
@@ -67,7 +77,12 @@ export default function PromptEditorPage({
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-[920px] px-10 pt-12 pb-20">
+      <div
+        className={cn(
+          "mx-auto px-10 pt-12 pb-20",
+          previewOpen ? "max-w-[1440px]" : "max-w-[920px]",
+        )}
+      >
         <Button
           type="button"
           variant="ghost"
@@ -79,17 +94,46 @@ export default function PromptEditorPage({
           Back to prompts
         </Button>
 
-        <PromptEditor
-          slug={item.slug}
-          displayLabel={item.displayLabel}
-          initialYaml={item.promptYaml}
-          defaultYaml={item.defaultYaml}
-          inputVariables={item.inputVariables}
-          basedOnVersion={item.basedOnVersion}
-          userModified={item.userModified}
-          onSaved={() => setDirty(false)}
-          onDirtyChange={(d) => setDirty(d)}
-        />
+        <div
+          className={cn(
+            "grid gap-6",
+            previewOpen
+              ? "grid-cols-1 lg:grid-cols-[minmax(0,1fr)_480px]"
+              : "grid-cols-1",
+          )}
+        >
+          <div className="min-w-0">
+            <PromptEditor
+              slug={item.slug}
+              displayLabel={item.displayLabel}
+              initialYaml={item.promptYaml}
+              defaultYaml={item.defaultYaml}
+              inputVariables={item.inputVariables}
+              basedOnVersion={item.basedOnVersion}
+              userModified={item.userModified}
+              onSaved={() => setDirty(false)}
+              onDirtyChange={(d) => setDirty(d)}
+              onYamlChange={setLiveYaml}
+              footerActions={
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handlePreview}
+                >
+                  Preview
+                </Button>
+              }
+            />
+          </div>
+          {previewOpen ? (
+            <PreviewPanel
+              slug={item.slug}
+              draftYaml={liveYaml}
+              triggerToken={triggerToken}
+              onClose={() => setPreviewOpen(false)}
+            />
+          ) : null}
+        </div>
 
         <ConfirmDialog
           open={discardOpen}
