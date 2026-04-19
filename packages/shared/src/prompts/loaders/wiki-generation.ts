@@ -44,8 +44,11 @@ const schemaMap: Record<WikiType, z.ZodType> = {
  *
  * - `yaml`: full YAML blob (from wikiTypes.prompt). Parsed via parseSpecFromBlob;
  *   spec.system_message, spec.template, spec.temperature all come from the blob.
- * - `systemMessage`: plain text (from wikis.prompt). Disk spec is loaded; only
- *   spec.system_message is replaced — template/temperature/input_variables stay.
+ * - `systemMessage`: plain text (from wikis.prompt). Disk spec is loaded; the
+ *   text is APPENDED to spec.system_message (separated by a blank line) —
+ *   template/temperature/input_variables stay. Append (not replace) lets users
+ *   add per-wiki guidance on top of the canonical type prompt without losing
+ *   its rules or tone.
  *
  * In both cases, outputSchema is always code-sourced from schemaMap[type] —
  * user YAML can never change the LLM output contract.
@@ -79,11 +82,15 @@ export function loadWikiGenerationSpec(
     if (override.kind === 'yaml') {
       effective = parseSpecFromBlob(override.blob)
     } else {
-      // trimEnd guards against trailing whitespace subtly changing LLM behavior.
-      effective = {
-        ...diskSpec,
-        system_message: override.text.trimEnd(),
-      }
+      // Append (not replace): user text extends the canonical type system_message.
+      // trimEnd on both sides keeps the blank-line separator clean.
+      const extra = override.text.trim()
+      effective = extra
+        ? {
+            ...diskSpec,
+            system_message: `${diskSpec.system_message.trimEnd()}\n\n${extra}`,
+          }
+        : diskSpec
     }
   }
 

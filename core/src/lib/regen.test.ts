@@ -209,7 +209,7 @@ describe('regenerateWiki — override hierarchy integration', () => {
     expect(llmCalls[0].user).toContain('DOCUMENT STRUCTURE')
   })
 
-  it('short-circuits type-level lookup and swaps only system_message when wiki.prompt is set', async () => {
+  it('short-circuits type-level lookup and APPENDS wiki.prompt to system_message', async () => {
     stageDbResponses([
       [baseWiki({ prompt: 'You are a pirate poet, yarrr.' })], // 1. wikis select
       [],                                                        // 2. fragment edges
@@ -220,9 +220,11 @@ describe('regenerateWiki — override hierarchy integration', () => {
     await regenerateWiki(undefined, 'wiki-key-1', { skipEmbedding: true })
 
     expect(llmCalls).toHaveLength(1)
-    // System message was REPLACED entirely — no Quill residue.
-    expect(llmCalls[0].system).toBe('You are a pirate poet, yarrr.')
-    expect(llmCalls[0].system).not.toContain('Quill')
+    // System message APPENDS: Quill base stays, pirate text follows after a blank-line.
+    expect(llmCalls[0].system).toContain('Quill')
+    expect(llmCalls[0].system).toContain('changelog author')
+    expect(llmCalls[0].system).toContain('You are a pirate poet, yarrr.')
+    expect(llmCalls[0].system).toMatch(/\n\nYou are a pirate poet, yarrr\.$/)
     // Template (user) is still the disk default — title + DOCUMENT STRUCTURE intact.
     expect(llmCalls[0].user).toContain('Test Wiki')
     expect(llmCalls[0].user).toContain('DOCUMENT STRUCTURE')
@@ -320,7 +322,7 @@ temperature: 0.3
     expect(llmCalls[0].system).toContain('Quill')
   })
 
-  it('trims trailing whitespace when swapping system_message from wiki.prompt', async () => {
+  it('trims surrounding whitespace from wiki.prompt before appending to system_message', async () => {
     stageDbResponses([
       [baseWiki({ prompt: 'pirate voice\n\n' })],
       [],
@@ -330,7 +332,9 @@ temperature: 0.3
     await regenerateWiki(undefined, 'wiki-key-1', { skipEmbedding: true })
 
     expect(llmCalls).toHaveLength(1)
-    expect(llmCalls[0].system).toBe('pirate voice')
+    // Base system_message (Quill) is preserved; pirate voice appended cleanly without trailing newlines.
+    expect(llmCalls[0].system).toContain('Quill')
+    expect(llmCalls[0].system).toMatch(/\n\npirate voice$/)
   })
 
   it('treats whitespace-only wiki.prompt as "no override" and falls through to disk default', async () => {
