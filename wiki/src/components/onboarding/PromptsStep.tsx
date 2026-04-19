@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { T } from "@/lib/typography";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,6 @@ import {
   type WikiTypeListItem,
 } from "@/hooks/useWikiTypesList";
 import { getPromptIcon } from "@/lib/promptIcons";
-import { hydrateFromWikiTypes } from "@/lib/wikiPrompts";
 import PromptEditor from "@/components/prompts/PromptEditor";
 
 interface PromptsStepProps {
@@ -32,10 +31,6 @@ export default function PromptsStep({ onNext, onSkip }: PromptsStepProps) {
 
   const [modalType, setModalType] = useState<WikiTypeListItem | null>(null);
   const [editedSlugs, setEditedSlugs] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (data?.wikiTypes) hydrateFromWikiTypes(data.wikiTypes);
-  }, [data?.wikiTypes]);
 
   const hasEdited = editedSlugs.size > 0;
 
