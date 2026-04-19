@@ -25,7 +25,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   WIKI_TYPE_PROMPTS,
   type WikiTypePromptDef,
@@ -144,12 +143,11 @@ export default function PromptsStep({ onNext, onSkip }: PromptsStepProps) {
           Customize any of them.
         </p>
 
-        <ScrollArea
-          className="w-full"
-          style={{ marginTop: 32, height: 280 }}
+        <div
+          className="flex w-full flex-col"
+          style={{ marginTop: 32, gap: 10 }}
         >
-          <div className="flex w-full flex-col pr-3" style={{ gap: 10 }}>
-            {WIKI_TYPES.map((type) => {
+          {WIKI_TYPES.map((type) => {
               const Icon = type.icon;
               const isEdited = editedKeys.has(type.key);
 
@@ -206,9 +204,8 @@ export default function PromptsStep({ onNext, onSkip }: PromptsStepProps) {
                   />
                 </Button>
               );
-            })}
-          </div>
-        </ScrollArea>
+          })}
+        </div>
 
         {error && (
           <p
