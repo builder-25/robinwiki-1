@@ -642,7 +642,7 @@ export default function AddWikiModal({
                     {typeLabel} Prompt
                   </DialogTitle>
                   <DialogDescription>
-                    {`Optional override. Replaces the type's system_message at regen time. Leave empty to use the ${typeLabelLower} default.`}
+                    {`Optional extra instructions. Appended to the ${typeLabelLower} type's system message at regen time. Leave empty to use the default alone.`}
                   </DialogDescription>
                 </DialogHeader>
 
@@ -651,7 +651,7 @@ export default function AddWikiModal({
                   onChange={(e) => setPromptDraft(e.target.value)}
                   className="min-h-[240px] resize-none"
                   rows={12}
-                  placeholder={`Leave blank to use the ${typeLabel} default.`}
+                  placeholder={`Extra guidance appended to the ${typeLabel} default. Leave blank for the default alone.`}
                 />
 
                 <div className="flex items-center justify-end gap-2">
