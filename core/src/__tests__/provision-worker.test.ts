@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { ProvisionJob } from '@robin/queue'
 
-// ── Mocks ───────────────────────────────────────────────────────────────────
+// ── Mocks ───────────────────────────────────────────────────────────────
 
 const mockSelect = vi.fn()
 const mockFrom = vi.fn()
@@ -10,14 +10,10 @@ const mockUpdate = vi.fn()
 const mockSet = vi.fn()
 const mockUpdateWhere = vi.fn()
 
-const mockInsert = vi.fn()
-const mockValues = vi.fn()
-
 vi.mock('../db/client.js', () => ({
   db: {
     select: () => ({ from: mockFrom }),
     update: () => ({ set: mockSet }),
-    insert: () => ({ values: mockValues }),
   },
 }))
 
@@ -32,19 +28,10 @@ vi.mock('../db/schema.js', () => ({
     encryptedPrivateKey: 'encrypted_private_key',
   },
   entries: {},
-  files: {},
-  wikis: {},
-  vaults: { id: 'id', userId: 'user_id' },
   fragments: {},
+  wikis: {},
   edges: {},
   people: {},
-  connections: {},
-  configNotes: { key: 'key', userId: 'user_id' },
-}))
-
-const mockProvision = vi.fn().mockResolvedValue({ status: 'ok', userId: 'u1' })
-vi.mock('../gateway/client.js', () => ({
-  gatewayClient: { provision: (...args: unknown[]) => mockProvision(...args) },
 }))
 
 const mockGenerateKeypair = vi.fn().mockReturnValue({
@@ -55,13 +42,24 @@ vi.mock('../keypair.js', () => ({
   generateKeypair: (...args: unknown[]) => mockGenerateKeypair(...args),
 }))
 
+vi.mock('../lib/logger.js', () => ({
+  logger: {
+    child: () => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      debug: vi.fn(),
+      error: vi.fn(),
+    }),
+  },
+}))
+
 vi.stubEnv('KEY_ENCRYPTION_SECRET', 'test-secret-32chars!!!!!!!!!!!')
 
-// ── Import under test (after mocks) ────────────────────────────────────────
+// ── Import under test (after mocks) ────────────────────────────────────
 
 const { processProvisionJob } = await import('../queue/worker')
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────
 
 function makeJob(userId = 'u1'): ProvisionJob {
   return {
@@ -72,7 +70,7 @@ function makeJob(userId = 'u1'): ProvisionJob {
   }
 }
 
-// ── Tests ───────────────────────────────────────────────────────────────────
+// ── Tests ───────────────────────────────────────────────────────────────
 
 describe('processProvisionJob', () => {
   beforeEach(() => {
@@ -80,10 +78,7 @@ describe('processProvisionJob', () => {
     mockFrom.mockReturnValue({ where: mockWhere })
     mockSet.mockReturnValue({ where: mockUpdateWhere })
     mockUpdateWhere.mockResolvedValue(undefined)
-    mockValues.mockResolvedValue(undefined)
-    // Default: all subsequent where() calls return empty arrays (bootstrapDefaultVaults, bootstrapConfigNotes)
     mockWhere.mockResolvedValue([])
-    mockProvision.mockResolvedValue({ status: 'ok', userId: 'u1' })
     mockGenerateKeypair.mockReturnValue({
       publicKey: 'deadbeef',
       encryptedPrivateKey: 'base64secret',
@@ -98,10 +93,9 @@ describe('processProvisionJob', () => {
     expect(result.success).toBe(false)
     expect(result.error).toBe('user not found')
     expect(mockGenerateKeypair).not.toHaveBeenCalled()
-    expect(mockProvision).not.toHaveBeenCalled()
   })
 
-  it('skips keygen if user already has a keypair but still provisions gateway', async () => {
+  it('skips keygen if user already has a keypair', async () => {
     mockWhere.mockResolvedValueOnce([
       {
         id: 'u1',
@@ -114,10 +108,9 @@ describe('processProvisionJob', () => {
 
     expect(result.success).toBe(true)
     expect(mockGenerateKeypair).not.toHaveBeenCalled()
-    expect(mockProvision).toHaveBeenCalledWith('u1', 'existing-pk')
   })
 
-  it('generates keypair, writes DB, and provisions gateway for new user', async () => {
+  it('generates keypair and writes DB for new user', async () => {
     mockWhere.mockResolvedValueOnce([{ id: 'u1', publicKey: '', encryptedPrivateKey: '' }])
 
     const result = await processProvisionJob(makeJob())
@@ -130,7 +123,6 @@ describe('processProvisionJob', () => {
         encryptedPrivateKey: 'base64secret',
       })
     )
-    expect(mockProvision).toHaveBeenCalledWith('u1', 'deadbeef')
   })
 
   it('provisions user with null keypair columns', async () => {
@@ -140,13 +132,18 @@ describe('processProvisionJob', () => {
 
     expect(result.success).toBe(true)
     expect(mockGenerateKeypair).toHaveBeenCalledOnce()
-    expect(mockProvision).toHaveBeenCalledWith('u1', 'deadbeef')
   })
 
-  it('propagates gateway errors (so BullMQ retries)', async () => {
+  it('throws when KEY_ENCRYPTION_SECRET is missing', async () => {
     mockWhere.mockResolvedValueOnce([{ id: 'u1', publicKey: '', encryptedPrivateKey: '' }])
-    mockProvision.mockRejectedValueOnce(new Error('gateway down'))
 
-    await expect(processProvisionJob(makeJob())).rejects.toThrow('gateway down')
+    const origSecret = process.env.KEY_ENCRYPTION_SECRET
+    delete process.env.KEY_ENCRYPTION_SECRET
+
+    try {
+      await expect(processProvisionJob(makeJob())).rejects.toThrow('KEY_ENCRYPTION_SECRET')
+    } finally {
+      process.env.KEY_ENCRYPTION_SECRET = origSecret
+    }
   })
 })

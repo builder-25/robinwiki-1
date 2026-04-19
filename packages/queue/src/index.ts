@@ -46,6 +46,7 @@ export const LINK_RETRY_CONFIG = {
 export interface ProvisionJob {
   type: 'provision'
   jobId: string
+  userId: string
   enqueuedAt: string
 }
 
