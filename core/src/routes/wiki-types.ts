@@ -1,17 +1,23 @@
+import { readFileSync, existsSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
+import { parseSpecFromBlob } from '@robin/shared'
 import { sessionMiddleware } from '../middleware/session.js'
 import { db } from '../db/client.js'
 import { wikiTypes } from '../db/schema.js'
 import { logger } from '../lib/logger.js'
 import { validationHook } from '../lib/validation.js'
+import { validatePromptYaml } from '../lib/prompt-validation.js'
 import { seedWikiTypes } from '../bootstrap/seed-wiki-types.js'
 import {
   wikiTypeResponseSchema,
-  wikiTypeListResponseSchema,
+  wikiTypesListResponseSchema,
   createWikiTypeBodySchema,
-  updateWikiTypeBodySchema,
+  putWikiTypePromptBodySchema,
+  defaultYamlResponseSchema,
 } from '../schemas/wiki-types.schema.js'
 import { emitAuditEvent } from '../db/audit.js'
 
@@ -19,6 +25,49 @@ const log = logger.child({ component: 'wiki-types' })
 
 const wikiTypesRouter = new Hono()
 wikiTypesRouter.use('*', sessionMiddleware)
+
+// Resolve the wiki-types YAML directory on disk (colocated with @robin/shared).
+const __dirname = dirname(fileURLToPath(import.meta.url))
+// TODO: see .planning/phases/prompt-backend-reconcile/04-PLAN.md#known-limitation-runtime-yaml-path-resolution
+// This __dirname-relative walk breaks under bundled/production deployments.
+// Deferred to a future 'prompt-path-resolution-hardening' phase — Phase 1
+// inherits the pre-existing fragility already present in @robin/shared's loadSpec.
+const SPECS_WIKI_TYPES_DIR = resolve(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  'packages',
+  'shared',
+  'src',
+  'prompts',
+  'specs',
+  'wiki-types'
+)
+
+// T-04-06 mitigation: slug regex before any readFileSync so a crafted slug like
+// "../../../../etc/passwd" can never escape the specs directory.
+const SLUG_REGEX = /^[a-z0-9-]+$/
+
+function readDefaultYaml(slug: string): string | null {
+  if (!SLUG_REGEX.test(slug)) return null
+  const filePath = resolve(SPECS_WIKI_TYPES_DIR, `${slug}.yaml`)
+  if (!existsSync(filePath)) return null
+  return readFileSync(filePath, 'utf-8')
+}
+
+type WikiTypeListItem = {
+  slug: string
+  displayLabel: string
+  displayDescription: string
+  displayShortDescriptor: string
+  displayOrder: number
+  promptYaml: string
+  defaultYaml: string
+  userModified: boolean
+  basedOnVersion: number
+  inputVariables: Array<{ name: string; description: string; required: boolean }>
+}
 
 // POST /wiki-types/setup -- seed defaults from YAML configs (idempotent)
 wikiTypesRouter.post('/setup', async (c) => {
@@ -42,13 +91,79 @@ wikiTypesRouter.post('/setup', async (c) => {
   }
 })
 
-// GET /wiki-types -- list all wiki types
+// GET /wiki-types -- enriched list. Sorted by displayLabel ascending; excludes
+// any disk YAML with system_only: true (defensive — should never be present in
+// the wiki-types/ directory, but we filter anyway).
 wikiTypesRouter.get('/', async (c) => {
-  const rows = await db.select().from(wikiTypes).orderBy(wikiTypes.name)
-  return c.json(wikiTypeListResponseSchema.parse({ wikiTypes: rows }))
+  const rows = await db.select().from(wikiTypes)
+  const items: WikiTypeListItem[] = []
+
+  for (const row of rows) {
+    const defaultYaml = readDefaultYaml(row.slug)
+
+    if (defaultYaml === null) {
+      // Row with no corresponding disk YAML (e.g. user-created via POST /).
+      // Include as-is so the frontend can still list it.
+      items.push({
+        slug: row.slug,
+        displayLabel: row.name,
+        displayDescription: row.descriptor,
+        displayShortDescriptor: row.shortDescriptor,
+        displayOrder: 999,
+        promptYaml: row.prompt,
+        defaultYaml: '',
+        userModified: row.userModified,
+        basedOnVersion: row.basedOnVersion,
+        inputVariables: [],
+      })
+      continue
+    }
+
+    try {
+      const spec = parseSpecFromBlob(defaultYaml)
+      if (spec.system_only) continue
+      items.push({
+        slug: row.slug,
+        displayLabel: spec.display_label ?? row.name,
+        displayDescription: spec.display_description ?? row.descriptor,
+        displayShortDescriptor: spec.display_short_descriptor ?? row.shortDescriptor,
+        displayOrder: spec.display_order ?? 999,
+        promptYaml: row.prompt,
+        defaultYaml,
+        userModified: row.userModified,
+        basedOnVersion: row.basedOnVersion,
+        inputVariables: spec.input_variables.map((v) => ({
+          name: v.name,
+          description: v.description,
+          required: v.required,
+        })),
+      })
+    } catch (err) {
+      log.warn(
+        { err, slug: row.slug },
+        'disk YAML failed to parse in GET /wiki-types — falling back to DB-only fields'
+      )
+      items.push({
+        slug: row.slug,
+        displayLabel: row.name,
+        displayDescription: row.descriptor,
+        displayShortDescriptor: row.shortDescriptor,
+        displayOrder: 999,
+        promptYaml: row.prompt,
+        defaultYaml,
+        userModified: row.userModified,
+        basedOnVersion: row.basedOnVersion,
+        inputVariables: [],
+      })
+    }
+  }
+
+  items.sort((a, b) => a.displayLabel.localeCompare(b.displayLabel))
+
+  return c.json(wikiTypesListResponseSchema.parse({ wikiTypes: items }))
 })
 
-// GET /wiki-types/:slug -- get single wiki type
+// GET /wiki-types/:slug -- legacy single-row (preserved for frontend compat)
 wikiTypesRouter.get('/:slug', async (c) => {
   const slug = c.req.param('slug')
   const [row] = await db.select().from(wikiTypes).where(eq(wikiTypes.slug, slug))
@@ -56,10 +171,18 @@ wikiTypesRouter.get('/:slug', async (c) => {
   return c.json(wikiTypeResponseSchema.parse(row))
 })
 
-// PUT /wiki-types/:slug -- update a wiki type (sets userModified = true)
+// GET /wiki-types/:slug/default -- canonical YAML from disk
+wikiTypesRouter.get('/:slug/default', async (c) => {
+  const slug = c.req.param('slug')
+  const yaml = readDefaultYaml(slug)
+  if (yaml === null) return c.json({ error: 'Not found' }, 404)
+  return c.json(defaultYamlResponseSchema.parse({ slug, yaml }))
+})
+
+// PUT /wiki-types/:slug -- full validation pipeline
 wikiTypesRouter.put(
   '/:slug',
-  zValidator('json', updateWikiTypeBodySchema, validationHook),
+  zValidator('json', putWikiTypePromptBodySchema, validationHook),
   async (c) => {
     const slug = c.req.param('slug')
     const body = c.req.valid('json')
@@ -67,42 +190,102 @@ wikiTypesRouter.put(
     const [existing] = await db.select().from(wikiTypes).where(eq(wikiTypes.slug, slug))
     if (!existing) return c.json({ error: 'Not found' }, 404)
 
-    const updates: Record<string, unknown> = {
-      userModified: true,
-      updatedAt: new Date(),
+    const result = validatePromptYaml(body.promptYaml)
+    if (result.ok !== true) {
+      // Explicit cast because core's tsconfig has strict: false which weakens
+      // discriminated-union narrowing on the negative branch.
+      const failure = result as Extract<typeof result, { ok: false }>
+      return c.json(failure.body, failure.status as 400)
     }
-    if (body.name != null) updates.name = body.name
-    if (body.shortDescriptor != null) updates.shortDescriptor = body.shortDescriptor
-    if (body.descriptor != null) updates.descriptor = body.descriptor
-    if (body.prompt != null) updates.prompt = body.prompt
 
-    const [updated] = await db
+    await db
       .update(wikiTypes)
-      .set(updates)
+      .set({
+        prompt: body.promptYaml,
+        userModified: true,
+        basedOnVersion: result.spec.version,
+        name: result.spec.display_label ?? existing.name,
+        descriptor: result.spec.display_description ?? existing.descriptor,
+        shortDescriptor: result.spec.display_short_descriptor ?? existing.shortDescriptor,
+        updatedAt: new Date(),
+      })
       .where(eq(wikiTypes.slug, slug))
-      .returning()
 
     await emitAuditEvent(db, {
       entityType: 'wiki_type',
       entityId: slug,
       eventType: 'edited',
       source: 'api',
-      summary: `Wiki type updated: ${slug}`,
-      detail: { slug, changedFields: Object.keys(updates).filter(k => k !== 'updatedAt' && k !== 'userModified') },
+      summary: `Wiki type prompt updated: ${slug}`,
+      detail: {
+        slug,
+        basedOnVersion: result.spec.version,
+        warnings: result.warnings,
+      },
     })
 
-    return c.json(wikiTypeResponseSchema.parse(updated))
+    return c.json({
+      ok: true,
+      slug,
+      basedOnVersion: result.spec.version,
+      warnings: result.warnings,
+    })
   }
 )
 
-// POST /wiki-types -- create a new user-defined wiki type
+// POST /wiki-types/:slug/reset -- restore from disk, flip userModified=false
+wikiTypesRouter.post('/:slug/reset', async (c) => {
+  const slug = c.req.param('slug')
+
+  const [existing] = await db.select().from(wikiTypes).where(eq(wikiTypes.slug, slug))
+  if (!existing) return c.json({ error: 'Not found' }, 404)
+
+  const defaultYaml = readDefaultYaml(slug)
+  if (defaultYaml === null) {
+    return c.json(
+      { error: 'No canonical YAML on disk for this slug — reset not possible' },
+      400
+    )
+  }
+
+  let canonicalVersion: number
+  try {
+    const spec = parseSpecFromBlob(defaultYaml)
+    canonicalVersion = spec.version
+  } catch (err) {
+    log.error({ err, slug }, 'canonical YAML failed to parse during reset — refusing')
+    return c.json({ error: 'Canonical YAML on disk is invalid — contact operator' }, 500)
+  }
+
+  await db
+    .update(wikiTypes)
+    .set({
+      prompt: defaultYaml,
+      userModified: false,
+      basedOnVersion: canonicalVersion,
+      updatedAt: new Date(),
+    })
+    .where(eq(wikiTypes.slug, slug))
+
+  await emitAuditEvent(db, {
+    entityType: 'wiki_type',
+    entityId: slug,
+    eventType: 'reset',
+    source: 'api',
+    summary: `Wiki type reset to default: ${slug}`,
+    detail: { slug, basedOnVersion: canonicalVersion },
+  })
+
+  return c.json({ ok: true, slug, basedOnVersion: canonicalVersion })
+})
+
+// POST /wiki-types -- create a new user-defined wiki type (unchanged)
 wikiTypesRouter.post(
   '/',
   zValidator('json', createWikiTypeBodySchema, validationHook),
   async (c) => {
     const body = c.req.valid('json')
 
-    // Check for conflict with existing slug
     const [existing] = await db.select().from(wikiTypes).where(eq(wikiTypes.slug, body.slug))
     if (existing) {
       return c.json({ error: `Wiki type "${body.slug}" already exists` }, 409)
