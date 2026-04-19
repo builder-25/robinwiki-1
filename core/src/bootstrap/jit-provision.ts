@@ -4,8 +4,8 @@ import { db } from '../db/client.js'
 import { users } from '../db/schema.js'
 import { generateDek, loadMasterKey, wrapDek } from '../lib/crypto.js'
 import { logger } from '../lib/logger.js'
-import { runMigrations } from './run-migrations.js'
 import { producer } from '../queue/producer.js'
+import { runMigrations } from './run-migrations.js'
 
 const log = logger.child({ component: 'jit-provision' })
 

@@ -15,7 +15,8 @@ export async function runMigrations(): Promise<void> {
   // Read the journal to know which migrations exist on disk
   let journalEntries: { tag: string }[] = []
   try {
-    const journalPath = new URL('../../drizzle/migrations/meta/_journal.json', import.meta.url).pathname
+    const journalPath = new URL('../../drizzle/migrations/meta/_journal.json', import.meta.url)
+      .pathname
     const journal = JSON.parse(readFileSync(journalPath, 'utf-8'))
     journalEntries = journal.entries ?? []
   } catch {
