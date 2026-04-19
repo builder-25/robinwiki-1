@@ -3,7 +3,7 @@
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useCallback, useMemo } from 'react'
 
-export const EXPLORER_TYPES = ['fragment', 'wiki', 'person'] as const
+export const EXPLORER_TYPES = ['fragment', 'wiki', 'person', 'entry'] as const
 export type ExplorerType = (typeof EXPLORER_TYPES)[number]
 
 export interface ExplorerFilters {

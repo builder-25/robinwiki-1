@@ -13,6 +13,7 @@ import {
   SlidersHorizontal,
   FileCode,
   MessageSquare,
+  NotebookText,
   UserRound,
   X,
 } from "lucide-react";
@@ -37,6 +38,7 @@ const TYPE_META: Record<ExplorerType, { icon: typeof FileCode; label: string }> 
   fragment: { icon: FileCode, label: "Fragments" },
   wiki: { icon: MessageSquare, label: "Wikis" },
   person: { icon: UserRound, label: "People" },
+  entry: { icon: NotebookText, label: "Entries" },
 };
 
 function timeAgo(dateStr: string): string {
