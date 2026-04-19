@@ -468,7 +468,7 @@ function ExplorerRow({ item }: { item: ExplorerItem }) {
             flexShrink: 0,
           }}
         >
-          <Icon size={16} strokeWidth={1.5} />
+          {Icon ? <Icon size={16} strokeWidth={1.5} /> : null}
         </span>
         <Link
           href={item.href}

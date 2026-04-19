@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useMemo,
   useRef,
@@ -628,44 +629,91 @@ export function WikiSectionH2({ title, count }: { title: string; count?: number 
   );
 }
 
+const MEMBER_FRAGMENTS: { id: string; title: string }[] = [
+  { id: "fragment01SAMPLE", title: FragmentTitle },
+  { id: "fragment01SAMPLE", title: FragmentTitle },
+  { id: "fragment01SAMPLE", title: FragmentTitle },
+  { id: "fragment01SAMPLE", title: FragmentTitle },
+];
+
 function MemberFragmentsSection() {
+  const bodyStyle = {
+    ...T.bodySmall,
+    color: "var(--wiki-article-text)",
+    lineHeight: 1.6,
+  };
+  const count = MEMBER_FRAGMENTS.length;
   return (
     <section style={{ width: "100%" }}>
-      <WikiSectionH2 title="Member fragments" count={4} />
-      <ul
-        style={{
-          listStyle: "disc",
-          paddingLeft: 20,
-          margin: "12px 0 0 0",
-          display: "flex",
-          flexDirection: "column",
-          gap: 4,
-          color: "var(--wiki-bullet)",
-        }}
-      >
-        {[1, 2, 3, 4].map((n) => (
-          <li key={n} style={{ lineHeight: "22px" }}>
-            <a
-              href="#"
-              className="wiki-fragment-link"
-              style={{
-                ...T.body,
-                fontFamily: FONT.SANS,
-                lineHeight: "22px",
-                color: "var(--wiki-fragment-link)",
-                textDecoration: "none",
-              }}
-            >
-              {FragmentTitle}
-            </a>
-          </li>
-        ))}
-      </ul>
+      <WikiSectionH2 title="Member fragments" count={count} />
+      {count === 0 ? (
+        <p
+          style={{
+            ...T.bodySmall,
+            fontFamily: FONT.SANS,
+            fontStyle: "italic",
+            color: "var(--wiki-count)",
+            margin: "12px 0 0 0",
+          }}
+        >
+          No member fragments
+        </p>
+      ) : (
+        <ul
+          style={{
+            ...bodyStyle,
+            listStyle: "decimal",
+            paddingLeft: 20,
+            margin: "12px 0 0 0",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}
+        >
+          {MEMBER_FRAGMENTS.map((frag, i) => (
+            <li key={i}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
+              >
+                <a
+                  href={`/wiki/fragments/${frag.id}`}
+                  style={{
+                    color: "var(--wiki-fragment-link)",
+                    textDecoration: "underline",
+                    textDecorationSkipInk: "none",
+                  }}
+                >
+                  {frag.title}
+                </a>
+                <Badge
+                  variant="outline"
+                  className="rounded-full"
+                  style={{
+                    backgroundColor: "#f5f5f5",
+                    color: "#545353",
+                    borderColor: "#d1d5db",
+                    padding: "2px 10px",
+                    ...T.micro,
+                  }}
+                >
+                  filed in
+                </Badge>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
 
 interface MentionedPerson {
+  id: string;
   name: string;
   role: string;
   description: string;
@@ -676,6 +724,7 @@ interface MentionedPerson {
 
 const MENTIONED_PEOPLE: MentionedPerson[] = [
   {
+    id: "person01SAMPLE",
     name: "Priya Natarajan",
     role: "Mentor",
     description:
@@ -685,6 +734,7 @@ const MENTIONED_PEOPLE: MentionedPerson[] = [
     tags: ["Mentor", "Science"],
   },
   {
+    id: "person01SAMPLE",
     name: "Jamal Okafor",
     role: "Friend",
     description:
@@ -703,7 +753,11 @@ function getInitials(name: string): string {
 
 function MentionedPersonCard({ person }: { person: MentionedPerson }) {
   return (
-    <Card className="cursor-pointer rounded-none border-[var(--card-border)] shadow-none transition-colors hover:bg-[#fafafa]">
+    <Link
+      href={`/wiki/people/${person.id}`}
+      style={{ textDecoration: "none", color: "inherit", display: "block" }}
+    >
+      <Card className="cursor-pointer rounded-none border-[var(--card-border)] shadow-none transition-colors hover:bg-[#fafafa]">
       <CardContent className="flex items-start gap-3.5 p-4">
         <Avatar size="lg" className="shrink-0 rounded-none after:rounded-none">
           <AvatarFallback className="rounded-none bg-[#f0f0f0] text-[#6b6b6b]">
@@ -759,31 +813,44 @@ function MentionedPersonCard({ person }: { person: MentionedPerson }) {
         </div>
       </CardContent>
     </Card>
+    </Link>
   );
 }
 
 function MentionedPeopleSection() {
+  const count = MENTIONED_PEOPLE.length;
   return (
     <section
       className="wiki-mentioned-section"
       style={{ width: "100%", maxWidth: 864 }}
     >
-      <WikiSectionH2
-        title="Mentioned people"
-        count={MENTIONED_PEOPLE.length}
-      />
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-          paddingTop: 16,
-        }}
-      >
-        {MENTIONED_PEOPLE.map((person, i) => (
-          <MentionedPersonCard key={i} person={person} />
-        ))}
-      </div>
+      <WikiSectionH2 title="Mentioned people" count={count} />
+      {count === 0 ? (
+        <p
+          style={{
+            ...T.bodySmall,
+            fontFamily: FONT.SANS,
+            fontStyle: "italic",
+            color: "var(--wiki-count)",
+            margin: "12px 0 0 0",
+          }}
+        >
+          No people mentioned
+        </p>
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            paddingTop: 16,
+          }}
+        >
+          {MENTIONED_PEOPLE.map((person, i) => (
+            <MentionedPersonCard key={i} person={person} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -966,7 +1033,7 @@ export function WikiEntityArticle({
                       >
                         {(() => {
                           const DraftIcon = getWikiTypeIcon(draftChipLabel);
-                          return <DraftIcon />;
+                          return DraftIcon ? <DraftIcon /> : null;
                         })()}
                         <ComboboxValue />
                       </span>
@@ -1163,7 +1230,7 @@ export function WikiEntityArticle({
                         alignItems: "center",
                         justifyContent: "center",
                         width: 24,
-                        paddingBottom: 7,
+                        paddingBottom: 12,
                       }}
                     >
                       {infoVisible ? <EyeOpenIcon /> : <EyeClosedIcon />}

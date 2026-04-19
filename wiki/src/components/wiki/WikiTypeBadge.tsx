@@ -33,7 +33,15 @@ const WIKI_TYPES = {
   Voice:     { bg: "var(--wiki-type-voice-bg)",     text: "var(--wiki-type-voice-text)",     border: "var(--wiki-type-voice-border)" },
   People:    { bg: "var(--wiki-type-people-bg)",    text: "var(--wiki-type-people-text)",    border: "var(--wiki-type-people-border)" },
   Person:    { bg: "var(--wiki-type-people-bg)",    text: "var(--wiki-type-people-text)",    border: "var(--wiki-type-people-border)" },
+  Entry:     { bg: "var(--wiki-type-entry-bg)",     text: "var(--wiki-type-entry-text)",     border: "var(--wiki-type-entry-border)" },
+  Fragment:  { bg: "var(--wiki-type-fragment-bg)",  text: "var(--wiki-type-fragment-text)",  border: "var(--wiki-type-fragment-border)" },
 } as const;
+
+/**
+ * Types that intentionally render with NO icon. People keeps its UserRound
+ * icon; Entry and Fragment are grey, iconless, non-editable meta badges.
+ */
+const ICONLESS_TYPES = new Set<string>(["Entry", "Fragment"]);
 
 const FRAGMENT_TYPES = {
   Fact:      { bg: "var(--fragment-type-fact-bg)",      text: "var(--fragment-type-fact-text)",      border: "var(--fragment-type-fact-border)" },
@@ -70,7 +78,7 @@ export const EDITABLE_WIKI_TYPES: WikiType[] = [
   "Voice",
 ];
 
-const WIKI_TYPE_ICONS: Record<WikiType, LucideIcon> = {
+const WIKI_TYPE_ICONS: Record<WikiType, LucideIcon | undefined> = {
   Log: Circle,
   Research: Bookmark,
   Belief: Circle,
@@ -83,13 +91,16 @@ const WIKI_TYPE_ICONS: Record<WikiType, LucideIcon> = {
   Voice: AudioWaveform,
   People: UserRound,
   Person: UserRound,
+  Entry: undefined,
+  Fragment: undefined,
 };
 
 export function isPeopleWikiType(type: string) {
   return type === "People" || type === "Person";
 }
 
-export function getWikiTypeIcon(type: string): LucideIcon {
+export function getWikiTypeIcon(type: string): LucideIcon | undefined {
+  if (ICONLESS_TYPES.has(type)) return undefined;
   return (
     WIKI_TYPE_ICONS[type as WikiType] ??
     FRAGMENT_TYPE_ICONS[type as FragmentType] ??
@@ -119,8 +130,13 @@ export function WikiTypeBadge({
   className?: string;
 }) {
   const colors = getWikiTypeColors(type);
-  // Fragments render without an icon unless one is explicitly provided.
-  const badgeIcon = Icon ?? (isFragmentType(type) ? undefined : getWikiTypeIcon(type));
+  // Fragments (the fragment-subtype set) and the iconless wiki-type badges
+  // (Entry, Fragment) render without an icon unless one is explicitly provided.
+  const badgeIcon =
+    Icon ??
+    (isFragmentType(type) || ICONLESS_TYPES.has(type)
+      ? undefined
+      : getWikiTypeIcon(type));
 
   return (
     <Badge
