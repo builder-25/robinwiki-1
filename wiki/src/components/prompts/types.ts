@@ -43,4 +43,6 @@ export interface PromptEditorProps {
   mode?: EditorMode;
   /** Emits whenever the editor's dirty state (yaml !== savedYaml) changes. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** Phase 4 preview UI: emits the editor's current yaml on every change (user edits, reset, undo). Read-only signal — do NOT mutate yaml from this callback. */
+  onYamlChange?: (yaml: string) => void;
 }
