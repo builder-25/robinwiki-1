@@ -90,6 +90,21 @@
           return 1
         }
 
+        # Retry a health URL until 2xx or timeout. On failure: tail log, exit 1.
+        wait_healthy() {
+          local label=$1 url=$2 logfile=$3 max=''${4:-30}
+          local i
+          for i in $(seq 1 "$max"); do
+            if ${pkgs.curl}/bin/curl -sf "$url" >/dev/null 2>&1; then
+              return 0
+            fi
+            sleep 1
+          done
+          echo "ERROR: $label did not return 2xx from $url within ''${max}s"
+          [ -f "$logfile" ] && tail -20 "$logfile" | sed "s#^#  $label log: #"
+          return 1
+        }
+
         # ── PostgreSQL ──────────────────────────────────────────
         if [ -f "$PG_PID" ] && kill -0 "$(cat "$PG_PID")" 2>/dev/null; then
           echo "postgres: already running (pid $(cat "$PG_PID"))"
@@ -177,13 +192,8 @@ PGCONF
           echo "core:     starting..."
           (cd "$PROJECT_ROOT" && pnpm --filter @robin/core dev >> "$CORE_LOG" 2>&1) &
           echo $! > "$CORE_PID"
-          verify_spawn "core" "$CORE_PID" 3000 "$CORE_LOG" 30
-
-          if ! ${pkgs.curl}/bin/curl -sf http://localhost:3000/health > /dev/null 2>&1; then
-            echo "ERROR: core bound :3000 but /health is not returning 2xx"
-            tail -20 "$CORE_LOG" | sed "s#^#  core log: #"
-            exit 1
-          fi
+          verify_spawn "core" "$CORE_PID" 3000 "$CORE_LOG" 15
+          wait_healthy "core" http://localhost:3000/health "$CORE_LOG" 15
           echo "core:     ready (pid $(cat "$CORE_PID"))"
         fi
 
@@ -197,13 +207,8 @@ PGCONF
           echo "wiki:     starting..."
           (cd "$PROJECT_ROOT" && PORT=8080 pnpm --filter @robin/wiki dev >> "$WIKI_LOG" 2>&1) &
           echo $! > "$WIKI_PID"
-          verify_spawn "wiki" "$WIKI_PID" 8080 "$WIKI_LOG" 30
-
-          if ! ${pkgs.curl}/bin/curl -sf http://localhost:8080 > /dev/null 2>&1; then
-            echo "ERROR: wiki bound :8080 but / is not returning 2xx"
-            tail -20 "$WIKI_LOG" | sed "s#^#  wiki log: #"
-            exit 1
-          fi
+          verify_spawn "wiki" "$WIKI_PID" 8080 "$WIKI_LOG" 20
+          wait_healthy "wiki" http://localhost:8080 "$WIKI_LOG" 60
           echo "wiki:     ready (pid $(cat "$WIKI_PID"))"
         fi
 
