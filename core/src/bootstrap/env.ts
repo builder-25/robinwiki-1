@@ -1,6 +1,48 @@
 import { z } from 'zod'
 import { createConfigVar } from '@robin/shared'
 
+/**
+ * Fail-fast check for production deploys. Runs before any other bootstrap step
+ * so operators get a single clean message listing everything missing, instead
+ * of piecemeal crashes deep in module initialization (crypto.ts, db/client.ts,
+ * ...). No-op outside production so local dev isn't forced to set every var.
+ */
+export function assertProdEnv(): void {
+  if (process.env.NODE_ENV !== 'production') return
+
+  const required = [
+    'DATABASE_URL',
+    'REDIS_URL',
+    'BETTER_AUTH_SECRET',
+    'MASTER_KEY',
+    'KEY_ENCRYPTION_SECRET',
+  ] as const
+
+  const recommended = [
+    'OPENROUTER_API_KEY',
+    'SERVER_PUBLIC_URL',
+    'WIKI_ORIGIN',
+  ] as const
+
+  const missing = required.filter((k) => !process.env[k])
+  if (missing.length) {
+    console.error(`FATAL: missing required env vars in production: ${missing.join(', ')}`)
+    console.error('See .env.example at repo root for descriptions.')
+    process.exit(1)
+  }
+
+  const warn = recommended.filter((k) => !process.env[k])
+  if (warn.length) {
+    console.warn(
+      `WARN: recommended env vars not set: ${warn.join(', ')} — some features may degrade silently.`,
+    )
+  }
+}
+
+// Run the prod gate before Zod validation so a missing MASTER_KEY / DATABASE_URL
+// in production produces one clean error instead of a Zod-style wall of issues.
+assertProdEnv()
+
 export const env = createConfigVar({
   schema: {
     DATABASE_URL: z.string().min(1).describe('Postgres connection string'),

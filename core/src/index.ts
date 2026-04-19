@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import './bootstrap/env.js'
+import { assertProdEnv } from './bootstrap/env.js'
 import { readFileSync } from 'node:fs'
 import { load as loadYaml } from 'js-yaml'
 import { Hono } from 'hono'
@@ -127,6 +127,10 @@ app.route('/ai', aiModelsRoutes)
 /***********************************************************************
  * ## Boot
  ***********************************************************************/
+
+// Explicit, idempotent prod-env gate. Also runs at module load (from env.ts),
+// so in practice this line is a no-op — kept here to document boot order.
+assertProdEnv()
 
 // Fail fast on missing MASTER_KEY before any crypto ops run
 loadMasterKey()
