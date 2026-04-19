@@ -30,8 +30,19 @@ async function fetchModelsFromOpenRouter(apiKey: string): Promise<AiModel[]> {
   const body = (await res.json()) as { data?: OpenRouterModel[] }
   const raw = body.data ?? []
 
+  // Curated provider list — top-tier models only, keeps the UI manageable
+  // without a typeahead search component.
+  const CURATED_PROVIDERS = new Set([
+    'anthropic',
+    'openai',
+    'google',
+    'meta-llama',
+    'mistralai',
+    'qwen',
+  ])
+
   return raw
-    .filter((m) => m.id && m.name)
+    .filter((m) => m.id && m.name && CURATED_PROVIDERS.has(m.id.split('/')[0] ?? ''))
     .map((m) => ({
       id: m.id,
       name: m.name,

@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm'
 import { NoOpenRouterKeyError, type OpenRouterConfig } from '@robin/agent'
-import { DEFAULT_MODEL } from '@robin/shared'
+import { DEFAULT_MODEL, FRAGMENT_MODEL, FAST_MODEL } from '@robin/shared'
 import { db } from '../db/client.js'
 import { configs } from '../db/schema.js'
 
@@ -14,8 +14,8 @@ export const SAFE_EMBEDDING_MODELS = [
 
 /** Default model for each pipeline role (DB key → model ID). */
 export const MODEL_DEFAULTS: Record<string, string> = {
-  extraction: DEFAULT_MODEL,
-  classification: DEFAULT_MODEL,
+  extraction: FRAGMENT_MODEL,
+  classification: FAST_MODEL,
   wiki_generation: DEFAULT_MODEL,
   embedding: DEFAULT_EMBEDDING_MODEL,
 }
