@@ -27,6 +27,8 @@ interface NavItem {
 interface SidebarSectionData {
   title: string;
   items: NavItem[];
+  /** Shown in place of the item list when `items` is empty. */
+  emptyText?: string;
 }
 
 const ChevronIcon = () => (
@@ -53,6 +55,18 @@ const navigationData: SidebarSectionData = {
     { label: "Explorer", arrow: "none", href: "/wiki/explorer" },
     { label: "Knowledge Graph", arrow: "none", href: "/wiki/graph" },
   ],
+};
+
+const entriesData: SidebarSectionData = {
+  title: "Entries",
+  items: [
+    {
+      label: "Morning thought — Apr 18",
+      arrow: "none",
+      href: "/wiki/entries/entry01SAMPLE",
+    },
+  ],
+  emptyText: "no entries added",
 };
 
 const contentsData: SidebarSectionData = {
@@ -221,7 +235,22 @@ function SidebarSection({
         </div>
       </div>
 
-      {sectionVisible && (
+      {sectionVisible && section.items.length === 0 && section.emptyText && (
+        <div style={{ paddingLeft: 20, marginTop: 6 }}>
+          <p
+            style={{
+              ...T.bodySmall,
+              lineHeight: "20px",
+              color: "var(--wiki-count)",
+              fontStyle: "italic",
+            }}
+          >
+            {section.emptyText}
+          </p>
+        </div>
+      )}
+
+      {sectionVisible && section.items.length > 0 && (
         <div
           style={{
             display: "flex",
@@ -472,6 +501,11 @@ export default function Sidebar() {
       <SidebarSection
         sectionId="nav"
         section={navigationData}
+        borderColor="var(--wiki-nav-border)"
+      />
+      <SidebarSection
+        sectionId="entries"
+        section={entriesData}
         borderColor="var(--wiki-nav-border)"
       />
       <SidebarSection
