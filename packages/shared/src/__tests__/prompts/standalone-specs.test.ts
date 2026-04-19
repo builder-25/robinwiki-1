@@ -6,6 +6,7 @@ import {
   loadFragmentationSpec,
   loadWikiRelevanceSpec,
 } from '../../prompts/index'
+import { loadSpec } from '../../prompts/loader'
 
 describe('wiki-classification', () => {
   const fixtures = {
@@ -163,4 +164,30 @@ describe('modification stack', () => {
     })
     expect(result.meta.temperature).toBe(0.2)
   })
+})
+
+const standaloneSpecs: Array<{ filename: string; subdir?: string }> = [
+  { filename: 'fragmentation.yaml' },
+  { filename: 'fragment-relevance.yaml' },
+  { filename: 'people-extraction.yaml' },
+  { filename: 'wiki-classification.yaml' },
+  { filename: 'wiki-relevance.yaml' },
+  { filename: 'person-summary.yaml', subdir: 'person-summary' },
+]
+
+describe('standalone (system-only) specs', () => {
+  for (const { filename, subdir } of standaloneSpecs) {
+    describe(filename, () => {
+      it('has system_only: true', () => {
+        const spec = loadSpec(filename, subdir)
+        expect(spec.system_only).toBe(true)
+      })
+
+      it('is parseable via PromptSpecSchema', () => {
+        const spec = loadSpec(filename, subdir)
+        expect(spec.name).toBeTypeOf('string')
+        expect(spec.template).toBeTypeOf('string')
+      })
+    })
+  }
 })

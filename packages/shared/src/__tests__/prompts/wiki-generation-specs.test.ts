@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { loadWikiGenerationSpec } from '../../prompts/index'
+import { loadSpec } from '../../prompts/loader'
 import type { WikiType } from '../../types/wiki'
 
 const wikiFixtures = {
@@ -56,6 +57,29 @@ describe('wiki-types specs', () => {
         // Temperature for generation specs
         expect(result.meta.temperature).toBeGreaterThan(0)
         expect(result.meta.outputSchema).toBeDefined()
+      })
+    })
+  }
+})
+
+describe('wiki-types display metadata', () => {
+  for (const type of allTypes) {
+    describe(type, () => {
+      it('has display_label, display_description, display_short_descriptor, display_order', () => {
+        const spec = loadSpec(`${type}.yaml`, 'wiki-types')
+        expect(spec.display_label).toBeTypeOf('string')
+        expect(spec.display_label?.length).toBeGreaterThan(0)
+        expect(spec.display_description).toBeTypeOf('string')
+        expect(spec.display_description?.length).toBeGreaterThan(0)
+        expect(spec.display_short_descriptor).toBeTypeOf('string')
+        expect(spec.display_short_descriptor?.length).toBeGreaterThan(0)
+        expect(spec.display_order).toBeTypeOf('number')
+        expect(Number.isInteger(spec.display_order)).toBe(true)
+      })
+
+      it('does not have system_only set to true (wiki-types are user-facing)', () => {
+        const spec = loadSpec(`${type}.yaml`, 'wiki-types')
+        expect(spec.system_only).toBe(false)
       })
     })
   }
