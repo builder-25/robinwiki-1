@@ -7,6 +7,8 @@ export type WikiSettingsPrefill = {
   gatekeep?: boolean;
   /** Modal subtitle under the title */
   subtitle?: string;
+  /** Per-wiki prompt override (empty string = "no override", undefined = unseeded) */
+  promptOverride?: string;
 };
 
 /** Plain text aligned with WikiIntroLead copy (mock article body). */
@@ -40,6 +42,7 @@ export function wikiTypeSelectValueForChip(chipLabel: string): string {
 export function wikiEntitySettingsPrefill(input: {
   title: string;
   chipLabel: string;
+  promptOverride?: string;
 }): WikiSettingsPrefill {
   return {
     name: input.title,
@@ -47,5 +50,6 @@ export function wikiEntitySettingsPrefill(input: {
     folder: "default",
     description: WIKI_INTRO_LEAD_PLAINTEXT,
     subtitle: `${input.chipLabel} wiki — update name, type, and visibility`,
+    promptOverride: input.promptOverride,
   };
 }

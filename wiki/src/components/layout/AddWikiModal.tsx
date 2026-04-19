@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pencil } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { T } from "@/lib/typography";
 import { Button } from "@/components/ui/button";
@@ -19,9 +20,11 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type { WikiSettingsPrefill } from "@/lib/wikiSettingsPrefill";
 import {
-  getDefaultPrompt,
-  getWikiTypeLabel,
-} from "@/lib/wikiPrompts";
+  useWikiTypesList,
+  findWikiType,
+  type WikiTypeListItem,
+} from "@/hooks/useWikiTypesList";
+import { updateWiki } from "@/lib/generated";
 
 export type { WikiSettingsPrefill } from "@/lib/wikiSettingsPrefill";
 
@@ -33,6 +36,8 @@ export interface AddWikiModalProps {
   confirmLabel?: string;
   /** When opening from an existing wiki (gear), seed form fields */
   prefill?: WikiSettingsPrefill | null;
+  /** Wiki id for settings-mode PUT. 'preview' or undefined → skip network call (prototype pages). */
+  wikiId?: string;
 }
 
 function InfoIcon({ className }: { className?: string }) {
@@ -67,20 +72,6 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-const WIKI_TYPES = [
-  { value: "log", label: "Log" },
-  { value: "research", label: "Research" },
-  { value: "belief", label: "Belief" },
-  { value: "decision", label: "Decision" },
-  { value: "project", label: "Project" },
-  { value: "objective", label: "Objective" },
-  { value: "principles", label: "Principles" },
-  { value: "skill", label: "Skill" },
-  { value: "agent", label: "Agent" },
-  { value: "voice", label: "Voice" },
-  { value: "people", label: "People" },
-];
-
 const FOLDERS = [
   { value: "default", label: "Default" },
   { value: "archive", label: "Archive" },
@@ -92,6 +83,7 @@ export default function AddWikiModal({
   title = "Create New Wiki",
   confirmLabel = "Create Wiki",
   prefill = null,
+  wikiId,
 }: AddWikiModalProps) {
   const wasOpen = useRef(false);
   const [name, setName] = useState("");
@@ -114,10 +106,44 @@ export default function AddWikiModal({
 
   const isSettingsView = Boolean(prefill);
 
+  const queryClient = useQueryClient();
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const { data: wikiTypesData, isLoading: typesLoading } = useWikiTypesList();
+
+  // API returns YAML-backed types only; `people` has no YAML on disk.
+  // RESEARCH §Risk 4: append a synthetic entry so prefill flows that pass
+  // wikiType='people' still find an option.
+  const sortedTypes = useMemo<WikiTypeListItem[]>(() => {
+    const apiList = wikiTypesData?.wikiTypes ?? [];
+    const sorted = [...apiList].sort((a, b) =>
+      a.displayLabel.localeCompare(b.displayLabel),
+    );
+    const hasPeople = sorted.some((t) => t.slug === "people");
+    if (!hasPeople) {
+      sorted.push({
+        slug: "people",
+        displayLabel: "People",
+        displayDescription: "",
+        displayShortDescriptor: "",
+        displayOrder: 999,
+        promptYaml: "",
+        defaultYaml: "",
+        userModified: false,
+        basedOnVersion: 0,
+        inputVariables: [],
+      });
+    }
+    return sorted;
+  }, [wikiTypesData?.wikiTypes]);
+
   useEffect(() => {
     if (open) {
       if (!wasOpen.current) {
         setShowSavedToast(false);
+        setSubmitError(null);
+        setSubmitting(false);
         if (saveCloseTimerRef.current) {
           clearTimeout(saveCloseTimerRef.current);
           saveCloseTimerRef.current = null;
@@ -131,8 +157,12 @@ export default function AddWikiModal({
           setRegenAuto(prefill.regenAuto ?? false);
           setGatekeep(prefill.gatekeep ?? false);
           setSubtitle(prefill.subtitle);
-          setWikiPrompt(getDefaultPrompt(nextType) ?? "");
-          setWikiPromptEdited(false);
+          setWikiPrompt(prefill.promptOverride ?? "");
+          setWikiPromptEdited(
+            Boolean(
+              prefill.promptOverride && prefill.promptOverride.length > 0,
+            ),
+          );
           prevWikiTypeRef.current = nextType;
           setFieldsEditable(false);
         } else {
@@ -175,30 +205,131 @@ export default function AddWikiModal({
     if (prevWikiTypeRef.current === wikiType) return;
     prevWikiTypeRef.current = wikiType;
     setWikiPromptEdited(false);
-    setWikiPrompt(getDefaultPrompt(wikiType) ?? "");
+    setWikiPrompt("");
   }, [wikiType]);
 
   const locked = isSettingsView && !fieldsEditable;
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (locked) {
       setFieldsEditable(true);
       return;
     }
     if (isSettingsView) {
-      if (saveCloseTimerRef.current) {
-        clearTimeout(saveCloseTimerRef.current);
-        saveCloseTimerRef.current = null;
+      const trimmedName = name.trim();
+      if (trimmedName.length < 3) {
+        setSubmitError("Name must be at least 3 characters.");
+        return;
       }
-      onClose();
-      setShowSavedToast(true);
-      saveCloseTimerRef.current = setTimeout(() => {
-        setShowSavedToast(false);
-        saveCloseTimerRef.current = null;
-      }, 2000);
+      if (!wikiType) {
+        setSubmitError("Pick a wiki type.");
+        return;
+      }
+
+      // Prototype-page sentinel: skip network call, preserve UX.
+      const isSentinel = !wikiId || wikiId === "preview";
+      if (isSentinel) {
+        if (saveCloseTimerRef.current) {
+          clearTimeout(saveCloseTimerRef.current);
+          saveCloseTimerRef.current = null;
+        }
+        onClose();
+        setShowSavedToast(true);
+        saveCloseTimerRef.current = setTimeout(() => {
+          setShowSavedToast(false);
+          saveCloseTimerRef.current = null;
+        }, 2000);
+        return;
+      }
+
+      setSubmitting(true);
+      setSubmitError(null);
+      try {
+        // Empty string clears the override; non-empty sets it.
+        // Never send null — Zod rejects.
+        const payload: { name?: string; type?: string; prompt: string } = {
+          prompt: wikiPrompt,
+        };
+        if (prefill && trimmedName !== prefill.name) {
+          payload.name = trimmedName;
+        }
+        if (prefill && wikiType !== prefill.wikiType) {
+          payload.type = wikiType;
+        }
+        const { error } = await updateWiki({
+          path: { id: wikiId },
+          body: payload,
+          credentials: "include",
+        });
+        if (error) {
+          const message =
+            (error as { error?: string })?.error ?? "Save failed.";
+          setSubmitError(message);
+          return;
+        }
+        await queryClient.invalidateQueries({ queryKey: ["wikis"] });
+        await queryClient.invalidateQueries({ queryKey: ["wiki", wikiId] });
+        onClose();
+        setShowSavedToast(true);
+        if (saveCloseTimerRef.current) {
+          clearTimeout(saveCloseTimerRef.current);
+        }
+        saveCloseTimerRef.current = setTimeout(() => {
+          setShowSavedToast(false);
+          saveCloseTimerRef.current = null;
+        }, 2000);
+      } catch {
+        setSubmitError("Network error. Check your connection and retry.");
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
-    onClose();
+
+    // Create mode — hit POST /api/wikis.
+    const trimmedName = name.trim();
+    if (trimmedName.length < 3) {
+      setSubmitError("Name must be at least 3 characters.");
+      return;
+    }
+    if (!wikiType) {
+      setSubmitError("Pick a wiki type.");
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const trimmedPrompt = wikiPrompt.trim();
+      const body = {
+        name: trimmedName,
+        type: wikiType,
+        description: description.trim() || undefined,
+        prompt: trimmedPrompt.length > 0 ? trimmedPrompt : undefined,
+      };
+      const res = await fetch("/api/wikis", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        let message = `Create failed (${res.status})`;
+        try {
+          const parsed = (await res.json()) as { error?: string };
+          if (parsed?.error) message = parsed.error;
+        } catch {
+          /* ignore JSON parse */
+        }
+        setSubmitError(message);
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: ["wikis"] });
+      onClose();
+    } catch {
+      setSubmitError("Network error. Check your connection and retry.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -268,10 +399,12 @@ export default function AddWikiModal({
                 className="flex h-10 w-full items-center rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none appearance-none disabled:cursor-not-allowed disabled:opacity-50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 style={{ color: wikiType ? "#111111" : "#a8a8a8" }}
               >
-                <option value="">Choose a type</option>
-                {WIKI_TYPES.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
+                <option value="">
+                  {typesLoading ? "Loading types…" : "Choose a type"}
+                </option>
+                {sortedTypes.map((t) => (
+                  <option key={t.slug} value={t.slug}>
+                    {t.displayLabel}
                   </option>
                 ))}
               </select>
@@ -316,16 +449,17 @@ export default function AddWikiModal({
             </FieldLabel>
             {(() => {
               const hasType = Boolean(wikiType);
-              const typeLabel = getWikiTypeLabel(wikiType);
-              const promptAvailable = hasType && getDefaultPrompt(wikiType) !== null;
-              const disabled = locked || !promptAvailable;
+              const typeLabel =
+                findWikiType(wikiTypesData, wikiType)?.displayLabel ??
+                (wikiType
+                  ? wikiType.charAt(0).toUpperCase() + wikiType.slice(1)
+                  : "");
+              const disabled = locked || !hasType;
               const badgeText = !hasType
                 ? "Pick a type to customize"
-                : !promptAvailable
-                  ? `No default prompt for ${typeLabel}`
-                  : wikiPromptEdited
-                    ? `Customized ${typeLabel} Prompt`
-                    : `Default ${typeLabel} Prompt`;
+                : wikiPromptEdited
+                  ? `Customized ${typeLabel} Prompt`
+                  : `Default ${typeLabel} Prompt`;
               const badgeColors = wikiPromptEdited
                 ? { fg: "#3366cc", bg: "rgba(51, 102, 204, 0.10)", bd: "#3366cc" }
                 : { fg: "#545353", bg: "#f5f5f5", bd: "#e5e5e5" };
@@ -446,6 +580,16 @@ export default function AddWikiModal({
             </div>
           </div>
 
+          {submitError ? (
+            <div
+              role="alert"
+              className="px-5 pt-3 text-[13px]"
+              style={{ color: "#c0392b" }}
+            >
+              {submitError}
+            </div>
+          ) : null}
+
           </div>
           {/* /Scrollable body */}
 
@@ -456,9 +600,18 @@ export default function AddWikiModal({
             <Button
               type="button"
               onClick={handleConfirm}
+              disabled={submitting}
               className="rounded-none bg-[#3366cc] text-white hover:bg-[#2a56b0]"
             >
-              {locked ? confirmLabel : isSettingsView ? "Save" : confirmLabel}
+              {locked
+                ? confirmLabel
+                : isSettingsView
+                  ? submitting
+                    ? "Saving…"
+                    : "Save"
+                  : submitting
+                    ? "Creating…"
+                    : confirmLabel}
             </Button>
           </div>
         </DialogContent>
@@ -472,53 +625,58 @@ export default function AddWikiModal({
         }}
       >
         <DialogContent className="sm:max-w-[480px] gap-4 rounded-xl">
-          <DialogHeader>
-            <DialogTitle
-              style={{
-                ...T.bodySmall,
-                fontWeight: 600,
-                color: "var(--heading-color)",
-              }}
-            >
-              {getWikiTypeLabel(wikiType)} Prompt
-            </DialogTitle>
-            <DialogDescription>
-              Customize how fragments are synthesized into this wiki. Reset to
-              use the default {getWikiTypeLabel(wikiType).toLowerCase()} prompt.
-            </DialogDescription>
-          </DialogHeader>
+          {(() => {
+            const typeLabel =
+              findWikiType(wikiTypesData, wikiType)?.displayLabel ?? "";
+            const typeLabelLower = typeLabel.toLowerCase();
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle
+                    style={{
+                      ...T.bodySmall,
+                      fontWeight: 600,
+                      color: "var(--heading-color)",
+                    }}
+                  >
+                    {typeLabel} Prompt
+                  </DialogTitle>
+                  <DialogDescription>
+                    {`Optional override. Replaces the type's system_message at regen time. Leave empty to use the ${typeLabelLower} default.`}
+                  </DialogDescription>
+                </DialogHeader>
 
-          <Textarea
-            value={promptDraft}
-            onChange={(e) => setPromptDraft(e.target.value)}
-            className="min-h-[240px] resize-none"
-            rows={12}
-          />
+                <Textarea
+                  value={promptDraft}
+                  onChange={(e) => setPromptDraft(e.target.value)}
+                  className="min-h-[240px] resize-none"
+                  rows={12}
+                  placeholder={`Leave blank to use the ${typeLabel} default.`}
+                />
 
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                const def = getDefaultPrompt(wikiType) ?? "";
-                setPromptDraft(def);
-              }}
-              className="rounded-none"
-            >
-              Reset
-            </Button>
-            <ActionButton
-              type="button"
-              onClick={() => {
-                const def = getDefaultPrompt(wikiType) ?? "";
-                setWikiPrompt(promptDraft);
-                setWikiPromptEdited(promptDraft !== def);
-                setPromptDialogOpen(false);
-              }}
-            >
-              Save
-            </ActionButton>
-          </div>
+                <div className="flex items-center justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setPromptDraft("")}
+                    className="rounded-none"
+                  >
+                    Clear
+                  </Button>
+                  <ActionButton
+                    type="button"
+                    onClick={() => {
+                      setWikiPrompt(promptDraft);
+                      setWikiPromptEdited(promptDraft.trim().length > 0);
+                      setPromptDialogOpen(false);
+                    }}
+                  >
+                    Save
+                  </ActionButton>
+                </div>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

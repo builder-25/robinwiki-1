@@ -882,6 +882,8 @@ export type WikiEntityArticleProps = {
    * Optional sections rendered after divider and before modal.
    */
   customBottomSections?: ReactNode;
+  /** Real wiki id for settings-mode PUT. Prototype pages omit → 'preview' sentinel. */
+  wikiId?: string;
   children: ReactNode;
 };
 
@@ -918,6 +920,7 @@ export function WikiEntityArticle({
   renderCustomInfobox,
   showDefaultBottomSections = true,
   customBottomSections,
+  wikiId,
   children,
 }: WikiEntityArticleProps) {
   const [infoVisible, setInfoVisible] = useState(true);
@@ -1316,6 +1319,7 @@ export function WikiEntityArticle({
         title="Wiki Settings"
         confirmLabel="Edit Wiki Settings"
         prefill={wikiSettingsPrefill}
+        wikiId={wikiId ?? "preview"}
       />
     </div>
   );
