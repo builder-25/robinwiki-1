@@ -24,6 +24,7 @@ import {
   findWikiType,
   type WikiTypeListItem,
 } from "@/hooks/useWikiTypesList";
+import { updateWiki } from "@/lib/generated";
 
 export type { WikiSettingsPrefill } from "@/lib/wikiSettingsPrefill";
 
@@ -35,6 +36,8 @@ export interface AddWikiModalProps {
   confirmLabel?: string;
   /** When opening from an existing wiki (gear), seed form fields */
   prefill?: WikiSettingsPrefill | null;
+  /** Wiki id for settings-mode PUT. 'preview' or undefined → skip network call (prototype pages). */
+  wikiId?: string;
 }
 
 function InfoIcon({ className }: { className?: string }) {
@@ -80,6 +83,7 @@ export default function AddWikiModal({
   title = "Create New Wiki",
   confirmLabel = "Create Wiki",
   prefill = null,
+  wikiId,
 }: AddWikiModalProps) {
   const wasOpen = useRef(false);
   const [name, setName] = useState("");
@@ -212,17 +216,73 @@ export default function AddWikiModal({
       return;
     }
     if (isSettingsView) {
-      // Plan 03 will wire PUT /api/wikis/:id here.
-      if (saveCloseTimerRef.current) {
-        clearTimeout(saveCloseTimerRef.current);
-        saveCloseTimerRef.current = null;
+      const trimmedName = name.trim();
+      if (trimmedName.length < 3) {
+        setSubmitError("Name must be at least 3 characters.");
+        return;
       }
-      onClose();
-      setShowSavedToast(true);
-      saveCloseTimerRef.current = setTimeout(() => {
-        setShowSavedToast(false);
-        saveCloseTimerRef.current = null;
-      }, 2000);
+      if (!wikiType) {
+        setSubmitError("Pick a wiki type.");
+        return;
+      }
+
+      // Prototype-page sentinel: skip network call, preserve UX.
+      const isSentinel = !wikiId || wikiId === "preview";
+      if (isSentinel) {
+        if (saveCloseTimerRef.current) {
+          clearTimeout(saveCloseTimerRef.current);
+          saveCloseTimerRef.current = null;
+        }
+        onClose();
+        setShowSavedToast(true);
+        saveCloseTimerRef.current = setTimeout(() => {
+          setShowSavedToast(false);
+          saveCloseTimerRef.current = null;
+        }, 2000);
+        return;
+      }
+
+      setSubmitting(true);
+      setSubmitError(null);
+      try {
+        // Empty string clears the override; non-empty sets it.
+        // Never send null — Zod rejects.
+        const payload: { name?: string; type?: string; prompt: string } = {
+          prompt: wikiPrompt,
+        };
+        if (prefill && trimmedName !== prefill.name) {
+          payload.name = trimmedName;
+        }
+        if (prefill && wikiType !== prefill.wikiType) {
+          payload.type = wikiType;
+        }
+        const { error } = await updateWiki({
+          path: { id: wikiId },
+          body: payload,
+          credentials: "include",
+        });
+        if (error) {
+          const message =
+            (error as { error?: string })?.error ?? "Save failed.";
+          setSubmitError(message);
+          return;
+        }
+        await queryClient.invalidateQueries({ queryKey: ["wikis"] });
+        await queryClient.invalidateQueries({ queryKey: ["wiki", wikiId] });
+        onClose();
+        setShowSavedToast(true);
+        if (saveCloseTimerRef.current) {
+          clearTimeout(saveCloseTimerRef.current);
+        }
+        saveCloseTimerRef.current = setTimeout(() => {
+          setShowSavedToast(false);
+          saveCloseTimerRef.current = null;
+        }, 2000);
+      } catch {
+        setSubmitError("Network error. Check your connection and retry.");
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
 
