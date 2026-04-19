@@ -103,7 +103,7 @@ export default function WikiFragments() {
               key={frag.id}
               index={i + 1}
               text={frag.title}
-              href={`/wiki/fragment/${frag.lookupKey}`}
+              href={`/wiki/fragments/${frag.lookupKey}`}
             />
           ))
         )}

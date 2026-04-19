@@ -179,7 +179,7 @@ export function GraphDetailPanel({
       case "wiki":
         return `/wiki/${id}`;
       case "fragment":
-        return `/wiki/fragment/${id}`;
+        return `/wiki/fragments/${id}`;
       case "person":
         return `/wiki/person/${id}`;
     }

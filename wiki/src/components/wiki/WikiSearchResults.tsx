@@ -141,7 +141,7 @@ function SearchResultRow({ item }: { item: SearchResultItem }) {
           style={{ gap: 6 }}
         >
           <Link
-            href={`/wiki/fragment/${item.fragmentId}`}
+            href={`/wiki/fragments/${item.fragmentId}`}
             className="wiki-search-result-title-link min-w-0"
             style={{
               ...T.h4,
