@@ -1,6 +1,7 @@
 import { z } from 'zod'
-import { loadSpec, renderTemplate } from '../loader.js'
+import { loadSpec, parseSpecFromBlob, renderTemplate } from '../loader.js'
 import type { PromptResult } from '../types.js'
+import type { PromptSpec } from '../schema.js'
 import type { WikiType } from '../../types/wiki.js'
 import { logWikiSchema } from '../specs/wiki-types/log.schema.js'
 import { collectionWikiSchema } from '../specs/wiki-types/collection.schema.js'
@@ -38,6 +39,21 @@ const schemaMap: Record<WikiType, z.ZodType> = {
   principles: principlesWikiSchema,
 }
 
+/**
+ * Override shape for loadWikiGenerationSpec.
+ *
+ * - `yaml`: full YAML blob (from wikiTypes.prompt). Parsed via parseSpecFromBlob;
+ *   spec.system_message, spec.template, spec.temperature all come from the blob.
+ * - `systemMessage`: plain text (from wikis.prompt). Disk spec is loaded; only
+ *   spec.system_message is replaced — template/temperature/input_variables stay.
+ *
+ * In both cases, outputSchema is always code-sourced from schemaMap[type] —
+ * user YAML can never change the LLM output contract.
+ */
+export type WikiGenerationOverride =
+  | { kind: 'yaml'; blob: string }
+  | { kind: 'systemMessage'; text: string }
+
 export function loadWikiGenerationSpec(
   type: WikiType,
   vars: {
@@ -51,27 +67,32 @@ export function loadWikiGenerationSpec(
     edits?: string
     relatedWikis?: string
   },
-  customPrompt?: string
+  override?: WikiGenerationOverride,
 ): PromptResult {
   const validated = inputSchema.parse(vars)
-  const spec = loadSpec(`${type}.yaml`, 'wiki-types')
+  const diskSpec = loadSpec(`${type}.yaml`, 'wiki-types')
 
-  let template = spec.template
-  if (customPrompt) {
-    // Replace the [DOCUMENT STRUCTURE] section (up to the next section marker)
-    // Sections are indented with 2 spaces in the YAML template
-    template = template.replace(
-      /  \[DOCUMENT STRUCTURE\][\s\S]*?(?=\n  \[)/,
-      `  [DOCUMENT STRUCTURE]\n${customPrompt}\n`
-    )
+  // Resolve effective spec based on override shape. parseSpecFromBlob throws on
+  // parse/schema failure — the caller (regen.ts) catches and falls back to disk.
+  let effective: PromptSpec = diskSpec
+  if (override) {
+    if (override.kind === 'yaml') {
+      effective = parseSpecFromBlob(override.blob)
+    } else {
+      // trimEnd guards against trailing whitespace subtly changing LLM behavior.
+      effective = {
+        ...diskSpec,
+        system_message: override.text.trimEnd(),
+      }
+    }
   }
 
-  const user = renderTemplate(template, validated)
+  const user = renderTemplate(effective.template, validated)
   return {
-    system: spec.system_message,
+    system: effective.system_message,
     user,
     meta: {
-      temperature: spec.temperature,
+      temperature: effective.temperature,
       outputSchema: schemaMap[type],
     },
   }
