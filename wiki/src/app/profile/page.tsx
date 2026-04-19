@@ -184,6 +184,30 @@ export default function ProfilePage() {
           </Card>
         </section>
 
+        {/* PROMPTS */}
+        <section className="mt-8 space-y-3">
+          <SectionLabel>Prompts</SectionLabel>
+          <Card size="sm" className="rounded-none">
+            <CardContent className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  Customize prompts
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Edit how each wiki type structures your knowledge.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => router.push("/profile/prompts")}
+              >
+                Manage prompts
+              </Button>
+            </CardContent>
+          </Card>
+        </section>
+
         {/* AI MODELS */}
         <section className="mt-8 space-y-3">
           <SectionLabel>AI Models</SectionLabel>

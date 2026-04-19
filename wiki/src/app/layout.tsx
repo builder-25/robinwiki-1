@@ -4,6 +4,7 @@ import { Source_Serif_4, Inter, IBM_Plex_Sans, Geist } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { QueryProvider } from "@/providers/QueryProvider";
+import { ThemeProvider } from "@/context/ThemeContext";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -41,7 +42,6 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      data-theme="light"
       className={cn(
         "h-full",
         sourceSerif.variable,
@@ -53,7 +53,9 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="h-full">
-        <QueryProvider>{children}</QueryProvider>
+        <ThemeProvider>
+          <QueryProvider>{children}</QueryProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

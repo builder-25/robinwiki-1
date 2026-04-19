@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { FONT, T } from "@/lib/typography";
 import { useWikis } from "@/hooks/useWikis";
-import { useWikiTypes } from "@/hooks/useWikiTypes";
+import { useWikiTypesList } from "@/hooks/useWikiTypesList";
 
 function timeAgo(dateStr: string): string {
   const diffMs = Date.now() - new Date(dateStr).getTime();
@@ -183,7 +183,7 @@ function CategorySection({ category }: { category: WikiCategory }) {
 }
 
 export default function BrowseByType() {
-  const wikiTypesQuery = useWikiTypes();
+  const wikiTypesQuery = useWikiTypesList();
   const wikisQuery = useWikis({ limit: 200 });
 
   const categories = useMemo<WikiCategory[]>(() => {
@@ -206,8 +206,8 @@ export default function BrowseByType() {
     if (types.length > 0) {
       return types
         .map((wt) => ({
-          name: wt.name,
-          items: (byType.get(wt.name) ?? []).slice(0, 2),
+          name: wt.displayLabel,
+          items: (byType.get(wt.displayLabel) ?? []).slice(0, 2),
         }))
         .filter((c) => c.items.length > 0);
     }

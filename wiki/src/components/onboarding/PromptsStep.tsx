@@ -1,20 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { T } from "@/lib/typography";
-import { useState } from "react";
-import {
-  BookOpen,
-  ChevronRight,
-  Lightbulb,
-  Scale,
-  Target,
-  FolderKanban,
-  ScrollText,
-  Laptop,
-  Bot,
-  AudioWaveform,
-  type LucideIcon,
-} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActionButton } from "@/components/ui/action-button";
 import {
@@ -24,89 +12,34 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
+import { Spinner } from "@/components/ui/spinner";
 import {
-  WIKI_TYPE_PROMPTS,
-  type WikiTypePromptDef,
-} from "@/lib/wikiPrompts";
+  useWikiTypesList,
+  type WikiTypeListItem,
+} from "@/hooks/useWikiTypesList";
+import { getPromptIcon } from "@/lib/promptIcons";
+import { hydrateFromWikiTypes } from "@/lib/wikiPrompts";
+import PromptEditor from "@/components/prompts/PromptEditor";
 
 interface PromptsStepProps {
   onNext: () => void;
   onSkip: () => void;
 }
 
-interface WikiTypePrompt extends WikiTypePromptDef {
-  icon: LucideIcon;
-}
-
-const ICONS_BY_KEY: Record<string, LucideIcon> = {
-  log: BookOpen,
-  research: Lightbulb,
-  belief: Scale,
-  decision: Scale,
-  objective: Target,
-  project: FolderKanban,
-  principles: ScrollText,
-  skill: Laptop,
-  agent: Bot,
-  voice: AudioWaveform,
-};
-
-const WIKI_TYPES: WikiTypePrompt[] = WIKI_TYPE_PROMPTS.map((def) => ({
-  ...def,
-  icon: ICONS_BY_KEY[def.key] ?? BookOpen,
-}));
-
 export default function PromptsStep({ onNext, onSkip }: PromptsStepProps) {
-  const [prompts, setPrompts] = useState<Record<string, string>>(() =>
-    Object.fromEntries(WIKI_TYPES.map((t) => [t.key, t.defaultPrompt])),
-  );
-  const [editedKeys, setEditedKeys] = useState<Set<string>>(new Set());
-  const [modalType, setModalType] = useState<WikiTypePrompt | null>(null);
-  const [modalDraft, setModalDraft] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const { data, isLoading, isError } = useWikiTypesList();
+  const wikiTypes: WikiTypeListItem[] = data?.wikiTypes ?? [];
 
-  const hasEdited = editedKeys.size > 0;
+  const [modalType, setModalType] = useState<WikiTypeListItem | null>(null);
+  const [editedSlugs, setEditedSlugs] = useState<Set<string>>(new Set());
 
-  const handleContinue = async () => {
-    if (editedKeys.size === 0) {
-      onNext();
-      return;
-    }
-    setSaving(true);
-    setError("");
-    try {
-      await Promise.all(
-        Array.from(editedKeys).map((key) =>
-          fetch(`/api/wiki-types/${key}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ prompt: prompts[key] }),
-          }),
-        ),
-      );
-      onNext();
-    } catch {
-      setError("Some prompts failed to save, but you can continue.");
-      onNext();
-    } finally {
-      setSaving(false);
-    }
-  };
+  useEffect(() => {
+    if (data?.wikiTypes) hydrateFromWikiTypes(data.wikiTypes);
+  }, [data?.wikiTypes]);
 
-  const openModal = (type: WikiTypePrompt) => {
-    setModalType(type);
-    setModalDraft(prompts[type.key]);
-  };
+  const hasEdited = editedSlugs.size > 0;
 
-  const handleSave = () => {
-    if (!modalType) return;
-    setPrompts((prev) => ({ ...prev, [modalType.key]: modalDraft }));
-    setEditedKeys((prev) => new Set(prev).add(modalType.key));
-    setModalType(null);
-  };
+  const handleContinue = () => onNext();
 
   return (
     <>
@@ -147,16 +80,28 @@ export default function PromptsStep({ onNext, onSkip }: PromptsStepProps) {
           className="flex w-full flex-col"
           style={{ marginTop: 32, gap: 10 }}
         >
-          {WIKI_TYPES.map((type) => {
-              const Icon = type.icon;
-              const isEdited = editedKeys.has(type.key);
+          {isLoading ? (
+            <div className="flex w-full justify-center py-6">
+              <Spinner className="size-5" />
+            </div>
+          ) : isError ? (
+            <p
+              className="w-full"
+              style={{ ...T.helper, color: "var(--destructive, #ef4444)" }}
+            >
+              Failed to load wiki types.
+            </p>
+          ) : (
+            wikiTypes.map((type) => {
+              const Icon = getPromptIcon(type.slug);
+              const isEdited = editedSlugs.has(type.slug);
 
               return (
                 <Button
-                  key={type.key}
+                  key={type.slug}
                   type="button"
                   variant="outline"
-                  onClick={() => openModal(type)}
+                  onClick={() => setModalType(type)}
                   className="h-auto w-full justify-start gap-2.5 rounded p-3.5 text-left"
                 >
                   <Icon
@@ -173,7 +118,7 @@ export default function PromptsStep({ onNext, onSkip }: PromptsStepProps) {
                         color: "var(--card-title)",
                       }}
                     >
-                      {type.label}
+                      {type.displayLabel}
                       {isEdited && (
                         <span
                           style={{
@@ -194,7 +139,7 @@ export default function PromptsStep({ onNext, onSkip }: PromptsStepProps) {
                         color: "#616161",
                       }}
                     >
-                      {type.description}
+                      {type.displayDescription || type.displayShortDescriptor}
                     </span>
                   </div>
                   <ChevronRight
@@ -204,17 +149,9 @@ export default function PromptsStep({ onNext, onSkip }: PromptsStepProps) {
                   />
                 </Button>
               );
-          })}
+            })
+          )}
         </div>
-
-        {error && (
-          <p
-            className="w-full"
-            style={{ marginTop: 8, ...T.helper, color: "var(--destructive, #ef4444)" }}
-          >
-            {error}
-          </p>
-        )}
 
         <div
           className="flex w-full items-center justify-between"
@@ -224,7 +161,6 @@ export default function PromptsStep({ onNext, onSkip }: PromptsStepProps) {
             type="button"
             variant="ghost"
             onClick={onSkip}
-            disabled={saving}
             className="rounded-none"
             style={{ color: "var(--skip-link)" }}
           >
@@ -233,9 +169,9 @@ export default function PromptsStep({ onNext, onSkip }: PromptsStepProps) {
           <ActionButton
             type="button"
             onClick={handleContinue}
-            disabled={!hasEdited || saving}
+            disabled={!hasEdited}
           >
-            {saving ? "Saving..." : "Continue"}
+            Continue
           </ActionButton>
         </div>
       </div>
@@ -247,14 +183,19 @@ export default function PromptsStep({ onNext, onSkip }: PromptsStepProps) {
         }}
       >
         {modalType ? (
-          <DialogContent className="sm:max-w-[480px] gap-4 rounded-xl">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[720px] gap-4 rounded-xl p-0">
+            <DialogHeader className="px-5 pt-5">
               <DialogTitle className="flex items-center gap-2.5">
-                <modalType.icon
-                  size={20}
-                  strokeWidth={1.5}
-                  style={{ color: "var(--prompt-wiki-icon-stroke)" }}
-                />
+                {(() => {
+                  const Icon = getPromptIcon(modalType.slug);
+                  return (
+                    <Icon
+                      size={20}
+                      strokeWidth={1.5}
+                      style={{ color: "var(--prompt-wiki-icon-stroke)" }}
+                    />
+                  );
+                })()}
                 <span
                   style={{
                     ...T.bodySmall,
@@ -262,35 +203,33 @@ export default function PromptsStep({ onNext, onSkip }: PromptsStepProps) {
                     color: "var(--heading-color)",
                   }}
                 >
-                  {modalType.label} Prompt
+                  {modalType.displayLabel} Prompt
                 </span>
               </DialogTitle>
               <DialogDescription>
-                {modalType.description}.
+                {modalType.displayDescription}
               </DialogDescription>
             </DialogHeader>
-
-            <Textarea
-              value={modalDraft}
-              onChange={(e) => setModalDraft(e.target.value)}
-              className="min-h-[240px] resize-none"
-              rows={12}
-            />
-
-            <div className="flex items-center justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setModalDraft(modalType.defaultPrompt);
+            <div className="px-5 pb-5">
+              <PromptEditor
+                slug={modalType.slug}
+                displayLabel={modalType.displayLabel}
+                initialYaml={modalType.promptYaml}
+                defaultYaml={modalType.defaultYaml}
+                inputVariables={modalType.inputVariables}
+                basedOnVersion={modalType.basedOnVersion}
+                userModified={modalType.userModified}
+                compact
+                onSaved={() => {
+                  setEditedSlugs((prev) => {
+                    const next = new Set(prev);
+                    next.add(modalType.slug);
+                    return next;
+                  });
+                  setModalType(null);
                 }}
-                className="rounded-none"
-              >
-                Reset
-              </Button>
-              <ActionButton type="button" onClick={handleSave}>
-                Save
-              </ActionButton>
+                onClose={() => setModalType(null)}
+              />
             </div>
           </DialogContent>
         ) : null}
