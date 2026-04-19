@@ -1,15 +1,45 @@
-## Clarificaitons on Explorer and UI WikiStandardEntityPage
+## New Clarifications
 
-1. Entry is not referred to as Raw sources and we try to hide it from the explorer by default, also Vault no longer exists 
+I like the recommendation of introducing a system_only: true frontmatter flag for clarity. 
 
-Pagination should be Infinite scroll via intersection observer 
-
-URL state wins 
+For the DryRyun / preview I like Shape AP  . Just render the Template (no LLM call) needed . 
 
 
+# Data Model 
 
-With Single Tenant onboarding. 
-Our goal is to allow initialPassword as a seed behind an bcrypt pass. we can also rely on BETTER_AUTH_SECRET for that and use it as the encryption key to create the user in the db with theri encrypted password. 
+1. repurpose to hold the full YAML blob . 
+2. seed every row on install 
+3. DB is empty enough to drop + reseed at the moment 
 
-however this raises one concern. 
-how to do forget password for this architecture.
+Label / metadata ownership 
+4. move to YAML frontmatter 
+5. Icons stay in client TS map when invalid, use fallback placeholder icon. 
+6. Alophabetical order 
+
+## Editor UX details
+
+7. explicit Save 
+8. Yes warn 
+9. not needed
+10. Line numbers, fold yes, light and dark match theme. preference for light 
+11. I like the idea of wipe to YAML defaults and re cna use the confirm dialog plus session storage 
+
+12. I agree with all validation reqwuiresments as sstated in 12-14 
+
+15. wiki.prompt else default wiki as stated in 16,. Runtime validation + fallback so dont fail log + fallback 
+
+
+17. sounds like a new feature not needed. No Audit trail needed as stated in 18 too. 
+
+19. No need for this . 
+20. thats the intention. on install load all of the YAML to user config and seed, as stated previously silent fail only log and fallback to codebased yaml config. 
+
+21. agreed. 
+22. Areed 
+
+
+# IMPORTANT: PULL FROM MAIN BEFORE PROCEEDING WITH ANY YPDATE 
+
+
+
+
