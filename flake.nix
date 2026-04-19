@@ -22,10 +22,9 @@
           # PostgreSQL bundled with pgvector (Robin runs `CREATE EXTENSION vector`).
           postgres = pkgs.postgresql_16.withPackages (ps: [ ps.pgvector ]);
 
-          # --- Helper scripts managed via PID files in .dev/ ---
-
-          startScript = pkgs.writeShellScriptBin "start" ''
-            set -euo pipefail
+          # Shared shell fragment: path variables + portable port helpers.
+          # Sourced by every script so they can't drift from each other.
+          commonPreamble = ''
             ROBIN_DEV_DIR="''${ROBIN_DEV_DIR:-.dev}"
             PROJECT_ROOT="''${PROJECT_ROOT:-$PWD}"
 
@@ -44,9 +43,6 @@
             WIKI_PID="$ROBIN_DEV_DIR/wiki/wiki.pid"
             WIKI_LOG="$ROBIN_DEV_DIR/wiki/wiki.log"
 
-            mkdir -p "$PG_DATA" "$PG_SOCKET" "$REDIS_DATA" \
-                     "$ROBIN_DEV_DIR/core" "$ROBIN_DEV_DIR/wiki"
-
             # lsof-based port probes — portable across Linux and macOS.
             port_holder_pid() {
               ${pkgs.lsof}/bin/lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null | head -1 || true
@@ -54,6 +50,10 @@
 
             port_is_bound() {
               [ -n "$(${pkgs.lsof}/bin/lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null)" ]
+            }
+
+            port_pids() {
+              ${pkgs.lsof}/bin/lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null | sort -u || true
             }
 
             # Fail loud if a port is already held by a foreign process.
@@ -66,7 +66,7 @@
               holder_cmd=$(ps -p "$holder" -o command= 2>/dev/null || echo unknown)
               echo "ERROR: $label port :$port already held by pid $holder"
               echo "  $holder_cmd"
-              echo "  free the port first (or 'kill $holder') and re-run start"
+              echo "  free the port first (or 'kill $holder') and re-run"
               return 1
             }
 
@@ -115,6 +115,38 @@
               return 1
             }
 
+            # Shared stop helper: graceful kill by port, then SIGKILL if needed.
+            stop_port() {
+              local label=$1 port=$2 pidfile=$3
+              local pids
+              pids=$(port_pids "$port") || true
+              if [ -n "$pids" ]; then
+                echo "$label stopping..."
+                echo "$pids" | xargs kill 2>/dev/null || true
+                for i in $(seq 1 15); do
+                  pids=$(port_pids "$port") || true
+                  [ -z "$pids" ] && break
+                  sleep 0.2
+                done
+                pids=$(port_pids "$port") || true
+                if [ -n "$pids" ]; then
+                  echo "$pids" | xargs kill -9 2>/dev/null || true
+                fi
+                echo "$label stopped"
+              fi
+              rm -f "$pidfile"
+            }
+          '';
+
+          # --- Dev service management scripts ---
+
+          # `init` — boot postgres + redis. Idempotent.
+          initScript = pkgs.writeShellScriptBin "init" ''
+            set -euo pipefail
+            ${commonPreamble}
+
+            mkdir -p "$PG_DATA" "$PG_SOCKET" "$REDIS_DATA"
+
             # ── PostgreSQL ──────────────────────────────────────────
             if [ -f "$PG_PID" ] && kill -0 "$(cat "$PG_PID")" 2>/dev/null; then
               echo "postgres: already running (pid $(cat "$PG_PID"))"
@@ -132,13 +164,13 @@
                   --encoding=UTF8 \
                   > /dev/null
 
-                cat >> "$PG_DATA/postgresql.conf" <<PGCONF
-            listen_addresses = '127.0.0.1'
-            port = 5432
-            unix_socket_directories = '$PG_SOCKET'
-            log_destination = 'stderr'
-            logging_collector = off
-            PGCONF
+                cat >> "$PG_DATA/postgresql.conf" <<-PGCONF
+				listen_addresses = '127.0.0.1'
+				port = 5432
+				unix_socket_directories = '$PG_SOCKET'
+				log_destination = 'stderr'
+				logging_collector = off
+				PGCONF
               fi
 
               echo "postgres: starting..."
@@ -192,6 +224,30 @@
               fi
             fi
 
+            echo ""
+            echo "  infra ready — run 'start' to launch core + wiki"
+            echo ""
+          '';
+
+          # `start` — boot core + wiki. Requires infra to be up (init first).
+          startScript = pkgs.writeShellScriptBin "start" ''
+            set -euo pipefail
+            ${commonPreamble}
+
+            mkdir -p "$ROBIN_DEV_DIR/core" "$ROBIN_DEV_DIR/wiki"
+
+            # ── Preflight: infra must be up ────────────────────────
+            if ! ${postgres}/bin/pg_isready -h 127.0.0.1 -p 5432 -U postgres -q 2>/dev/null; then
+              echo "ERROR: postgres is not accepting connections on :5432"
+              echo "  run 'init' first to bring up postgres + redis"
+              exit 1
+            fi
+            if ! ${pkgs.redis}/bin/redis-cli -h 127.0.0.1 -p 6379 ping 2>/dev/null | grep -q PONG; then
+              echo "ERROR: redis is not responding on :6379"
+              echo "  run 'init' first to bring up postgres + redis"
+              exit 1
+            fi
+
             # ── Core (Robin API server) ────────────────────────────
             if [ -f "$CORE_PID" ] && kill -0 "$(cat "$CORE_PID")" 2>/dev/null; then
               echo "core:     already running (pid $(cat "$CORE_PID"))"
@@ -230,42 +286,22 @@
             echo ""
           '';
 
+          # `stop` — kill the apps only. Infra keeps running.
           stopScript = pkgs.writeShellScriptBin "stop" ''
             set -euo pipefail
-            ROBIN_DEV_DIR="''${ROBIN_DEV_DIR:-.dev}"
+            ${commonPreamble}
 
-            PG_DATA="$ROBIN_DEV_DIR/postgres/data"
-            PG_PID="$ROBIN_DEV_DIR/postgres/postgres.pid"
-            REDIS_PID="$ROBIN_DEV_DIR/redis/redis.pid"
-            CORE_PID="$ROBIN_DEV_DIR/core/core.pid"
-            WIKI_PID="$ROBIN_DEV_DIR/wiki/wiki.pid"
+            # Reverse order: wiki → core
+            stop_port "wiki: " 8080 "$WIKI_PID"
+            stop_port "core: " 3000 "$CORE_PID"
+          '';
 
-            port_pids() {
-              ${pkgs.lsof}/bin/lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null | sort -u || true
-            }
+          # `teardown` — stop apps + shut down infra.
+          teardownScript = pkgs.writeShellScriptBin "teardown" ''
+            set -euo pipefail
+            ${commonPreamble}
 
-            stop_port() {
-              local label=$1 port=$2 pidfile=$3
-              local pids
-              pids=$(port_pids "$port") || true
-              if [ -n "$pids" ]; then
-                echo "$label stopping..."
-                echo "$pids" | xargs kill 2>/dev/null || true
-                for i in $(seq 1 15); do
-                  pids=$(port_pids "$port") || true
-                  [ -z "$pids" ] && break
-                  sleep 0.2
-                done
-                pids=$(port_pids "$port") || true
-                if [ -n "$pids" ]; then
-                  echo "$pids" | xargs kill -9 2>/dev/null || true
-                fi
-                echo "$label stopped"
-              fi
-              rm -f "$pidfile"
-            }
-
-            # ── Apps (reverse order: wiki → core) ──────────────────
+            # ── Apps first ──────────────────────────────────────────
             stop_port "wiki: " 8080 "$WIKI_PID"
             stop_port "core: " 3000 "$CORE_PID"
 
@@ -393,8 +429,10 @@
             pkgs.lsof
 
             # Dev service management
+            initScript
             startScript
             stopScript
+            teardownScript
             statusScript
             logsScript
           ];
@@ -405,9 +443,11 @@
 
             echo ""
             echo "  robin dev shell"
-            echo "  run 'start' to launch postgres + redis + core + wiki"
-            echo "  run 'stop' to shut everything down"
-            echo "  run 'status' to check service health"
+            echo "  run 'init'     to boot postgres + redis"
+            echo "  run 'start'    to launch core + wiki"
+            echo "  run 'stop'     to kill core + wiki (infra keeps running)"
+            echo "  run 'teardown' to stop everything"
+            echo "  run 'status'   to check service health"
             echo "  run 'logs [service]' to tail logs"
             echo ""
           '';
