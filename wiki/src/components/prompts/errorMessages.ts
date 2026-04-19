@@ -28,7 +28,7 @@ const MAP: Record<string, Detailer> = {
 };
 
 /** Map a server ApiErrorBody to a user-facing string. Unknown codes fall back to `error`. */
-export function describeSaveError(body: ApiErrorBody): string {
+export function describeApiError(body: ApiErrorBody): string {
   if (body.code && MAP[body.code]) return MAP[body.code](body.detail);
   if (body.error) return body.error;
   return "Save failed. Check connection and retry.";
