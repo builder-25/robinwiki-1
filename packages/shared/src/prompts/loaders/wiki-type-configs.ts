@@ -1,34 +1,52 @@
-import { loadSpec } from '../loader.js'
+import { readFileSync, readdirSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { parseSpecFromBlob } from '../loader.js'
 import type { WikiType } from '../../types/wiki.js'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const WIKI_TYPES_DIR = resolve(__dirname, '..', 'specs', 'wiki-types')
 
 export interface WikiTypeConfig {
   slug: WikiType
-  name: string
-  shortDescriptor: string
-  descriptor: string
-  prompt: string
+  displayLabel: string
+  displayDescription: string
+  displayShortDescriptor: string
+  displayOrder: number
+  version: number
+  rawYaml: string
 }
 
-const WIKI_TYPE_META: Record<WikiType, { name: string; shortDescriptor: string; descriptor: string }> = {
-  log:        { name: 'Log',        shortDescriptor: 'Chronological record',      descriptor: 'A chronological synthesis of events, observations, and activities over time' },
-  collection: { name: 'Collection', shortDescriptor: 'Curated item library',      descriptor: 'A curated library organizing related bookmarks, references, or resources' },
-  belief:     { name: 'Belief',     shortDescriptor: 'Held position or model',    descriptor: 'A synthesis of a held position, mental model, or worldview with supporting evidence' },
-  decision:   { name: 'Decision',   shortDescriptor: 'Choice and reasoning',      descriptor: 'A record of a discrete choice, its context, alternatives considered, and reasoning' },
-  project:    { name: 'Project',    shortDescriptor: 'Active initiative tracker',  descriptor: 'A living document tracking an active initiative, its goals, progress, and status' },
-  objective:  { name: 'Objective',  shortDescriptor: 'Objective with direction',   descriptor: 'A high-level objective with measurable milestones and progress tracking' },
-  skill:      { name: 'Skill',      shortDescriptor: 'Capability knowledge base', descriptor: 'A knowledge base documenting a capability being developed or maintained' },
-  agent:      { name: 'Agent',      shortDescriptor: 'AI assistant docs',         descriptor: 'Documentation for a configured AI assistant\'s purpose, behavior, and capabilities' },
-  voice:      { name: 'Voice',      shortDescriptor: 'Communication style guide', descriptor: 'A style guide capturing communication patterns, tone preferences, and voice identity' },
-  principles: { name: 'Principles', shortDescriptor: 'Operating rules',           descriptor: 'A document of operating rules, values, and commitments that guide behavior' },
-}
-
+/**
+ * Read every wiki-type YAML spec from disk, validate via PromptSpecSchema,
+ * and return a sorted array of configs. Each config carries the full raw
+ * YAML blob so the core seed can store it verbatim in wiki_types.prompt.
+ *
+ * Specs flagged `system_only: true` are skipped defensively — wiki-type
+ * YAMLs should never be system_only, but guard against future mistakes.
+ *
+ * Throws on parse errors (YAMLException) or schema errors (ZodError). The
+ * seed caller is responsible for per-file error recovery; test code should
+ * fail hard on malformed YAML.
+ */
 export function loadWikiTypeConfigs(): WikiTypeConfig[] {
-  return (Object.keys(WIKI_TYPE_META) as WikiType[]).map((slug) => {
-    const spec = loadSpec(`${slug}.yaml`, 'wiki-types')
-    return {
+  const files = readdirSync(WIKI_TYPES_DIR).filter((f) => f.endsWith('.yaml'))
+  const configs: WikiTypeConfig[] = []
+  for (const filename of files) {
+    const filePath = resolve(WIKI_TYPES_DIR, filename)
+    const rawYaml = readFileSync(filePath, 'utf-8')
+    const spec = parseSpecFromBlob(rawYaml)
+    if (spec.system_only) continue
+    const slug = filename.replace(/\.yaml$/, '') as WikiType
+    configs.push({
       slug,
-      ...WIKI_TYPE_META[slug],
-      prompt: spec.system_message,
-    }
-  })
+      displayLabel: spec.display_label ?? slug,
+      displayDescription: spec.display_description ?? '',
+      displayShortDescriptor: spec.display_short_descriptor ?? '',
+      displayOrder: spec.display_order ?? 999,
+      version: spec.version,
+      rawYaml,
+    })
+  }
+  return configs.sort((a, b) => a.displayOrder - b.displayOrder)
 }
