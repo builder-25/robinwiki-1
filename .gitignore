@@ -18,8 +18,7 @@ next-env.d.ts
 !.env.example
 
 .dev
-
+.planning 
 
 
 ## docs/plans tracked for design decisions
-!docs/plans
