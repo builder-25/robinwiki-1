@@ -232,7 +232,7 @@ export default function AddWikiModal({
                 margin: 0,
               }}
             >
-              {subtitle ?? "Lorem Ipsum dolor sit amet"}
+              {subtitle ?? "Create a new wiki to organize your knowledge."}
             </DialogDescription>
           </DialogHeader>
 
