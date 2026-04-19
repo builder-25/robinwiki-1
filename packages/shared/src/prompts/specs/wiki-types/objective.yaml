@@ -121,7 +121,7 @@ input_variables:
     required: true
   - name: date
     description: Current date
-    required: true
+    required: false
   - name: count
     description: Fragment count
     required: true
