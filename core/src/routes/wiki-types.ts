@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
-import { parseSpecFromBlob } from '@robin/shared'
+import { parseSpecFromBlob, loadWikiTypePreviewFixture, renderPromptSpec } from '@robin/shared'
 import { sessionMiddleware } from '../middleware/session.js'
 import { db } from '../db/client.js'
 import { wikiTypes } from '../db/schema.js'
@@ -17,6 +17,7 @@ import {
   wikiTypesListResponseSchema,
   createWikiTypeBodySchema,
   putWikiTypePromptBodySchema,
+  previewWikiTypePromptBodySchema,
   defaultYamlResponseSchema,
 } from '../schemas/wiki-types.schema.js'
 import { emitAuditEvent } from '../db/audit.js'
@@ -278,6 +279,54 @@ wikiTypesRouter.post('/:slug/reset', async (c) => {
 
   return c.json({ ok: true, slug, basedOnVersion: canonicalVersion })
 })
+
+// POST /wiki-types/:slug/preview -- deterministic Handlebars render (NO LLM).
+// Returns the exact prompt that would be sent at generation time, given a
+// shared fixture for input variables. Stateless — no DB work, no audit event.
+wikiTypesRouter.post(
+  '/:slug/preview',
+  zValidator('json', previewWikiTypePromptBodySchema, validationHook),
+  async (c) => {
+    const slug = c.req.param('slug')
+    if (!SLUG_REGEX.test(slug)) {
+      return c.json({ error: 'Invalid slug format' }, 400)
+    }
+
+    const body = c.req.valid('json')
+    const result = validatePromptYaml(body.promptYaml)
+    if (result.ok !== true) {
+      // Strict: false in core's tsconfig weakens discriminated-union narrowing
+      // on the negative branch; cast for clarity (mirrors PUT handler pattern).
+      const failure = result as Extract<typeof result, { ok: false }>
+      return c.json(failure.body, failure.status as 400)
+    }
+
+    const fixtureVars = loadWikiTypePreviewFixture(slug)
+    const { rendered, warnings: renderWarnings } = renderPromptSpec(
+      result.spec,
+      fixtureVars as unknown as Record<string, unknown>
+    )
+
+    // Lift Phase 1's string-warnings to structured shape AT the preview boundary.
+    // Phase 1's validator emits warnings only for the "referenced but not
+    // declared" case — so UNKNOWN_VARIABLE is the correct code. Renderer
+    // warnings are already structured. Left un-deduped for v1 (see Plan 03 Task
+    // 2 note): a user-facing duplicate is strictly-less-broken than a missing
+    // warning, and callers can dedupe on `${code}|${message}` if needed.
+    const structuredWarnings: Array<{ code: string; message: string }> = [
+      ...result.warnings.map((message) => ({
+        code: 'UNKNOWN_VARIABLE' as const,
+        message,
+      })),
+      ...renderWarnings.map((w) => ({ code: w.code, message: w.message })),
+    ]
+
+    return c.json({
+      renderedPrompt: rendered,
+      warnings: structuredWarnings,
+    })
+  }
+)
 
 // POST /wiki-types -- create a new user-defined wiki type (unchanged)
 wikiTypesRouter.post(

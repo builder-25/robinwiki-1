@@ -1,0 +1,42 @@
+# Shared preview fixture for all 10 wiki types.
+#
+# All 10 wiki types (agent, belief, collection, decision, log, objective,
+# principles, project, skill, voice) declare the same 9 input_variables with
+# identical required flags. A single fixture therefore covers every type.
+# See RESEARCH.md "Input variables per wiki-type" table.
+#
+# Per-slug specialization is additive: drop `${slug}.yaml` alongside this file
+# and the loader will pick it up. See loader.ts for the fall-through logic.
+#
+# All optional variables (timeline, people, existingWiki, edits, relatedWikis)
+# are populated so every `{{#if ...}}` branch in each wiki-type template
+# fires, making the preview demonstrate the richest output the user will see.
+#
+# `count` is an integer (wiki-generation.ts: `count: z.number()`). YAML parses
+# unquoted `2` as a number automatically — do NOT quote it.
+
+fragments: |
+  [Fragment #1 — 2026-03-12]
+  Started drafting the onboarding flow. Main tension: auto-save vs explicit save.
+  Tom prefers explicit, I prefer auto. Parked for now.
+
+  [Fragment #2 — 2026-03-15]
+  Decision: going with auto-save + visible "last saved" indicator. Matches Notion pattern.
+title: Onboarding UX decisions
+date: "2026-04-19"
+count: 2
+timeline: |
+  2026-03-12: fragment attached (discussion)
+  2026-03-15: fragment attached (decision)
+people: |
+  - Tom (collaborator, architect perspective)
+  - Me (primary author)
+existingWiki: |
+  # Onboarding UX decisions
+  ## Overview
+  Early sketch of onboarding decisions. To be updated.
+edits: |
+  User added: "Remember to cross-link to the 'save semantics' belief wiki."
+relatedWikis: |
+  - save-semantics (belief)
+  - notion-ux-patterns (collection)

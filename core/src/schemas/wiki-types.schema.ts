@@ -66,6 +66,14 @@ export const putWikiTypePromptBodySchema = z.object({
   promptYaml: z.string().min(1),
 })
 
+// POST /wiki-types/:slug/preview body. Shape matches PUT today, but kept as a
+// separate export so the semantic contract can diverge later without churn
+// across every caller. No .max() — validatePromptYaml owns the 32KB cap and
+// returns a stable { code: 'YAML_TOO_LARGE' } response.
+export const previewWikiTypePromptBodySchema = z.object({
+  promptYaml: z.string().min(1),
+})
+
 export const defaultYamlResponseSchema = z.object({
   slug: z.string(),
   yaml: z.string(),
