@@ -10,12 +10,14 @@
     "lint": "turbo run lint",
     "format": "biome format --write .",
     "clean": "find core wiki packages -type d \\( -name dist -o -name node_modules -o -name .turbo -o -name .next \\) -prune -exec rm -rf {} + && rm -rf node_modules .turbo",
-    "seed-openrouter-key": "tsx core/scripts/seed-openrouter-key.ts"
+    "seed-openrouter-key": "tsx core/scripts/seed-openrouter-key.ts",
+    "port": "sh -c 'ss -tlnp \"sport = :$0\"'",
+    "serve": "npx concurrently -n core,wiki -c blue,magenta \"pnpm --filter @robin/core dev\" \"pnpm --filter @robin/wiki dev\""
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
-    "tsx": "^4.0.0",
-    "turbo": "^2.8.11",
+    "tsx": "^4.21.0",
+    "turbo": "^2.9.6",
     "typescript": "^5.9.3"
   },
   "packageManager": "pnpm@10.15.1",

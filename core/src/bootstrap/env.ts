@@ -18,7 +18,14 @@ export const env = createConfigVar({
     INITIAL_USERNAME: z.string().email().describe('Email for first admin user'),
     INITIAL_PASSWORD: z.string().min(6).describe('Password for first admin user'),
     OPENROUTER_API_KEY: z.string().min(1).describe('OpenRouter API key (openrouter.ai/keys)'),
-    WIKI_ORIGIN: z.string().url().describe('Wiki frontend URL for CORS'),
+    WIKI_ORIGIN: z
+      .string()
+      .min(1)
+      .refine(
+        (val) => val.split(',').every((u) => /^https?:\/\//.test(u.trim())),
+        'Each comma-separated origin must start with http:// or https://',
+      )
+      .describe('Wiki frontend URL(s) for CORS — comma-separated for multiple origins'),
     PORT: z.coerce.number().default(3000).describe('Server port'),
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     LOG_LEVEL: z.string().default('info'),
