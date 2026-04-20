@@ -49,7 +49,8 @@ export const exportDataResponseSchema = z.object({
 
 // ── User settings ──────────────────────────────────────────────────────────
 
-export const userSettingsSchema = z.object({
+/** Full settings shape — used for GET responses and as the defaults type. */
+export const fullUserSettingsSchema = z.object({
   notifications: z.object({
     email: z.boolean(),
     push: z.boolean(),
@@ -60,7 +61,10 @@ export const userSettingsSchema = z.object({
   theme: z.enum(['light', 'dark', 'system']),
 })
 
-export type UserSettings = z.infer<typeof userSettingsSchema>
+/** Partial input schema — every top-level key is optional for PATCH-style PUT. */
+export const userSettingsSchema = fullUserSettingsSchema.partial()
+
+export type UserSettings = z.infer<typeof fullUserSettingsSchema>
 
 export const USER_SETTINGS_DEFAULTS: UserSettings = {
   notifications: { email: true, push: true },
@@ -68,6 +72,6 @@ export const USER_SETTINGS_DEFAULTS: UserSettings = {
   theme: 'system',
 }
 
-export const userSettingsResponseSchema = userSettingsSchema
+export const userSettingsResponseSchema = fullUserSettingsSchema
 
 export { okResponseSchema }

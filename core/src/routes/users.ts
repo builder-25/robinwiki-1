@@ -207,7 +207,7 @@ usersRouter.get('/settings', async (c) => {
   return c.json(userSettingsResponseSchema.parse(merged))
 })
 
-// PUT /users/settings
+// PUT /users/settings (accepts partial updates)
 usersRouter.put(
   '/settings',
   zValidator('json', userSettingsSchema, validationHook),
@@ -215,12 +215,22 @@ usersRouter.put(
     const userId = c.get('userId') as string
     const body = c.req.valid('json')
 
+    const existing = await getConfig({ scope: 'user', userId, kind: 'user_settings', key: 'default' })
+    const current = { ...USER_SETTINGS_DEFAULTS, ...(existing as Record<string, unknown> ?? {}) }
+
+    // Deep-merge nested objects so partial updates don't clobber siblings
+    const merged = {
+      notifications: { ...(current.notifications as Record<string, unknown>), ...body.notifications },
+      privacy: { ...(current.privacy as Record<string, unknown>), ...body.privacy },
+      theme: body.theme ?? current.theme,
+    }
+
     await setConfig({
       scope: 'user',
       userId,
       kind: 'user_settings',
       key: 'default',
-      value: body,
+      value: merged,
     })
 
     await emitAuditEvent(db, {
