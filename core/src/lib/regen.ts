@@ -30,6 +30,9 @@ export const AUTO_FILE_THRESHOLD = 0.8
 /** Similarity >= LLM_REVIEW_THRESHOLD (and < AUTO_FILE) → send to LLM for judgment */
 export const LLM_REVIEW_THRESHOLD = 0.5
 
+/** LLM confidence >= STRONG_SIGNAL_THRESHOLD → strong signal; below → weak signal */
+export const STRONG_SIGNAL_THRESHOLD = 0.7
+
 /** Below LLM_REVIEW_THRESHOLD → skip entirely, not relevant */
 // (implicit: similarity < 0.5 is ignored)
 
@@ -157,7 +160,7 @@ export async function classifyUnfiledFragments(
           dstType: 'wiki',
           dstId: wikiKey,
           edgeType: 'FRAGMENT_IN_WIKI',
-          attrs: { score: similarity, method: 'cosine-auto' },
+          attrs: { score: similarity, method: 'cosine-auto', signal: 'strong' },
         })
         .onConflictDoNothing()
       autoFiled++
@@ -228,7 +231,12 @@ export async function classifyUnfiledFragments(
                 dstType: 'wiki',
                 dstId: edge.wikiKey,
                 edgeType: 'FRAGMENT_IN_WIKI',
-                attrs: { score: edge.score, cosineSimilarity: similarity, method: 'llm-review' },
+                attrs: {
+                  score: edge.score,
+                  cosineSimilarity: similarity,
+                  method: 'llm-review',
+                  signal: edge.score >= STRONG_SIGNAL_THRESHOLD ? 'strong' : 'weak',
+                },
               })
               .onConflictDoNothing()
             llmFiled++
@@ -281,9 +289,9 @@ export async function regenerateWiki(
   const agents = createIngestAgents(orConfig)
   const callLlm = createStringCaller(agents.wikiClassifier)
 
-  // Gather linked fragments via FRAGMENT_IN_WIKI edges
-  const fragmentEdges = await database
-    .select({ srcId: edges.srcId })
+  // Gather linked fragments via FRAGMENT_IN_WIKI edges, with signal strength
+  const fragmentEdgeRows = await database
+    .select({ srcId: edges.srcId, attrs: edges.attrs })
     .from(edges)
     .where(
       and(
@@ -293,20 +301,44 @@ export async function regenerateWiki(
       )
     )
 
-  const fragmentKeys = fragmentEdges.map((e) => e.srcId)
+  // Build a signal map: fragmentKey → 'strong' | 'weak' (default strong for legacy edges without attrs)
+  const signalMap = new Map<string, 'strong' | 'weak'>()
+  for (const e of fragmentEdgeRows) {
+    const attrs = e.attrs as Record<string, unknown> | null
+    const signal = (attrs?.signal === 'weak' ? 'weak' : 'strong') as 'strong' | 'weak'
+    signalMap.set(e.srcId, signal)
+  }
+
+  const fragmentKeys = fragmentEdgeRows.map((e) => e.srcId)
   let fragmentsText = ''
   let fragmentCount = 0
 
   if (fragmentKeys.length > 0) {
     const fragRows = await database
-      .select({ title: fragments.title, content: fragments.content })
+      .select({ lookupKey: fragments.lookupKey, title: fragments.title, content: fragments.content })
       .from(fragments)
       .where(and(inArray(fragments.lookupKey, fragmentKeys), isNull(fragments.deletedAt)))
 
+    // Sort: strong-signal fragments first, then weak
+    fragRows.sort((a, b) => {
+      const sigA = signalMap.get(a.lookupKey) === 'weak' ? 1 : 0
+      const sigB = signalMap.get(b.lookupKey) === 'weak' ? 1 : 0
+      return sigA - sigB
+    })
+
+    const strongFrags = fragRows.filter((f) => signalMap.get(f.lookupKey) !== 'weak')
+    const weakFrags = fragRows.filter((f) => signalMap.get(f.lookupKey) === 'weak')
+
     fragmentCount = fragRows.length
-    fragmentsText = fragRows
-      .map((f) => `### ${f.title}\n${f.content}`)
-      .join('\n\n')
+
+    const strongText = strongFrags.map((f) => `### ${f.title}\n${f.content}`).join('\n\n')
+    const weakText = weakFrags.map((f) => `### ${f.title}\n${f.content}`).join('\n\n')
+
+    if (weakFrags.length > 0 && strongFrags.length > 0) {
+      fragmentsText = `${strongText}\n\n---\n[SUPPLEMENTARY FRAGMENTS — lower confidence, include as supporting context or "See also" references]\n\n${weakText}`
+    } else {
+      fragmentsText = strongText || weakText
+    }
   }
 
   // Gather recent user edits for the {{edits}} template variable
