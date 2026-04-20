@@ -38,6 +38,8 @@ import { useSession } from "@/hooks/useSession";
 import { AuthGuard } from "@/components/AuthGuard";
 import { useProfile } from "@/hooks/useProfile";
 import { useStats } from "@/hooks/useStats";
+import { useWikis } from "@/hooks/useWikis";
+import { useRegenerateWiki } from "@/hooks/useRegenerateWiki";
 import { authClient } from "@/lib/auth-client";
 
 function SectionLabel({
@@ -65,9 +67,12 @@ export default function ProfilePage() {
   const profileQuery = useProfile();
   const statsQuery = useStats();
   const modelPrefs = useModelPreferences();
+  const wikisQuery = useWikis({ limit: 200 });
+  const regenerateWiki = useRegenerateWiki();
   const [copied, setCopied] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [regenStatus, setRegenStatus] = useState<"idle" | "running" | "done" | "error">("idle");
 
   const username = session?.user?.name ?? session?.user?.email ?? "";
   const canDelete = username.length > 0 && deleteConfirm === username;
@@ -85,9 +90,23 @@ export default function ProfilePage() {
     router.push("/");
   };
 
+  const handleRegenerate = async () => {
+    const wikis = wikisQuery.data?.threads;
+    if (!wikis?.length) return;
+    setRegenStatus("running");
+    try {
+      await Promise.all(wikis.map((w) => regenerateWiki.mutateAsync(w.id)));
+      setRegenStatus("done");
+      setTimeout(() => setRegenStatus("idle"), 3000);
+    } catch {
+      setRegenStatus("error");
+      setTimeout(() => setRegenStatus("idle"), 3000);
+    }
+  };
+
   const stats = [
-    { count: 0, label: "Fragments" },
-    { count: 0, label: "Unattached Fragments" },
+    { count: statsQuery.data?.totalNotes ?? 0, label: "Fragments" },
+    { count: statsQuery.data?.unthreadedCount ?? 0, label: "Unattached Fragments" },
     { count: statsQuery.data?.totalThreads ?? 0, label: "Wikis" },
     { count: statsQuery.data?.peopleCount ?? 0, label: "People" },
   ];
@@ -109,7 +128,7 @@ export default function ProfilePage() {
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => router.back()}
+          onClick={() => router.push("/wiki")}
           className="mb-6 -ml-2 h-auto gap-1.5 px-2 text-muted-foreground"
         >
           <ArrowLeft className="size-4" strokeWidth={1.5} />
@@ -320,10 +339,25 @@ export default function ProfilePage() {
                 </button>
               </div>
 
-              <Button type="button" variant="outline" size="sm" className="gap-1.5">
-                <RefreshCw className="size-3.5" strokeWidth={1.5} />
-                Re-profile
-              </Button>
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={regenStatus === "running" || !wikisQuery.data?.threads?.length}
+                  onClick={handleRegenerate}
+                >
+                  <RefreshCw className={cn("size-3.5", regenStatus === "running" && "animate-spin")} strokeWidth={1.5} />
+                  {regenStatus === "running" ? "Regenerating..." : "Re-profile"}
+                </Button>
+                {regenStatus === "done" && (
+                  <span className="text-xs text-emerald-600">All wikis regenerated</span>
+                )}
+                {regenStatus === "error" && (
+                  <span className="text-xs text-destructive">Regeneration failed</span>
+                )}
+              </div>
             </CardContent>
           </Card>
         </section>

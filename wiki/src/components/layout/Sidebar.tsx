@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useMemo, useState, type CSSProperties } from "react";
 import { T } from "@/lib/typography";
+import { useEntries } from "@/hooks/useEntries";
 import { useWikis } from "@/hooks/useWikis";
 
 const ACTIVE_COLOR = "#000000";
@@ -58,11 +59,20 @@ const navigationData: SidebarSectionData = {
   ],
 };
 
-const entriesData: SidebarSectionData = {
-  title: "Entries",
-  items: [],
-  emptyText: "no entries added",
-};
+function useEntriesData(): SidebarSectionData {
+  const { data } = useEntries({ limit: 20 });
+  const items = useMemo<NavItem[]>(() => {
+    const entries = data?.entries;
+    if (!entries || entries.length === 0) return [];
+    return entries.map((e) => ({
+      label: e.title,
+      arrow: "none" as ArrowState,
+      href: `/wiki/entries/${e.id}`,
+    }));
+  }, [data]);
+
+  return { title: "Entries", items, emptyText: "no entries added" };
+}
 
 function useContentsData(): SidebarSectionData {
   const { data } = useWikis();
@@ -441,6 +451,7 @@ function SidebarSection({
 }
 
 export default function Sidebar() {
+  const entriesData = useEntriesData();
   const contentsData = useContentsData();
 
   return (

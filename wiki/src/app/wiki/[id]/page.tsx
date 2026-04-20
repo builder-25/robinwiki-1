@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { RefreshCw } from "lucide-react";
 import { T } from "@/lib/typography";
 import { Spinner } from "@/components/ui/spinner";
 import { useWiki } from "@/hooks/useWiki";
+import { useRegenerateWiki } from "@/hooks/useRegenerateWiki";
 import {
   WikiEntityArticle,
   WikiSectionH2,
@@ -18,6 +20,7 @@ function capitalize(s: string) {
 export default function WikiDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: wiki, isLoading, error } = useWiki(id);
+  const regenerate = useRegenerateWiki();
 
   if (isLoading) {
     return (
@@ -48,6 +51,44 @@ export default function WikiDetailPage() {
       title={wiki.name}
       infobox={{ kind: "simple", typeLabel, showSettings: true }}
       wikiId={wiki.id}
+      customBottomSections={
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            type="button"
+            onClick={() => regenerate.mutate(wiki.id)}
+            disabled={regenerate.isPending}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "4px 10px",
+              fontSize: 12,
+              color: "var(--wiki-article-text)",
+              background: "none",
+              border: "1px solid var(--wiki-card-border)",
+              cursor: regenerate.isPending ? "default" : "pointer",
+              opacity: regenerate.isPending ? 0.6 : 1,
+            }}
+          >
+            <RefreshCw
+              size={14}
+              strokeWidth={1.5}
+              style={regenerate.isPending ? { animation: "spin 1s linear infinite" } : undefined}
+            />
+            {regenerate.isPending ? "Regenerating..." : "Regenerate"}
+          </button>
+          {regenerate.isSuccess && (
+            <span style={{ fontSize: 12, color: "var(--wiki-article-link)" }}>
+              Regeneration queued
+            </span>
+          )}
+          {regenerate.isError && (
+            <span style={{ fontSize: 12, color: "red" }}>
+              Failed to regenerate
+            </span>
+          )}
+        </div>
+      }
     >
       {wiki.wikiContent && (
         <div style={bodyStyle}>
