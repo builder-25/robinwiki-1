@@ -1,5 +1,5 @@
 import type { JobResult, RegenJob, RegenBatchJob } from '@robin/queue'
-import { eq, and, isNull, lt, sql } from 'drizzle-orm'
+import { eq, and, isNull, sql } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import { wikis, edges, fragments } from '../db/schema.js'
 import { regenerateWiki } from '../lib/regen.js'
@@ -11,8 +11,7 @@ const log = logger.child({ component: 'regen-worker' })
 /** Max wikis to process in a single batch job */
 const BATCH_LIMIT = 5
 
-/** Wikis older than this many hours are candidates for batch regen */
-const STALE_HOURS = 24
+/** Stale threshold removed — wikis only regen when they have new fragments or are stuck */
 
 export async function processRegenJob(job: RegenJob): Promise<JobResult> {
   log.info({ jobId: job.jobId, wikiKey: job.objectKey }, 'processing regen job')
@@ -44,7 +43,9 @@ export async function processRegenBatchJob(job: RegenBatchJob): Promise<JobResul
   log.info({ jobId: job.jobId }, 'processing regen batch job')
 
   try {
-    // Count unfiled fragments (fragments with embedding but no FRAGMENT_IN_WIKI edge)
+    const candidateKeys = new Set<string>()
+
+    // ── Reason 1: Unfiled fragments exist → regen ALL wikis (mechanism #1 classifies them) ──
     const [unfiledCount] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(fragments)
@@ -58,58 +59,60 @@ export async function processRegenBatchJob(job: RegenBatchJob): Promise<JobResul
           )`
         )
       )
-
     const hasUnfiled = (unfiledCount?.count ?? 0) > 0
 
-    // Find regen-eligible wikis:
-    // 1. regenerate=true wikis (existing logic)
-    // 2. ALL regenerate=true wikis if there are unfiled fragments
-    //    (mechanism #1 in regenerateWiki will classify unfiled fragments before generating content)
-    const cutoff = new Date(Date.now() - STALE_HOURS * 60 * 60 * 1000)
-
-    let wikiKeysToRegen: string[]
-
     if (hasUnfiled) {
-      // When unfiled fragments exist, regen all non-deleted wikis with regenerate=true
-      // (mechanism #1 in regenerateWiki will classify unfiled fragments before generating)
-      const allWikis = await db
+      // Only wikis with regenerate=true participate in unfiled fragment classification
+      const rows = await db
         .select({ lookupKey: wikis.lookupKey })
         .from(wikis)
         .where(and(isNull(wikis.deletedAt), eq(wikis.regenerate, true)))
-        .limit(BATCH_LIMIT)
-      wikiKeysToRegen = allWikis.map(w => w.lookupKey)
-    } else {
-      // No unfiled fragments -- only regen stale wikis that have existing fragments
-      const staleWikis = await db
-        .select({ lookupKey: wikis.lookupKey })
-        .from(wikis)
-        .where(
-          and(
-            isNull(wikis.deletedAt),
-            eq(wikis.regenerate, true),
-            lt(wikis.lastRebuiltAt, cutoff)
-          )
-        )
-        .limit(BATCH_LIMIT)
-
-      const toRegen: string[] = []
-      for (const wiki of staleWikis) {
-        const [hasEdge] = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(edges)
-          .where(
-            and(
-              eq(edges.dstId, wiki.lookupKey),
-              eq(edges.edgeType, 'FRAGMENT_IN_WIKI'),
-              isNull(edges.deletedAt)
-            )
-          )
-        if (hasEdge && hasEdge.count > 0) toRegen.push(wiki.lookupKey)
-      }
-      wikiKeysToRegen = toRegen
+      for (const r of rows) candidateKeys.add(r.lookupKey)
+      log.info({ unfiled: unfiledCount?.count, wikis: rows.length }, 'batch: unfiled fragments → regen-enabled wikis')
     }
 
-    // Enqueue individual regen jobs (not inline -- each regen runs classifyUnfiledFragments)
+    // ── Reason 2: Wikis with new fragments since last rebuild ──
+    const wikisWithNewFragments = await db
+      .select({ lookupKey: wikis.lookupKey })
+      .from(wikis)
+      .innerJoin(
+        edges,
+        and(
+          eq(edges.dstId, wikis.lookupKey),
+          eq(edges.edgeType, 'FRAGMENT_IN_WIKI'),
+          isNull(edges.deletedAt),
+        )
+      )
+      .where(
+        and(
+          isNull(wikis.deletedAt),
+          eq(wikis.regenerate, true),
+          sql`${edges.createdAt} > COALESCE(${wikis.lastRebuiltAt}, '1970-01-01'::timestamptz)`,
+        )
+      )
+      .groupBy(wikis.lookupKey)
+    for (const r of wikisWithNewFragments) candidateKeys.add(r.lookupKey)
+    if (wikisWithNewFragments.length > 0) {
+      log.info({ count: wikisWithNewFragments.length }, 'batch: wikis with new fragments since last rebuild')
+    }
+
+    // ── Reason 3: Wikis stuck in non-RESOLVED state ──
+    const stuckWikis = await db
+      .select({ lookupKey: wikis.lookupKey })
+      .from(wikis)
+      .where(
+        and(
+          isNull(wikis.deletedAt),
+          sql`${wikis.state} != 'RESOLVED'`,
+        )
+      )
+    for (const r of stuckWikis) candidateKeys.add(r.lookupKey)
+    if (stuckWikis.length > 0) {
+      log.info({ count: stuckWikis.length }, 'batch: wikis in non-RESOLVED state')
+    }
+
+    // ── Enqueue individual regen jobs (capped at BATCH_LIMIT) ──
+    const wikiKeysToRegen = Array.from(candidateKeys).slice(0, BATCH_LIMIT)
     let enqueued = 0
     for (const wikiKey of wikiKeysToRegen) {
       try {
@@ -127,7 +130,10 @@ export async function processRegenBatchJob(job: RegenBatchJob): Promise<JobResul
       }
     }
 
-    log.info({ jobId: job.jobId, enqueued, hasUnfiled, total: wikiKeysToRegen.length }, 'regen batch completed')
+    log.info(
+      { jobId: job.jobId, enqueued, hasUnfiled, candidates: candidateKeys.size, capped: wikiKeysToRegen.length },
+      'regen batch completed'
+    )
 
     return { jobId: job.jobId, success: true, processedAt: new Date().toISOString() }
   } catch (err) {
