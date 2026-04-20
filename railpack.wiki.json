@@ -4,7 +4,7 @@
   "packages": { "node": "20" },
   "steps": {
     "install": {
-      "inputs": [{ "local": true }],
+      "inputs": [{ "step": "packages:mise" }, { "local": true, "include": ["."] }],
       "commands": [
         "corepack enable",
         "corepack prepare pnpm@10.15.1 --activate",
