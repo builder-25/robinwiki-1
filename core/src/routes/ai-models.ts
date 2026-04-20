@@ -99,9 +99,9 @@ aiModelsRouter.get('/models', async (c) => {
   }
 })
 
-/** Returns the cached model list (or null if never fetched). */
+/** Returns the cached model IDs, or null if never fetched / empty. */
 export function getCachedModelIds(): Set<string> | null {
-  if (!cachedModels) return null
+  if (!cachedModels || cachedModels.length === 0) return null
   return new Set(cachedModels.map((m) => m.id))
 }
 
