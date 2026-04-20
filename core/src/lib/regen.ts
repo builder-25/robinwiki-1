@@ -25,16 +25,13 @@ const log = logger.child({ component: 'regen' })
 // Cosine similarity (1 - distance) thresholds for fragment-to-wiki filing.
 
 /** Similarity >= AUTO_FILE_THRESHOLD → file immediately, no LLM needed */
-export const AUTO_FILE_THRESHOLD = 0.75
+export const AUTO_FILE_THRESHOLD = 0.8
 
 /** Similarity >= LLM_REVIEW_THRESHOLD (and < AUTO_FILE) → send to LLM for judgment */
-export const LLM_REVIEW_THRESHOLD = 0.4
+export const LLM_REVIEW_THRESHOLD = 0.5
 
 /** Below LLM_REVIEW_THRESHOLD → skip entirely, not relevant */
-// (implicit: similarity < 0.4 is ignored)
-
-/** LLM confidence threshold for filing (from wiki-classify.ts stage) */
-export const LLM_CONFIDENCE_THRESHOLD = 0.7
+// (implicit: similarity < 0.5 is ignored)
 
 /** Max unfiled fragments to evaluate per regen call */
 const MAX_UNFILED_PER_REGEN = 50
