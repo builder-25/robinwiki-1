@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "openapi": "openapi-ts"
+    "manifest": "openapi-ts && find src/lib/generated -name '*.ts' -exec sed -i \"s/\\.js'/'/g\" {} +"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",

@@ -1,7 +1,6 @@
 import 'dotenv/config'
 import { assertProdEnv } from './bootstrap/env.js'
 import { readFileSync } from 'node:fs'
-import { load as loadYaml } from 'js-yaml'
 import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import { cors } from 'hono/cors'
@@ -90,7 +89,7 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal server error' }, 500)
 })
 
-const openapiSpec = loadYaml(readFileSync(new URL('../openapi.yaml', import.meta.url), 'utf-8'))
+const openapiSpec = JSON.parse(readFileSync(new URL('../openapi-spec.json', import.meta.url), 'utf-8'))
 
 /***********************************************************************
  * ## Pre-auth routes
