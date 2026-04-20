@@ -187,7 +187,6 @@ async function processExtractionJob(job: ExtractionJob): Promise<JobResult> {
           .onConflictDoUpdate({
             target: entries.lookupKey,
             set: {
-              slug: e.slug as string,
               title: (e.title as string) ?? '',
               content,
               sourceMetadata,
