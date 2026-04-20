@@ -25,8 +25,8 @@ const SAFE_EMBEDDING_MODELS = [
 
 const FALLBACK_DEFAULTS: ModelPreferences = {
   extraction: "google/gemini-2.5-pro",
-  classification: "anthropic/claude-haiku-4-5",
-  wikiGeneration: "anthropic/claude-sonnet-4-6",
+  classification: "anthropic/claude-haiku-4.5",
+  wikiGeneration: "anthropic/claude-sonnet-4.6",
   embedding: "openai/text-embedding-3-small",
 };
 

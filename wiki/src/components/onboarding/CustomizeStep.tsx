@@ -33,15 +33,15 @@ const SAFE_EMBEDDING_MODELS = [
 
 const FALLBACK_DEFAULTS: ModelPreferences = {
   extraction: "google/gemini-2.5-pro",
-  classification: "anthropic/claude-haiku-4-5",
-  wikiGeneration: "anthropic/claude-sonnet-4-6",
+  classification: "anthropic/claude-haiku-4.5",
+  wikiGeneration: "anthropic/claude-sonnet-4.6",
   embedding: "openai/text-embedding-3-small",
 };
 
 /** Hardcoded fallback models when the API is unavailable. */
 const FALLBACK_MODELS: AiModel[] = [
-  { id: "anthropic/claude-sonnet-4-6", name: "Claude Sonnet 4 (6)", context_length: 200000, pricing: { prompt: "0", completion: "0" } },
-  { id: "anthropic/claude-haiku-3.5", name: "Claude 3.5 Haiku", context_length: 200000, pricing: { prompt: "0", completion: "0" } },
+  { id: "anthropic/claude-sonnet-4.6", name: "Claude Sonnet 4.6", context_length: 200000, pricing: { prompt: "0", completion: "0" } },
+  { id: "anthropic/claude-haiku-4.5", name: "Claude Haiku 4.5", context_length: 200000, pricing: { prompt: "0", completion: "0" } },
   { id: "google/gemini-2.5-flash-preview", name: "Gemini 2.5 Flash", context_length: 1048576, pricing: { prompt: "0", completion: "0" } },
   { id: "openai/gpt-4.1-mini", name: "GPT-4.1 Mini", context_length: 1047576, pricing: { prompt: "0", completion: "0" } },
   { id: "openai/text-embedding-3-small", name: "text-embedding-3-small", context_length: 8191, pricing: { prompt: "0", completion: "0" } },

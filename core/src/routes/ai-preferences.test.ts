@@ -54,9 +54,9 @@ vi.mock('../db/schema.js', () => ({
 vi.mock('../lib/openrouter-config.js', () => ({
   SAFE_EMBEDDING_MODELS: ['openai/text-embedding-3-small', 'qwen/qwen3-embedding-8b'],
   MODEL_DEFAULTS: {
-    extraction: 'anthropic/claude-sonnet-4-6',
-    classification: 'anthropic/claude-sonnet-4-6',
-    wiki_generation: 'anthropic/claude-sonnet-4-6',
+    extraction: 'anthropic/claude-sonnet-4.6',
+    classification: 'anthropic/claude-sonnet-4.6',
+    wiki_generation: 'anthropic/claude-sonnet-4.6',
     embedding: 'openai/text-embedding-3-small',
   },
 }))
@@ -128,9 +128,9 @@ describe('GET /users/preferences/models', () => {
 
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
-      extraction: 'anthropic/claude-sonnet-4-6',
-      classification: 'anthropic/claude-sonnet-4-6',
-      wikiGeneration: 'anthropic/claude-sonnet-4-6',
+      extraction: 'anthropic/claude-sonnet-4.6',
+      classification: 'anthropic/claude-sonnet-4.6',
+      wikiGeneration: 'anthropic/claude-sonnet-4.6',
       embedding: 'openai/text-embedding-3-small',
     })
   })
@@ -145,7 +145,7 @@ describe('GET /users/preferences/models', () => {
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.extraction).toBe('google/gemini-2.5-pro')
-    expect(json.classification).toBe('anthropic/claude-sonnet-4-6')
+    expect(json.classification).toBe('anthropic/claude-sonnet-4.6')
   })
 })
 
@@ -196,7 +196,7 @@ describe('PUT /users/preferences/models', () => {
   })
 
   it('rejects unknown chat models when cache is available', async () => {
-    mockGetCachedModelIds.mockReturnValue(new Set(['anthropic/claude-sonnet-4-6', 'google/gemini-2.5-pro']))
+    mockGetCachedModelIds.mockReturnValue(new Set(['anthropic/claude-sonnet-4.6', 'google/gemini-2.5-pro']))
 
     const res = await putJson('/users/preferences/models', {
       extraction: 'fake/nonexistent-model',
