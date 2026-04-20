@@ -54,20 +54,14 @@ mcp.all('/', async (c) => {
     loadUserPeople: async () => [],
   }
 
-  const transport = new WebStandardStreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
-  })
+  const transport = new WebStandardStreamableHTTPServerTransport()
 
   const server = createMcpServer(deps)
   await server.connect(transport)
 
   try {
-    const response = await transport.handleRequest(c.req.raw, {
-      authInfo: { clientId: userId, token: '', scopes: [] },
-    })
-    return c.newResponse(response.body, {
-      status: response.status,
-      headers: Object.fromEntries(response.headers),
+    return transport.handleRequest(c.req.raw, {
+      authInfo: { token: '', clientId: userId, scopes: [] },
     })
   } finally {
     await transport.close()
