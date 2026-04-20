@@ -305,7 +305,11 @@ wikisRouter.put('/:id', zValidator('json', updateThreadBodySchema, validationHoo
   const updates: Record<string, unknown> = { updatedAt: new Date() }
   if (body.name != null) {
     updates.name = body.name
-    updates.slug = generateSlug(body.name)
+    const candidateSlug = generateSlug(body.name)
+    // Only resolve slug collisions when the slug actually changes
+    updates.slug = candidateSlug === existing.slug
+      ? candidateSlug
+      : await resolveWikiSlug(db, candidateSlug)
   }
   if (body.type != null) updates.type = body.type
   if (body.prompt != null) {
