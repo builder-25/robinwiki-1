@@ -6,7 +6,7 @@ export default defineConfig({
   dts: true,
   unbundle: true,
   outDir: 'dist',
-  clean: false,
+  clean: true,
   copy: [
     { from: 'src/prompts/specs', to: 'dist/prompts' },
     { from: 'src/prompts/fixtures', to: 'dist/prompts' },
