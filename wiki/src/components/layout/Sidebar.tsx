@@ -84,7 +84,7 @@ function useContentsData(): SidebarSectionData {
     for (const t of threads) {
       const type = t.type.charAt(0).toUpperCase() + t.type.slice(1);
       if (!grouped.has(type)) grouped.set(type, []);
-      grouped.get(type)!.push({ label: t.name, href: `/wiki/${t.id}` });
+      grouped.get(type)!.push({ label: t.name, href: `/wiki/${t.lookupKey}` });
     }
 
     return Array.from(grouped.entries()).map(([type, children]) => ({

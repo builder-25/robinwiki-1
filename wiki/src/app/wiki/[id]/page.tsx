@@ -1,17 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { RefreshCw } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { RefreshCw, Trash2 } from "lucide-react";
 import { T } from "@/lib/typography";
 import { Spinner } from "@/components/ui/spinner";
 import { useWiki } from "@/hooks/useWiki";
 import { useRegenerateWiki } from "@/hooks/useRegenerateWiki";
+import { useDeleteWiki } from "@/hooks/useDeleteWiki";
+import ConfirmDialog from "@/components/prompts/ConfirmDialog";
 import {
   WikiEntityArticle,
   WikiSectionH2,
 } from "@/components/wiki/WikiEntityArticle";
 import { getWikiTypeIcon } from "@/components/wiki/WikiTypeBadge";
+import { MarkdownContent } from "@/components/wiki/MarkdownContent";
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -19,8 +23,11 @@ function capitalize(s: string) {
 
 export default function WikiDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const { data: wiki, isLoading, error } = useWiki(id);
   const regenerate = useRegenerateWiki();
+  const deleteWiki = useDeleteWiki();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   if (isLoading) {
     return (
@@ -49,51 +56,89 @@ export default function WikiDetailPage() {
       chipIcon={getWikiTypeIcon(typeLabel)}
       chipLabel={typeLabel}
       title={wiki.name}
-      infobox={{ kind: "simple", typeLabel, showSettings: true }}
+      infobox={{ kind: "simple", typeLabel, lastUpdated: wiki.updatedAt, showSettings: true }}
       wikiId={wiki.id}
       customBottomSections={
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button
-            type="button"
-            onClick={() => regenerate.mutate(wiki.id)}
-            disabled={regenerate.isPending}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "4px 10px",
-              fontSize: 12,
-              color: "var(--wiki-article-text)",
-              background: "none",
-              border: "1px solid var(--wiki-card-border)",
-              cursor: regenerate.isPending ? "default" : "pointer",
-              opacity: regenerate.isPending ? 0.6 : 1,
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              type="button"
+              onClick={() => regenerate.mutate(wiki.id)}
+              disabled={regenerate.isPending}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "4px 10px",
+                fontSize: 12,
+                color: "var(--wiki-article-text)",
+                background: "none",
+                border: "1px solid var(--wiki-card-border)",
+                cursor: regenerate.isPending ? "default" : "pointer",
+                opacity: regenerate.isPending ? 0.6 : 1,
+              }}
+            >
+              <RefreshCw
+                size={14}
+                strokeWidth={1.5}
+                style={regenerate.isPending ? { animation: "spin 1s linear infinite" } : undefined}
+              />
+              {regenerate.isPending ? "Regenerating..." : "Regenerate"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={deleteWiki.isPending}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "4px 10px",
+                fontSize: 12,
+                color: "red",
+                background: "none",
+                border: "1px solid var(--wiki-card-border)",
+                cursor: deleteWiki.isPending ? "default" : "pointer",
+                opacity: deleteWiki.isPending ? 0.6 : 1,
+              }}
+            >
+              <Trash2 size={14} strokeWidth={1.5} />
+              {deleteWiki.isPending ? "Deleting..." : "Delete Wiki"}
+            </button>
+            {regenerate.isSuccess && (
+              <span style={{ fontSize: 12, color: "var(--wiki-article-link)" }}>
+                Regeneration queued
+              </span>
+            )}
+            {regenerate.isError && (
+              <span style={{ fontSize: 12, color: "red" }}>
+                Failed to regenerate
+              </span>
+            )}
+            {deleteWiki.isError && (
+              <span style={{ fontSize: 12, color: "red" }}>
+                Failed to delete
+              </span>
+            )}
+          </div>
+          <ConfirmDialog
+            open={showDeleteConfirm}
+            onOpenChange={setShowDeleteConfirm}
+            title="Delete Wiki"
+            description="Are you sure? This permanently deletes this wiki."
+            confirmLabel="Delete"
+            destructive
+            onConfirm={() => {
+              deleteWiki.mutate(wiki.id, {
+                onSuccess: () => router.push("/wiki"),
+              });
             }}
-          >
-            <RefreshCw
-              size={14}
-              strokeWidth={1.5}
-              style={regenerate.isPending ? { animation: "spin 1s linear infinite" } : undefined}
-            />
-            {regenerate.isPending ? "Regenerating..." : "Regenerate"}
-          </button>
-          {regenerate.isSuccess && (
-            <span style={{ fontSize: 12, color: "var(--wiki-article-link)" }}>
-              Regeneration queued
-            </span>
-          )}
-          {regenerate.isError && (
-            <span style={{ fontSize: 12, color: "red" }}>
-              Failed to regenerate
-            </span>
-          )}
-        </div>
+          />
+        </>
       }
     >
       {wiki.wikiContent && (
-        <div style={bodyStyle}>
-          <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{wiki.wikiContent}</p>
-        </div>
+        <MarkdownContent content={wiki.wikiContent} style={bodyStyle} />
       )}
 
       {wiki.fragments && wiki.fragments.length > 0 && (

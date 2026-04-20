@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { T } from "@/lib/typography";
 import { Spinner } from "@/components/ui/spinner";
 import { EntryArticle } from "@/components/wiki/EntryArticle";
 import { WikiSectionH2 } from "@/components/wiki/WikiEntityArticle";
+import { MarkdownContent } from "@/components/wiki/MarkdownContent";
 import { useEntry } from "@/hooks/useEntry";
 import { useEntryFragments } from "@/hooks/useEntryFragments";
 
@@ -45,9 +47,12 @@ export default function EntryPage() {
     );
   }
 
-  const paragraphs = entry.content.split(/\n\n+/).filter(Boolean);
-
   return (
+    <>
+    <Link href="/wiki" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--wiki-count)", textDecoration: "none", marginBottom: 12 }}>
+      <ArrowLeft size={14} strokeWidth={1.5} />
+      <span style={{ ...T.micro }}>Back</span>
+    </Link>
     <EntryArticle
       title={entry.title}
       infobox={{
@@ -56,13 +61,7 @@ export default function EntryPage() {
         createdAt: formatDate(entry.createdAt),
       }}
       body={
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, ...bodyStyle }}>
-          {paragraphs.map((p, i) => (
-            <p key={i} style={{ margin: 0 }}>
-              {p}
-            </p>
-          ))}
-        </div>
+        <MarkdownContent content={entry.content} style={bodyStyle} />
       }
     >
       {fragments.length > 0 && (
@@ -97,5 +96,6 @@ export default function EntryPage() {
         </div>
       )}
     </EntryArticle>
+    </>
   );
 }

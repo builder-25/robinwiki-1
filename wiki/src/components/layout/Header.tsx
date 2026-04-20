@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { T } from "@/lib/typography";
 import { usePathname, useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
 import { useSession } from "@/hooks/useSession";
+import { useLogout } from "@/hooks/useLogout";
 
 import AddWikiModal from "@/components/layout/AddWikiModal";
 import WikiHeaderSearch from "@/components/layout/WikiHeaderSearch";
@@ -19,6 +19,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
   const { session } = useSession();
   const router = useRouter();
   const pathname = usePathname();
+  const logout = useLogout();
   const isWikiHome = pathname === "/wiki";
 
   const addWikiFg = "var(--wiki-link)";
@@ -222,8 +223,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
               <button
                 onClick={async () => {
                   setDropdownOpen(false);
-                  await authClient.signOut();
-                  router.push("/login");
+                  await logout();
                 }}
                 className="flex w-full cursor-pointer items-center"
                 style={{

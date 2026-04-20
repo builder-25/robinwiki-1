@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { type CSSProperties } from "react";
+import { ArrowLeft, Check, X } from "lucide-react";
 import { T, FONT } from "@/lib/typography";
 import {
   WikiEntityArticle,
@@ -11,6 +12,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { useFragment } from "@/hooks/useFragment";
+import { useAcceptFragment } from "@/hooks/useAcceptFragment";
+import { useRejectFragment } from "@/hooks/useRejectFragment";
+import { MarkdownContent } from "@/components/wiki/MarkdownContent";
 import type { FragmentWithContentResponseSchema } from "@/lib/generated/types.gen";
 
 type FragmentData = FragmentWithContentResponseSchema & {
@@ -197,6 +201,71 @@ function FragmentBottomSections({ fragment }: { fragment: FragmentData }) {
   );
 }
 
+function FragmentReviewActions({ fragmentId, backlinks }: { fragmentId: string; backlinks: Array<{ id: string; name: string; type: string }> }) {
+  const router = useRouter();
+  const accept = useAcceptFragment();
+  const reject = useRejectFragment();
+
+  if (backlinks.length === 0) return null;
+
+  const wikiId = backlinks[0].id;
+  const isPending = accept.isPending || reject.isPending;
+
+  const btnBase: CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "4px 10px",
+    fontSize: 12,
+    background: "none",
+    border: "1px solid var(--wiki-card-border)",
+    cursor: isPending ? "default" : "pointer",
+    opacity: isPending ? 0.6 : 1,
+  };
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={() =>
+          accept.mutate({ id: fragmentId, wikiId }, {
+            onSuccess: () => router.push(`/wiki/${wikiId}`),
+          })
+        }
+        style={{ ...btnBase, color: "#16a34a" }}
+      >
+        <Check size={14} strokeWidth={1.5} />
+        {accept.isPending ? "Accepting..." : "Accept"}
+      </button>
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={() =>
+          reject.mutate({ id: fragmentId, wikiId }, {
+            onSuccess: () => router.push(`/wiki/${wikiId}`),
+          })
+        }
+        style={{ ...btnBase, color: "red" }}
+      >
+        <X size={14} strokeWidth={1.5} />
+        {reject.isPending ? "Rejecting..." : "Reject"}
+      </button>
+      {accept.isSuccess && (
+        <span style={{ fontSize: 12, color: "#16a34a" }}>Fragment accepted</span>
+      )}
+      {reject.isSuccess && (
+        <span style={{ fontSize: 12, color: "red" }}>Fragment rejected</span>
+      )}
+      {(accept.isError || reject.isError) && (
+        <span style={{ fontSize: 12, color: "red" }}>
+          {accept.isError ? "Failed to accept" : "Failed to reject"}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function FragmentPage() {
   const { id } = useParams<{ id: string }>();
   const { data: fragment, isLoading, error } = useFragment(id);
@@ -226,23 +295,29 @@ export default function FragmentPage() {
     );
   }
 
-  const paragraphs = fragment.content.split(/\n\n+/).filter(Boolean);
+  const frag = fragment as FragmentData;
+  const backlinks = frag.backlinks ?? [];
 
   return (
+    <>
+    <Link href="/wiki" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--wiki-count)", textDecoration: "none", marginBottom: 12 }}>
+      <ArrowLeft size={14} strokeWidth={1.5} />
+      <span style={{ ...T.micro }}>Back</span>
+    </Link>
     <WikiEntityArticle
       chipLabel="Fragment"
-      title={fragment.title}
+      title={frag.title}
       infobox={{ kind: "simple", typeLabel: "Fragment", showSettings: false }}
-      renderCustomInfobox={() => <FragmentInfobox fragment={fragment} />}
-      customBottomSections={<FragmentBottomSections fragment={fragment} />}
+      renderCustomInfobox={() => <FragmentInfobox fragment={frag} />}
+      customBottomSections={
+        <>
+          <FragmentReviewActions fragmentId={frag.id} backlinks={backlinks} />
+          <FragmentBottomSections fragment={frag} />
+        </>
+      }
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, ...bodyStyle }}>
-        {paragraphs.map((p, i) => (
-          <p key={i} style={{ margin: 0 }}>
-            {p}
-          </p>
-        ))}
-      </div>
+      <MarkdownContent content={frag.content} style={bodyStyle} />
     </WikiEntityArticle>
+    </>
   );
 }

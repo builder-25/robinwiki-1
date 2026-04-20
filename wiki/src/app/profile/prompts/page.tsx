@@ -3,28 +3,16 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { useSession } from "@/hooks/useSession";
+import { AuthGuard } from "@/components/AuthGuard";
 import { useWikiTypesList } from "@/hooks/useWikiTypesList";
 import PromptCardGrid from "@/components/prompts/PromptCardGrid";
 
 export default function PromptsListPage() {
   const router = useRouter();
-  const { session, isLoading: sessionLoading } = useSession();
   const wikiTypes = useWikiTypesList();
 
-  if (sessionLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <Spinner className="size-5" />
-      </div>
-    );
-  }
-  if (!session) {
-    router.replace("/login");
-    return null;
-  }
-
   return (
+    <AuthGuard>
     <div className="min-h-screen overflow-y-auto bg-background text-foreground">
       <div className="mx-auto max-w-[780px] px-10 pt-12 pb-20">
         <Button
@@ -60,5 +48,6 @@ export default function PromptsListPage() {
         </section>
       </div>
     </div>
+    </AuthGuard>
   );
 }

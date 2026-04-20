@@ -11,9 +11,8 @@ export type WikiSettingsPrefill = {
   promptOverride?: string;
 };
 
-/** Plain text aligned with WikiIntroLead copy (mock article body). */
-const WIKI_INTRO_LEAD_PLAINTEXT =
-  "Audre Lorde (/ˈɔːdri ˈlɔːrd/; born Audrey Geraldine Lorde; February 18, 1934 – November 17, 1992) was an American writer, feminist, womanist, librarian, and civil rights activist. She was a self-described";
+/** Placeholder — callers may supply a real description in the future. */
+const WIKI_INTRO_LEAD_PLAINTEXT = "";
 
 /**
  * Maps UI chip labels to <select> option values in AddWikiModal.

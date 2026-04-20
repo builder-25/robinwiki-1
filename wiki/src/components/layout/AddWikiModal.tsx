@@ -93,6 +93,7 @@ export default function AddWikiModal({
   /** Existing-wiki settings: form read-only until user clicks Edit Wiki */
   const [fieldsEditable, setFieldsEditable] = useState(true);
   const [showSavedToast, setShowSavedToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("Saved");
   const saveCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevWikiTypeRef = useRef<string>("");
 
@@ -202,6 +203,7 @@ export default function AddWikiModal({
           saveCloseTimerRef.current = null;
         }
         onClose();
+        setToastMessage("Saved");
         setShowSavedToast(true);
         saveCloseTimerRef.current = setTimeout(() => {
           setShowSavedToast(false);
@@ -238,6 +240,7 @@ export default function AddWikiModal({
         await queryClient.invalidateQueries({ queryKey: ["wikis"] });
         await queryClient.invalidateQueries({ queryKey: ["wiki", wikiId] });
         onClose();
+        setToastMessage("Saved");
         setShowSavedToast(true);
         if (saveCloseTimerRef.current) {
           clearTimeout(saveCloseTimerRef.current);
@@ -293,6 +296,15 @@ export default function AddWikiModal({
       }
       await queryClient.invalidateQueries({ queryKey: ["wikis"] });
       onClose();
+      setToastMessage("Wiki created");
+      setShowSavedToast(true);
+      if (saveCloseTimerRef.current) {
+        clearTimeout(saveCloseTimerRef.current);
+      }
+      saveCloseTimerRef.current = setTimeout(() => {
+        setShowSavedToast(false);
+        saveCloseTimerRef.current = null;
+      }, 2000);
     } catch {
       setSubmitError("Network error. Check your connection and retry.");
     } finally {
@@ -584,7 +596,7 @@ export default function AddWikiModal({
             pointerEvents: "none",
           }}
         >
-          Saved
+          {toastMessage}
         </div>
       ) : null}
     </>

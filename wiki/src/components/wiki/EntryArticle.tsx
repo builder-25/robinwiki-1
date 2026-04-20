@@ -367,7 +367,11 @@ export function EntryArticle({
               {body}
             </div>
 
-            {infoVisible && !isEditing ? <EntryInfobox {...infobox} /> : null}
+            {infoVisible && !isEditing ? (
+              <div className="hidden md:block">
+                <EntryInfobox {...infobox} />
+              </div>
+            ) : null}
           </div>
         </div>
 

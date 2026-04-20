@@ -83,6 +83,22 @@ export default function WikiGraphPage() {
           <div className="flex h-full w-full items-center justify-center">
             <Spinner className="size-6" />
           </div>
+        ) : graphQuery.isError ? (
+          <div className="flex h-full w-full items-center justify-center flex-col gap-2">
+            <p style={{ ...T.body, color: "var(--wiki-count)" }}>Failed to load graph data.</p>
+            <button
+              onClick={() => graphQuery.refetch()}
+              style={{
+                color: "var(--wiki-link)",
+                textDecoration: "underline",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              Try again
+            </button>
+          </div>
         ) : (
           <GraphCanvas
             data={graphData}

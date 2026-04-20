@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { useSession } from "@/hooks/useSession";
+import { AuthGuard } from "@/components/AuthGuard";
 import { useWikiTypesList, findWikiType } from "@/hooks/useWikiTypesList";
 import PromptEditor from "@/components/prompts/PromptEditor";
 import PreviewPanel from "@/components/prompts/PreviewPanel";
@@ -18,7 +18,6 @@ export default function PromptEditorPage({
 }) {
   const { slug } = use(params);
   const router = useRouter();
-  const { session, isLoading: sessionLoading } = useSession();
   const wikiTypes = useWikiTypesList();
   const [discardOpen, setDiscardOpen] = useState(false);
   const [pendingBack, setPendingBack] = useState(false);
@@ -45,16 +44,12 @@ export default function PromptEditorPage({
     setTriggerToken((t) => t + 1);
   };
 
-  if (sessionLoading || wikiTypes.isLoading) {
+  if (wikiTypes.isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Spinner className="size-5" />
       </div>
     );
-  }
-  if (!session) {
-    router.replace("/login");
-    return null;
   }
   if (!item) {
     return (
@@ -76,6 +71,7 @@ export default function PromptEditorPage({
   }
 
   return (
+    <AuthGuard>
     <div className="min-h-screen bg-background text-foreground">
       <div
         className={cn(
@@ -151,5 +147,6 @@ export default function PromptEditorPage({
         />
       </div>
     </div>
+    </AuthGuard>
   );
 }

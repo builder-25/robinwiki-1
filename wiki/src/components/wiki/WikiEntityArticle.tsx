@@ -75,23 +75,6 @@ function SettingsIcon() {
   );
 }
 
-export function WikiLink({
-  children,
-  href = "#",
-}: {
-  children: ReactNode;
-  href?: string;
-}) {
-  return (
-    <a
-      href={href}
-      style={{ color: "var(--wiki-article-link)", textDecoration: "none" }}
-    >
-      {children}
-    </a>
-  );
-}
-
 const infoboxLabel = {
   ...T.micro,
   fontWeight: 700 as const,
@@ -106,10 +89,12 @@ const infoboxBodyMuted = {
 
 export function WikiInfoboxTypeUpdated({
   typeLabel,
+  lastUpdated,
   showSettings,
   onSettingsClick,
 }: {
   typeLabel: string;
+  lastUpdated?: string;
   showSettings?: boolean;
   onSettingsClick?: () => void;
 }) {
@@ -168,7 +153,7 @@ export function WikiInfoboxTypeUpdated({
             whiteSpace: "nowrap",
           }}
         >
-          8 Apr 2026
+          {lastUpdated ?? "—"}
         </p>
       </div>
     </aside>
@@ -177,10 +162,18 @@ export function WikiInfoboxTypeUpdated({
 
 export function WikiInfoboxGoalStyle({
   typeValue,
+  startedAt,
+  targetDate,
+  momentum,
+  lastUpdated,
   showSettings,
   onSettingsClick,
 }: {
   typeValue: string;
+  startedAt?: string;
+  targetDate?: string;
+  momentum?: string;
+  lastUpdated?: string;
   showSettings?: boolean;
   onSettingsClick?: () => void;
 }) {
@@ -193,10 +186,10 @@ export function WikiInfoboxGoalStyle({
 
   const rows: { label: string; value: string; link?: boolean }[] = [
     { label: "Type", value: typeValue, link: false },
-    { label: "Started", value: "8 Apr 2026", link: true },
-    { label: "Target", value: "8 Apr 2026", link: true },
-    { label: "Momentum", value: "In Progress", link: true },
-    { label: "Last Updated", value: "8 Apr 2026", link: true },
+    { label: "Started", value: startedAt ?? "—", link: true },
+    { label: "Target", value: targetDate ?? "—", link: true },
+    { label: "Momentum", value: momentum ?? "—", link: true },
+    { label: "Last Updated", value: lastUpdated ?? "—", link: true },
   ];
 
   return (
@@ -260,50 +253,6 @@ export function WikiInfoboxGoalStyle({
   );
 }
 
-export function WikiDesktopH4Lorem({ paragraphs = 1 }: { paragraphs?: 1 | 2 }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <h4
-        style={{
-          margin: 0,
-          paddingTop: 6,
-          ...T.bodySmall,
-          fontWeight: 700,
-          color: "var(--wiki-article-text)",
-        }}
-      >
-        Desktop H4
-      </h4>
-      <p
-        style={{
-          margin: 0,
-          ...T.bodySmall,
-          color: "var(--wiki-article-text)",
-        }}
-      >
-        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
-        tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
-        veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea
-        commodo consequat. Duis
-      </p>
-      {paragraphs === 2 ? (
-        <p
-          style={{
-            margin: 0,
-            ...T.bodySmall,
-            color: "var(--wiki-article-text)",
-          }}
-        >
-          Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
-          tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
-          veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea
-          commodo consequat. Duis
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
 export function WikiSectionH2({ title, count }: { title: string; count?: number }) {
   return (
     <div
@@ -351,8 +300,8 @@ export function WikiSectionH2({ title, count }: { title: string; count?: number 
 }
 
 export type WikiEntityInfoboxConfig =
-  | { kind: "simple"; typeLabel: string; showSettings?: boolean }
-  | { kind: "extended"; typeValue: string; showSettings?: boolean };
+  | { kind: "simple"; typeLabel: string; lastUpdated?: string; showSettings?: boolean }
+  | { kind: "extended"; typeValue: string; startedAt?: string; targetDate?: string; momentum?: string; lastUpdated?: string; showSettings?: boolean };
 
 export type WikiEntityArticleProps = {
   chipIcon?: LucideIcon;
@@ -386,6 +335,7 @@ function renderInfobox(
     return (
       <WikiInfoboxTypeUpdated
         typeLabel={config.typeLabel}
+        lastUpdated={config.lastUpdated}
         showSettings={config.showSettings}
         onSettingsClick={onSettingsClick}
       />
@@ -394,6 +344,10 @@ function renderInfobox(
   return (
     <WikiInfoboxGoalStyle
       typeValue={config.typeValue}
+      startedAt={config.startedAt}
+      targetDate={config.targetDate}
+      momentum={config.momentum}
+      lastUpdated={config.lastUpdated}
       showSettings={config.showSettings}
       onSettingsClick={onSettingsClick}
     />
@@ -783,11 +737,15 @@ export function WikiEntityArticle({
                       ? () => setWikiSettingsOpen(true)
                       : undefined;
 
-                  if (renderCustomInfobox) {
-                    return renderCustomInfobox({ onSettingsClick });
-                  }
+                  const content = renderCustomInfobox
+                    ? renderCustomInfobox({ onSettingsClick })
+                    : renderInfobox(infobox, onSettingsClick);
 
-                  return renderInfobox(infobox, onSettingsClick);
+                  return (
+                    <div className="hidden md:block">
+                      {content}
+                    </div>
+                  );
                 })()
               : null}
           </div>

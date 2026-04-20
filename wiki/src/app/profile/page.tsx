@@ -40,7 +40,8 @@ import { useProfile } from "@/hooks/useProfile";
 import { useStats } from "@/hooks/useStats";
 import { useWikis } from "@/hooks/useWikis";
 import { useRegenerateWiki } from "@/hooks/useRegenerateWiki";
-import { authClient } from "@/lib/auth-client";
+import { useLogout } from "@/hooks/useLogout";
+import { exportUserData, getUserKeypair } from "@/lib/api";
 
 function SectionLabel({
   children,
@@ -69,6 +70,7 @@ export default function ProfilePage() {
   const modelPrefs = useModelPreferences();
   const wikisQuery = useWikis({ limit: 200 });
   const regenerateWiki = useRegenerateWiki();
+  const logout = useLogout();
   const [copied, setCopied] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -85,9 +87,32 @@ export default function ProfilePage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleSignOut = async () => {
-    await authClient.signOut();
-    router.push("/");
+  const triggerJsonDownload = (data: unknown, filename: string) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportData = async () => {
+    try {
+      const { data } = await exportUserData({ credentials: "include" });
+      if (data) triggerJsonDownload(data, "robin-export.json");
+    } catch {
+      // silently fail — user sees no download
+    }
+  };
+
+  const handleExportKeypair = async () => {
+    try {
+      const { data } = await getUserKeypair({ credentials: "include" });
+      if (data) triggerJsonDownload(data, "robin-keypair.json");
+    } catch {
+      // silently fail — user sees no download
+    }
   };
 
   const handleRegenerate = async () => {
@@ -371,13 +396,13 @@ export default function ProfilePage() {
                 title="Export all data"
                 description="Download all wikis and people as JSON"
                 icon={<Download className="size-4" strokeWidth={1.5} />}
-                onClick={() => {}}
+                onClick={handleExportData}
               />
               <ActionRow
                 title="Export keypair"
                 description="Download your Ed25519 public and private key as JSON"
                 icon={<KeyRound className="size-4" strokeWidth={1.5} />}
-                onClick={() => {}}
+                onClick={handleExportKeypair}
               />
             </CardContent>
           </Card>
@@ -392,7 +417,7 @@ export default function ProfilePage() {
                 title="Log out"
                 description="Sign out of your account on this device"
                 icon={<LogOut className="size-4" strokeWidth={1.5} />}
-                onClick={handleSignOut}
+                onClick={logout}
               />
             </CardContent>
           </Card>

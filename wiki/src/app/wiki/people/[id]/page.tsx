@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { UserRound, type LucideIcon } from "lucide-react";
+import { ArrowLeft, UserRound, type LucideIcon } from "lucide-react";
 import { type CSSProperties } from "react";
 import { FONT, T } from "@/lib/typography";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/components/wiki/WikiEntityArticle";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { MarkdownContent } from "@/components/wiki/MarkdownContent";
 import { usePerson } from "@/hooks/usePerson";
 
 function formatDate(iso: string) {
@@ -221,9 +222,13 @@ export default function WikiPeoplePage() {
   }
 
   const backlinks = person.backlinks ?? [];
-  const paragraphs = person.content ? person.content.split(/\n\n+/).filter(Boolean) : [];
 
   return (
+    <>
+    <Link href="/wiki" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--wiki-count)", textDecoration: "none", marginBottom: 12 }}>
+      <ArrowLeft size={14} strokeWidth={1.5} />
+      <span style={{ ...T.micro }}>Back</span>
+    </Link>
     <WikiEntityArticle
       chipIcon={UserRound as LucideIcon}
       chipLabel="People"
@@ -234,15 +239,10 @@ export default function WikiPeoplePage() {
       )}
       customBottomSections={<PeopleFragmentsSection backlinks={backlinks} />}
     >
-      {paragraphs.length > 0 && (
-        <div style={bodyStyle}>
-          {paragraphs.map((p, i) => (
-            <p key={i} style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}>
-              {p}
-            </p>
-          ))}
-        </div>
+      {person.content && (
+        <MarkdownContent content={person.content} style={bodyStyle} />
       )}
     </WikiEntityArticle>
+    </>
   );
 }
