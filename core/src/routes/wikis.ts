@@ -140,7 +140,7 @@ wikisRouter.post('/', zValidator('json', createThreadBodySchema, validationHook)
 // GET /wikis/:id — wiki detail with member fragments and aggregated people
 wikisRouter.get('/:id', async (c) => {
   const id = c.req.param('id')
-  const [thread] = await db.select().from(wikis).where(eq(wikis.lookupKey, id))
+  const [thread] = await db.select().from(wikis).where(and(eq(wikis.lookupKey, id), isNull(wikis.deletedAt)))
   if (!thread) return c.json({ error: 'Not found' }, 404)
 
   // Member fragments via FRAGMENT_IN_WIKI edges
@@ -220,7 +220,7 @@ wikisRouter.get('/:id/timeline', async (c) => {
   })
   const params = query.success ? query.data : { limit: 50, offset: 0 }
 
-  const [wiki] = await db.select({ lookupKey: wikis.lookupKey }).from(wikis).where(eq(wikis.lookupKey, id))
+  const [wiki] = await db.select({ lookupKey: wikis.lookupKey }).from(wikis).where(and(eq(wikis.lookupKey, id), isNull(wikis.deletedAt)))
   if (!wiki) return c.json({ error: 'Not found' }, 404)
 
   const fragmentEdges = await db
@@ -264,7 +264,7 @@ wikisRouter.get('/:id/history', async (c) => {
   const [wiki] = await db
     .select({ lookupKey: wikis.lookupKey })
     .from(wikis)
-    .where(eq(wikis.lookupKey, id))
+    .where(and(eq(wikis.lookupKey, id), isNull(wikis.deletedAt)))
   if (!wiki) return c.json({ error: 'Not found' }, 404)
 
   const [countResult] = await db

@@ -31,6 +31,7 @@ peopleRouter.get('/', async (c) => {
   const rows = await db
     .select()
     .from(people)
+    .where(isNull(people.deletedAt))
     .orderBy(people.name)
     .limit(limit)
     .offset(offset)
@@ -44,7 +45,7 @@ peopleRouter.get('/', async (c) => {
 peopleRouter.get('/:id', async (c) => {
   const id = c.req.param('id')
 
-  const [person] = await db.select().from(people).where(eq(people.lookupKey, id))
+  const [person] = await db.select().from(people).where(and(eq(people.lookupKey, id), isNull(people.deletedAt)))
   if (!person) return c.json({ error: 'Not found' }, 404)
 
   // Query backlinks: edges where dstId = this person and edgeType = FRAGMENT_MENTIONS_PERSON
