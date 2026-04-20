@@ -4,13 +4,14 @@ import { useMemo } from 'react'
 import { useWikis } from '@/hooks/useWikis'
 import { useFragments } from '@/hooks/useFragments'
 import { usePeople } from '@/hooks/usePeople'
+import { useEntries } from '@/hooks/useEntries'
 import { useGroups, type Group } from '@/hooks/useGroups'
 import type { ExplorerFilters } from '@/hooks/useExplorerFilters'
 
 export interface ExplorerItem {
   id: string
   lookupKey: string
-  type: 'fragment' | 'wiki' | 'person'
+  type: 'fragment' | 'wiki' | 'person' | 'entry'
   subtype: string | null
   title: string
   groupId: string | null
@@ -28,12 +29,13 @@ export function useExplorerData(filters: ExplorerFilters) {
   const wikisQuery = useWikis({ limit: 200 })
   const fragmentsQuery = useFragments({ limit: 500 })
   const peopleQuery = usePeople({ limit: 500 })
+  const entriesQuery = useEntries({ limit: 500 })
   const groupsQuery = useGroups()
 
   const isLoading =
-    wikisQuery.isLoading || fragmentsQuery.isLoading || peopleQuery.isLoading || groupsQuery.isLoading
+    wikisQuery.isLoading || fragmentsQuery.isLoading || peopleQuery.isLoading || entriesQuery.isLoading || groupsQuery.isLoading
   const isError =
-    wikisQuery.isError || fragmentsQuery.isError || peopleQuery.isError || groupsQuery.isError
+    wikisQuery.isError || fragmentsQuery.isError || peopleQuery.isError || entriesQuery.isError || groupsQuery.isError
 
   const items = useMemo(() => {
     const result: ExplorerItem[] = []
@@ -87,6 +89,22 @@ export function useExplorerData(filters: ExplorerFilters) {
       })
     }
 
+    // Entries
+    for (const entry of entriesQuery.data?.entries ?? []) {
+      result.push({
+        id: entry.id,
+        lookupKey: entry.lookupKey,
+        type: 'entry',
+        subtype: null,
+        title: entry.title,
+        groupId: null,
+        groupName: null,
+        groupColor: null,
+        date: entry.createdAt,
+        href: `/wiki/entries/${entry.lookupKey}`,
+      })
+    }
+
     // Apply type filter
     let filtered = result
     if (filters.types.length > 0) {
@@ -112,6 +130,7 @@ export function useExplorerData(filters: ExplorerFilters) {
     wikisQuery.data,
     fragmentsQuery.data,
     peopleQuery.data,
+    entriesQuery.data,
     filters.types,
     filters.group,
     filters.sort,

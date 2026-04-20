@@ -105,29 +105,11 @@ export default function AddWikiModal({
   const { data: wikiTypesData, isLoading: typesLoading } = useWikiTypesList();
 
   // API returns YAML-backed types only; `people` has no YAML on disk.
-  // RESEARCH §Risk 4: append a synthetic entry so prefill flows that pass
-  // wikiType='people' still find an option.
   const sortedTypes = useMemo<WikiTypeListItem[]>(() => {
     const apiList = wikiTypesData?.wikiTypes ?? [];
-    const sorted = [...apiList].sort((a, b) =>
-      a.displayLabel.localeCompare(b.displayLabel),
-    );
-    const hasPeople = sorted.some((t) => t.slug === "people");
-    if (!hasPeople) {
-      sorted.push({
-        slug: "people",
-        displayLabel: "People",
-        displayDescription: "",
-        displayShortDescriptor: "",
-        displayOrder: 999,
-        promptYaml: "",
-        defaultYaml: "",
-        userModified: false,
-        basedOnVersion: 0,
-        inputVariables: [],
-      });
-    }
-    return sorted;
+    return [...apiList]
+      .filter((t) => t.slug !== "people")
+      .sort((a, b) => a.displayLabel.localeCompare(b.displayLabel));
   }, [wikiTypesData?.wikiTypes]);
 
   useEffect(() => {
