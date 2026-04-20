@@ -25,6 +25,9 @@ import { aiPreferencesRoutes } from './routes/ai-preferences.js'
 import { aiModelsRoutes } from './routes/ai-models.js'
 import { publishedRoutes } from './routes/published.js'
 import { startWorkers } from './queue/worker.js'
+import { setupRegenScheduler } from './queue/scheduler.js'
+import { producer } from './queue/producer.js'
+import { QUEUE_NAMES } from '@robin/queue'
 import { bullBoardApp } from './routes/bull-board.js'
 import { adminRoutes } from './routes/admin.js'
 import { authRecoverRoutes } from './routes/auth-recover.js'
@@ -169,6 +172,12 @@ await seedWikiTypes().catch((err) => {
 
 // Single global worker — no per-user spawning under single-user M2
 startWorkers()
+
+// Start the midnight regen batch scheduler (idempotent — safe on every boot)
+const schedulerQueue = producer.getQueue(QUEUE_NAMES.scheduler)
+await setupRegenScheduler(schedulerQueue).catch((err) => {
+  logger.warn({ err }, 'regen scheduler setup failed — batch regen disabled')
+})
 
 const port = Number.parseInt(process.env.PORT ?? '3000', 10)
 const server = serve({ fetch: app.fetch, port }, () => {

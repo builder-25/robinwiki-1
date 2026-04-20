@@ -128,6 +128,7 @@ export interface QueueWorker {
   startReclassifyWorker(processor: (job: ReclassifyJob) => Promise<JobResult>): Worker
   startRegenWorker(processor: (job: RegenJob) => Promise<JobResult>): Worker
   startProvisionWorker(processor: (job: ProvisionJob) => Promise<JobResult>): Worker
+  startSchedulerWorker(processor: (job: RegenBatchJob) => Promise<JobResult>): Worker
 }
 
 // ── BullMQ implementation ─────────────────────────────────────────────────────
@@ -242,6 +243,14 @@ export class BullMQWorker implements QueueWorker {
     return new Worker(
       QUEUE_NAMES.provision,
       async (job: Job<ProvisionJob>) => processor(job.data),
+      { connection: this.connection, concurrency: 1, autorun: true }
+    )
+  }
+
+  startSchedulerWorker(processor: (job: RegenBatchJob) => Promise<JobResult>): Worker {
+    return new Worker(
+      QUEUE_NAMES.scheduler,
+      async (job: Job<RegenBatchJob>) => processor(job.data),
       { connection: this.connection, concurrency: 1, autorun: true }
     )
   }

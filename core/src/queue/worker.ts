@@ -52,7 +52,7 @@ import { computeContentHash } from '../db/dedup.js'
 import { emitPipelineEvent } from '../db/pipeline-events.js'
 import { emitAuditEvent } from '../db/audit.js'
 import { producer } from './producer.js'
-import { processRegenJob } from './regen-worker.js'
+import { processRegenJob, processRegenBatchJob } from './regen-worker.js'
 import { loadOpenRouterConfig } from '../lib/openrouter-config.js'
 import { generateKeypair } from '../keypair.js'
 import { logger } from '../lib/logger.js'
@@ -517,6 +517,7 @@ let extractionWorker: ReturnType<typeof bullWorker.startExtractionWorker> | null
 let linkWorker: ReturnType<typeof bullWorker.startLinkWorker> | null = null
 let regenWorker: ReturnType<typeof bullWorker.startRegenWorker> | null = null
 let provisionWorker: ReturnType<typeof bullWorker.startProvisionWorker> | null = null
+let schedulerWorker: ReturnType<typeof bullWorker.startSchedulerWorker> | null = null
 
 /**
  * Start global ingest workers. Single-user — one worker per queue, no per-user fan-out.
@@ -547,6 +548,10 @@ export function startWorkers(): void {
   provisionWorker = bullWorker.startProvisionWorker(processProvisionJob)
   provisionWorker.on('completed', (job) => log.info({ jobId: job.id }, 'provision completed'))
   provisionWorker.on('failed', (job, err) => log.error({ jobId: job?.id, err }, 'provision failed'))
+
+  schedulerWorker = bullWorker.startSchedulerWorker(processRegenBatchJob)
+  schedulerWorker.on('completed', (job) => log.info({ jobId: job.id }, 'regen-batch completed'))
+  schedulerWorker.on('failed', (job, err) => log.error({ jobId: job?.id, err }, 'regen-batch failed'))
 
   log.info('ingest workers started')
 }

@@ -1,7 +1,17 @@
-import { eq, ne, and, inArray, desc, isNull } from 'drizzle-orm'
-import { createIngestAgents, createStringCaller, embedText } from '@robin/agent'
-import { loadWikiGenerationSpec, type WikiGenerationOverride } from '@robin/shared'
-import type { WikiType } from '@robin/shared'
+import { eq, ne, and, inArray, desc, isNull, sql } from 'drizzle-orm'
+import {
+  createIngestAgents,
+  createStringCaller,
+  createTypedCaller,
+  embedText,
+  wikiClassify,
+} from '@robin/agent'
+import {
+  loadWikiGenerationSpec,
+  wikiClassificationSchema,
+  type WikiGenerationOverride,
+  type WikiType,
+} from '@robin/shared'
 import { db as defaultDb, type DB } from '../db/client.js'
 import { wikis, wikiTypes, edges, fragments, edits } from '../db/schema.js'
 import { loadOpenRouterConfig } from './openrouter-config.js'
@@ -18,6 +28,94 @@ export interface RegenResult {
 }
 
 /**
+ * Classify unfiled fragments against a specific wiki using the LLM wiki classifier.
+ * "Unfiled" = has an embedding but no FRAGMENT_IN_WIKI edge anywhere.
+ * Called before regenerateWiki gathers fragments so newly-linked ones are included.
+ */
+export async function classifyUnfiledFragments(
+  database: DB,
+  wikiKey: string
+): Promise<{ linked: number }> {
+  const unfiledRows = await database
+    .select({ lookupKey: fragments.lookupKey, content: fragments.content })
+    .from(fragments)
+    .where(
+      and(
+        isNull(fragments.deletedAt),
+        sql`${fragments.embedding} IS NOT NULL`,
+        sql`${fragments.lookupKey} NOT IN (
+          SELECT src_id FROM edges
+          WHERE edge_type = 'FRAGMENT_IN_WIKI' AND deleted_at IS NULL
+        )`
+      )
+    )
+
+  if (unfiledRows.length === 0) return { linked: 0 }
+
+  const orConfig = await loadOpenRouterConfig()
+  const agents = createIngestAgents(orConfig)
+
+  const deps = {
+    searchCandidates: async () => [{ wikiKey, score: 0 }],
+    loadThreads: async (wikiKeys: string[]) => {
+      if (wikiKeys.length === 0) return []
+      const rows = await database
+        .select({
+          lookupKey: wikis.lookupKey,
+          name: wikis.name,
+          type: wikis.type,
+          prompt: wikis.prompt,
+        })
+        .from(wikis)
+        .where(
+          sql`${wikis.lookupKey} = ANY(ARRAY[${sql.join(
+            wikiKeys.map((k) => sql`${k}`),
+            sql`, `
+          )}])`
+        )
+      return rows
+    },
+    llmCall: createTypedCaller(agents.wikiClassifier, wikiClassificationSchema),
+    emitEvent: async () => {},
+  }
+
+  let linked = 0
+  for (const frag of unfiledRows) {
+    try {
+      const result = await wikiClassify(deps, {
+        fragmentContent: frag.content,
+        fragmentKey: frag.lookupKey,
+        jobId: `regen-classify-${frag.lookupKey}`,
+        entryKey: '',
+      })
+
+      for (const edge of result.data.wikiEdges) {
+        await database
+          .insert(edges)
+          .values({
+            id: crypto.randomUUID(),
+            srcType: 'fragment',
+            srcId: frag.lookupKey,
+            dstType: 'wiki',
+            dstId: edge.wikiKey,
+            edgeType: 'FRAGMENT_IN_WIKI',
+            attrs: { score: edge.score },
+          })
+          .onConflictDoNothing()
+        linked++
+      }
+    } catch (err) {
+      log.warn(
+        { fragmentKey: frag.lookupKey, err },
+        'failed to classify unfiled fragment during regen'
+      )
+    }
+  }
+
+  return { linked }
+}
+
+/**
  * Shared wiki regeneration logic used by both the on-demand route handler
  * and the background regen worker.
  */
@@ -28,6 +126,14 @@ export async function regenerateWiki(
 ): Promise<RegenResult> {
   const [wiki] = await database.select().from(wikis).where(eq(wikis.lookupKey, wikiKey))
   if (!wiki) throw new Error(`Wiki not found: ${wikiKey}`)
+
+  // Classify unfiled fragments into this wiki before gathering (mechanism 1)
+  try {
+    const classifyResult = await classifyUnfiledFragments(database, wikiKey)
+    log.info({ wikiKey, linked: classifyResult.linked }, 'unfiled fragment classification completed')
+  } catch (err) {
+    log.warn({ wikiKey, err }, 'unfiled fragment classification failed — continuing with existing fragments')
+  }
 
   const previousContent = wiki.content
 

@@ -3,6 +3,7 @@ export { jaccardSimilarity, dedupBatch } from './dedup.js'
 
 // ── Stage-runner orchestrators ───────────────────────────────────────────
 export { runExtraction, runLinking } from './stages/index.js'
+export { wikiClassify } from './stages/wiki-classify.js'
 export { entityExtract, resolvePerson } from './stages/entity-extract.js'
 export { persist, matchMentionsToFragments } from './stages/persist.js'
 export type { ResolveResult } from './stages/entity-extract.js'
