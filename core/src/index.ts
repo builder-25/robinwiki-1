@@ -89,7 +89,7 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal server error' }, 500)
 })
 
-const openapiSpec = JSON.parse(readFileSync(new URL('../openapi-spec.json', import.meta.url), 'utf-8'))
+const openapiSpec = JSON.parse(readFileSync(new URL('../openapi.json', import.meta.url), 'utf-8'))
 
 /***********************************************************************
  * ## Pre-auth routes
