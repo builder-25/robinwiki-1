@@ -65,7 +65,10 @@ mcp.all('/', async (c) => {
     const response = await transport.handleRequest(c.req.raw, {
       authInfo: { clientId: userId, token: '', scopes: [] },
     })
-    return response
+    return c.newResponse(response.body, {
+      status: response.status,
+      headers: Object.fromEntries(response.headers),
+    })
   } finally {
     await transport.close()
     await server.close()
