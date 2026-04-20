@@ -12,7 +12,7 @@
       ]
     },
     "build": {
-      "inputs": [{ "step": "install" }, { "include": ["."] }],
+      "inputs": [{ "step": "install" }],
       "secrets": ["NEXT_PUBLIC_ROBIN_API"],
       "commands": ["pnpm --filter @robin/wiki... build"]
     }

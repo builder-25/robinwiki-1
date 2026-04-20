@@ -4,7 +4,7 @@
   "packages": { "node": "20" },
   "steps": {
     "install": {
-      "inputs": [{ "include": ["."] }],
+      "inputs": [{ "local": true, "include": ["."] }],
       "commands": [
         "corepack enable",
         "corepack prepare pnpm@10.15.1 --activate",
@@ -12,7 +12,7 @@
       ]
     },
     "build": {
-      "inputs": [{ "step": "install" }, { "include": ["."] }],
+      "inputs": [{ "step": "install" }],
       "commands": ["pnpm --filter @robin/core... build"]
     }
   },
