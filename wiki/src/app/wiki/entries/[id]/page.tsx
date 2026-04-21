@@ -61,7 +61,11 @@ export default function EntryPage() {
         createdAt: formatDate(entry.createdAt),
       }}
       body={
-        <MarkdownContent content={entry.content} style={bodyStyle} />
+        <MarkdownContent
+          content={entry.content}
+          refs={entry.refs}
+          style={bodyStyle}
+        />
       }
     >
       {fragments.length > 0 && (
