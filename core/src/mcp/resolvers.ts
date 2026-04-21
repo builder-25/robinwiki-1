@@ -536,6 +536,7 @@ export async function getThread(
       state: wikis.state,
       content: wikis.content,
       metadata: wikis.metadata,
+      citationDeclarations: wikis.citationDeclarations,
       lastRebuiltAt: wikis.lastRebuiltAt,
     })
     .from(wikis)
@@ -588,6 +589,7 @@ export async function getThread(
   const sidecar = await buildSidecar({
     content: thread.content ?? '',
     metadata: thread.metadata ?? null,
+    citationDeclarations: thread.citationDeclarations ?? [],
     deps: makeSidecarDeps(deps.db),
   })
 
