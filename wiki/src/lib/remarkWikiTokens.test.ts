@@ -16,11 +16,13 @@ type Node = {
   }
 }
 
-function root(...children: Node[]): Node {
+type ParentNode = Node & { children: Node[] }
+
+function root(...children: Node[]): ParentNode {
   return { type: 'root', children }
 }
 
-function paragraph(...children: Node[]): Node {
+function paragraph(...children: Node[]): ParentNode {
   return { type: 'paragraph', children }
 }
 
@@ -39,7 +41,7 @@ function inlineCode(value: string): Node {
 }
 
 /** Apply the plugin and return the transformed tree. */
-function transform(tree: Node): Node {
+function transform(tree: ParentNode): ParentNode {
   const plugin = remarkWikiTokens()
   plugin(tree as never)
   return tree
