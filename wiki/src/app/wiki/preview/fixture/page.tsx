@@ -27,6 +27,7 @@ import {
 } from "@/components/wiki/WikiEntityArticle";
 import { getWikiTypeIcon } from "@/components/wiki/WikiTypeBadge";
 import { MarkdownContent } from "@/components/wiki/MarkdownContent";
+import { WikiCitations } from "@/components/wiki/WikiCitations";
 
 function capitalize(s: string | null | undefined) {
   if (!s) return "";
@@ -155,6 +156,49 @@ export default function WikiPreviewFixturePage() {
                 >
                   {person.name}
                 </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {wiki.sections && wiki.sections.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <WikiSectionH2
+            title="Sections (citations demo)"
+            count={wiki.sections.length}
+          />
+          <p
+            style={{
+              ...bodyStyle,
+              opacity: 0.7,
+              margin: "4px 0 8px",
+            }}
+          >
+            Each row is one entry in <code>sections[]</code>; citation
+            superscripts render via <code>&lt;WikiCitations&gt;</code>. Hover
+            a superscript to see the captured quote. Empty arrays render
+            nothing — rows without trailing numbers mean the LLM declared
+            no citations for that section.
+          </p>
+          <ul
+            style={{
+              ...bodyStyle,
+              listStyle: "none",
+              paddingLeft: 0,
+              margin: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            {wiki.sections.map((section) => (
+              <li key={section.id} style={{ margin: 0 }}>
+                <span style={{ opacity: 0.5, marginRight: 6 }}>
+                  H{section.level}
+                </span>
+                {section.heading}
+                <WikiCitations citations={section.citations ?? []} />
               </li>
             ))}
           </ul>
