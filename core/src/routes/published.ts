@@ -19,6 +19,7 @@ publishedRoutes.get('/wiki/:nanoid', async (c) => {
       content: wikis.content,
       published: wikis.published,
       metadata: wikis.metadata,
+      citationDeclarations: wikis.citationDeclarations,
     })
     .from(wikis)
     .where(and(eq(wikis.publishedSlug, nanoid), eq(wikis.published, true)))
@@ -37,6 +38,7 @@ publishedRoutes.get('/wiki/:nanoid', async (c) => {
   const sidecar = await buildSidecar({
     content: wiki.content,
     metadata: wiki.metadata ?? null,
+    citationDeclarations: wiki.citationDeclarations ?? [],
     deps: makeSidecarDeps(db),
   })
 

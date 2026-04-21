@@ -263,6 +263,7 @@ wikisRouter.get('/:id', async (c) => {
   const sidecar = await buildSidecar({
     content: thread.content ?? '',
     metadata: thread.metadata ?? null,
+    citationDeclarations: thread.citationDeclarations ?? [],
     deps: makeSidecarDeps(db),
   })
 

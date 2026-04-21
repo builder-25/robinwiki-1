@@ -14,6 +14,78 @@ import { agentWikiSchema } from '../specs/wiki-types/agent.schema.js'
 import { voiceWikiSchema } from '../specs/wiki-types/voice.schema.js'
 import { principlesWikiSchema } from '../specs/wiki-types/principles.schema.js'
 
+/**
+ * Shape a fragment row into the [FRAGMENTS] inline-slug format consumed by
+ * the LLM. The header line carries the grounded identifiers the model needs
+ * to emit [[fragment:slug]] tokens and per-section citation declarations.
+ *
+ * Example emitted form:
+ *   - id: frag-abc123  slug: my-fragment  captured: 2026-04-12
+ *     ### Morning run
+ *     Ran 5k in the park.
+ */
+export interface WikiFragmentInput {
+  id: string
+  slug: string
+  title?: string | null
+  content: string
+  createdAt?: string | Date | null
+}
+
+const toIsoDate = (input: unknown): string | null => {
+  if (!input) return null
+  if (input instanceof Date) {
+    const iso = input.toISOString()
+    return iso.slice(0, 10)
+  }
+  if (typeof input === 'string') {
+    // Accept ISO strings and date-only strings alike; keep YYYY-MM-DD
+    const d = new Date(input)
+    if (Number.isNaN(d.getTime())) return null
+    return d.toISOString().slice(0, 10)
+  }
+  return null
+}
+
+export function renderFragmentsBlock(frags: WikiFragmentInput[]): string {
+  return frags
+    .map((f) => {
+      const captured = toIsoDate(f.createdAt)
+      const header =
+        `- id: ${f.id}  slug: ${f.slug}` +
+        (captured ? `  captured: ${captured}` : '')
+      const titleLine = f.title ? `  ### ${f.title}` : ''
+      const contentLines = f.content
+        .split('\n')
+        .map((line) => (line.length > 0 ? `  ${line}` : ''))
+        .join('\n')
+      return [header, titleLine, contentLines].filter(Boolean).join('\n')
+    })
+    .join('\n\n')
+}
+
+/**
+ * Shape a person row into the [PEOPLE] inline-slug format. Slug and name
+ * are mandatory; relationship is only emitted when non-empty so the LLM
+ * does not see stub text like "relationship: ".
+ */
+export interface WikiPersonInput {
+  slug: string
+  name: string
+  relationship?: string | null
+}
+
+export function renderPeopleBlock(people: WikiPersonInput[]): string {
+  return people
+    .map((p) => {
+      const rel = p.relationship && p.relationship.trim().length > 0
+        ? `  relationship: ${p.relationship.trim()}`
+        : ''
+      return `- slug: ${p.slug}  name: ${p.name}${rel}`
+    })
+    .join('\n')
+}
+
 const inputSchema = z.object({
   fragments: z.string(),
   title: z.string(),

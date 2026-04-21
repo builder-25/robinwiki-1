@@ -30,8 +30,16 @@ export * from './loaders/wiki-relevance.js'
 export * from './loaders/fragment-relevance.js'
 
 // Loader functions — parameterized
-export { loadWikiGenerationSpec } from './loaders/wiki-generation.js'
-export type { WikiGenerationOverride } from './loaders/wiki-generation.js'
+export {
+  loadWikiGenerationSpec,
+  renderFragmentsBlock,
+  renderPeopleBlock,
+} from './loaders/wiki-generation.js'
+export type {
+  WikiGenerationOverride,
+  WikiFragmentInput,
+  WikiPersonInput,
+} from './loaders/wiki-generation.js'
 export { loadPersonSummarySpec } from './loaders/person-summary.js'
 export { personSummaryInputSchema } from './specs/person-summary/person-summary.schema.js'
 
