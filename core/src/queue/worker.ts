@@ -202,6 +202,7 @@ async function processExtractionJob(job: ExtractionJob): Promise<JobResult> {
           lookupKey: f.lookupKey as string,
           slug,
           title: (f.title as string) ?? '',
+          content,
           type: (f.type as string) ?? null,
           tags: ((f.tags as string[]) ?? []) as string[],
           confidence: (f.confidence as number | null) ?? null,

@@ -2204,6 +2204,116 @@
   },
   "components": {
     "schemas": {
+      "wikiRefSchema": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "slug": { "type": "string" },
+              "label": { "type": "string" },
+              "kind": { "type": "string", "enum": ["person"] },
+              "relationship": { "type": "string" }
+            },
+            "required": ["id", "slug", "label", "kind"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "slug": { "type": "string" },
+              "label": { "type": "string" },
+              "kind": { "type": "string", "enum": ["fragment"] },
+              "snippet": { "type": "string" }
+            },
+            "required": ["id", "slug", "label", "kind"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "slug": { "type": "string" },
+              "label": { "type": "string" },
+              "kind": { "type": "string", "enum": ["wiki"] },
+              "wikiType": { "type": "string" }
+            },
+            "required": ["id", "slug", "label", "kind", "wikiType"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "slug": { "type": "string" },
+              "label": { "type": "string" },
+              "kind": { "type": "string", "enum": ["entry"] },
+              "createdAt": { "type": "string" }
+            },
+            "required": ["id", "slug", "label", "kind", "createdAt"]
+          }
+        ]
+      },
+      "wikiRefsMapSchema": {
+        "type": "object",
+        "additionalProperties": { "$ref": "#/components/schemas/wikiRefSchema" },
+        "default": {}
+      },
+      "wikiInfoboxSchema": {
+        "type": "object",
+        "properties": {
+          "image": {
+            "type": "object",
+            "properties": {
+              "url": { "type": "string" },
+              "alt": { "type": "string" }
+            },
+            "required": ["url", "alt"]
+          },
+          "caption": { "type": "string" },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": { "type": "string" },
+                "value": { "type": "string" },
+                "valueKind": {
+                  "type": "string",
+                  "enum": ["text", "ref", "date", "status"],
+                  "default": "text"
+                }
+              },
+              "required": ["label", "value"]
+            }
+          }
+        },
+        "required": ["rows"],
+        "nullable": true
+      },
+      "wikiCitationSchema": {
+        "type": "object",
+        "properties": {
+          "fragmentId": { "type": "string" },
+          "fragmentSlug": { "type": "string" },
+          "quote": { "type": "string" },
+          "capturedAt": { "type": "string" }
+        },
+        "required": ["fragmentId", "fragmentSlug", "capturedAt"]
+      },
+      "wikiSectionSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "anchor": { "type": "string" },
+          "heading": { "type": "string" },
+          "level": { "type": "integer", "minimum": 1, "maximum": 6 },
+          "citations": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/wikiCitationSchema" },
+            "default": []
+          }
+        },
+        "required": ["id", "anchor", "heading", "level"]
+      },
       "errorResponseSchema": {
         "type": "object",
         "properties": {
@@ -2329,6 +2439,12 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "refs": { "$ref": "#/components/schemas/wikiRefsMapSchema" },
+          "sections": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/wikiSectionSchema" },
+            "default": []
           }
         },
         "required": [
@@ -3393,6 +3509,13 @@
               ],
               "additionalProperties": false
             }
+          },
+          "refs": { "$ref": "#/components/schemas/wikiRefsMapSchema" },
+          "infobox": { "$ref": "#/components/schemas/wikiInfoboxSchema" },
+          "sections": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/wikiSectionSchema" },
+            "default": []
           }
         },
         "required": [
@@ -3492,6 +3615,13 @@
           },
           "content": {
             "type": "string"
+          },
+          "refs": { "$ref": "#/components/schemas/wikiRefsMapSchema" },
+          "infobox": { "$ref": "#/components/schemas/wikiInfoboxSchema" },
+          "sections": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/wikiSectionSchema" },
+            "default": []
           }
         },
         "required": [
@@ -3941,6 +4071,13 @@
               ],
               "additionalProperties": false
             },
+            "default": []
+          },
+          "refs": { "$ref": "#/components/schemas/wikiRefsMapSchema" },
+          "infobox": { "$ref": "#/components/schemas/wikiInfoboxSchema" },
+          "sections": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/wikiSectionSchema" },
             "default": []
           }
         },

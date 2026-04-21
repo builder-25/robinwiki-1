@@ -63,9 +63,13 @@ DETAIL_HTTP=$(curl -s -o /tmp/uat-frag-detail.json -w "%{http_code}" \
   "$SERVER_URL/fragments/$FRAG_ID")
 if [ "$DETAIL_HTTP" = "200" ]; then
   HAS_CONTENT=$(jq 'has("content")' /tmp/uat-frag-detail.json 2>/dev/null)
+  CONTENT_LEN=$(jq -r '.content | length' /tmp/uat-frag-detail.json 2>/dev/null || echo 0)
   HAS_TAGS=$(jq 'has("tags")' /tmp/uat-frag-detail.json 2>/dev/null)
-  [ "$HAS_CONTENT" = "true" ] && pass "detail has content" || fail "detail missing content"
+  TAGS_LEN=$(jq -r '.tags | length' /tmp/uat-frag-detail.json 2>/dev/null || echo 0)
+  [ "$HAS_CONTENT" = "true" ] && pass "detail has content field" || fail "detail missing content field"
+  [ "$CONTENT_LEN" -gt 0 ] 2>/dev/null && pass "content is non-empty ($CONTENT_LEN chars)" || fail "content is empty (length=$CONTENT_LEN)"
   [ "$HAS_TAGS" = "true" ] && pass "detail has tags" || fail "detail missing tags"
+  [ "$TAGS_LEN" -gt 0 ] 2>/dev/null && pass "tags is non-empty ($TAGS_LEN items)" || fail "tags is empty"
 else
   fail "GET /fragments/:id → HTTP $DETAIL_HTTP"
 fi

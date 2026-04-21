@@ -31,6 +31,13 @@
 import { eq, and, isNull, sql, inArray, ne } from 'drizzle-orm'
 import type { DB } from '../db/client.js'
 import { wikis, fragments, people, edges, wikiTypes } from '../db/schema.js'
+import { buildSidecar } from '../lib/wikiSidecar.js'
+import { makeSidecarDeps } from '../lib/wikiSidecarDeps.js'
+import type {
+  WikiInfobox,
+  WikiRef,
+  WikiSection,
+} from '@robin/shared/schemas/sidecar'
 
 /***********************************************************************
  * ## Types
@@ -50,7 +57,13 @@ export interface McpResolverDeps {
   db: DB
 }
 
-/** Wiki list item with fragment count and wiki preview. */
+/**
+ * Wiki list item with fragment count and wiki preview.
+ *
+ * Sidecar: list tools emit `refs` only (per CONTRACT §9 policy — no
+ * infobox/sections on list rows). Keys are `${kind}:${slug}` matching
+ * tokens inside `wikiPreview` / full content.
+ */
 interface WikiSummary {
   lookupKey: string
   slug: string
@@ -62,9 +75,15 @@ interface WikiSummary {
   wikiPreview: string
   shortDescriptor: string
   descriptor: string
+  refs: Record<string, WikiRef>
 }
 
-/** Full thread detail with wiki body and member fragment snippets. */
+/**
+ * Full thread detail with wiki body and member fragment snippets.
+ *
+ * Sidecar: detail tool emits `refs`, `infobox`, and `sections[].citations`
+ * per CONTRACT §9. `infobox` is sourced from `wikis.metadata.infobox`.
+ */
 interface ThreadDetail {
   thread: {
     lookupKey: string
@@ -76,6 +95,9 @@ interface ThreadDetail {
   }
   wikiBody: string
   fragments: FragmentSnippet[]
+  refs: Record<string, WikiRef>
+  infobox: WikiInfobox | null
+  sections: WikiSection[]
 }
 
 /** Abbreviated fragment — used in thread and person detail responses. */
@@ -86,7 +108,12 @@ interface FragmentSnippet {
   snippet: string
 }
 
-/** Full fragment with content and frontmatter from git. */
+/**
+ * Full fragment with content and frontmatter from git.
+ *
+ * Sidecar: fragments have no infobox (per CONTRACT §4); `refs` + `sections`
+ * only. Sections come from any markdown headings inside the body.
+ */
 interface FragmentDetail {
   slug: string
   type: string | null
@@ -94,9 +121,16 @@ interface FragmentDetail {
   tags: string[]
   content: string
   frontmatter: string
+  refs: Record<string, WikiRef>
+  sections: WikiSection[]
 }
 
-/** Person detail with profile body and linked fragments. */
+/**
+ * Person detail with profile body and linked fragments.
+ *
+ * Sidecar: `infobox` is server-derived from the person row (relationship,
+ * aliases, first-mentioned date, mention count) — never LLM-authored.
+ */
 interface PersonDetail {
   person: {
     name: string
@@ -106,6 +140,9 @@ interface PersonDetail {
   }
   body: string
   fragments: FragmentSnippet[]
+  refs: Record<string, WikiRef>
+  infobox: WikiInfobox | null
+  sections: WikiSection[]
   alternatives?: string[]
 }
 
@@ -121,6 +158,39 @@ interface ErrorResult {
  * @internal String utilities for markdown parsing and fuzzy matching.
  * Exported only for testing — not part of the public API.
  ***********************************************************************/
+
+/**
+ * Build a server-derived person infobox that matches the shape emitted
+ * by the REST `/people/:id` route. Keeps MCP and REST in lockstep so
+ * AI clients see the same structured facts the web wiki renders.
+ *
+ * Returns `null` when every row would be empty.
+ */
+function derivePersonInfobox(
+  person: {
+    relationship: string
+    aliases: string[]
+    createdAt: Date | null
+  },
+  mentionCount: number
+): WikiInfobox | null {
+  const firstMentionDate =
+    person.createdAt instanceof Date
+      ? person.createdAt.toISOString().slice(0, 10)
+      : ''
+  const rows = [
+    { label: 'Relationship', value: person.relationship, valueKind: 'text' as const },
+    { label: 'Aliases', value: (person.aliases ?? []).join(', '), valueKind: 'text' as const },
+    { label: 'First mentioned', value: firstMentionDate, valueKind: 'date' as const },
+    {
+      label: 'Mentions',
+      value: mentionCount > 0 ? String(mentionCount) : '',
+      valueKind: 'text' as const,
+    },
+  ].filter((r) => r.value && r.value !== '0')
+  if (rows.length === 0) return null
+  return { rows }
+}
 
 /**
  * Strip YAML frontmatter from markdown content.
@@ -371,6 +441,12 @@ function resolvePerson(
  * computed via a LEFT JOIN on `FRAGMENT_IN_WIKI` edges. Wiki previews
  * are read from the `content` column (first 200 chars after frontmatter).
  *
+ * Per CONTRACT §9 list policy, each row carries a `refs` map keyed by
+ * `${kind}:${slug}` so AI clients can resolve tokens embedded in the
+ * preview (or the full content body they might fetch next) without an
+ * extra round-trip. `infobox` and `sections` are intentionally omitted
+ * for list responses.
+ *
  * @param deps - Database client
  * @returns Array of {@link WikiSummary} sorted by last update
  */
@@ -408,10 +484,18 @@ export async function listWikis(
     .orderBy(sql`${wikis.updatedAt} DESC`)
     .limit(20)
 
-  return rows.map((row) => {
+  const sidecarDeps = makeSidecarDeps(deps.db)
+  const summaries: WikiSummary[] = []
+  for (const row of rows) {
     const body = stripFrontmatter(row.content || '')
     const wikiPreview = body.slice(0, 200).trim()
-    return {
+    // Scan the full content (not just the preview) so refs cover every
+    // token in the document — the client may fetch the full body later.
+    const sidecar = await buildSidecar({
+      content: row.content ?? '',
+      deps: sidecarDeps,
+    })
+    summaries.push({
       lookupKey: row.lookupKey,
       slug: row.slug,
       name: row.name,
@@ -422,8 +506,10 @@ export async function listWikis(
       wikiPreview,
       shortDescriptor: includeDescriptors ? (row.shortDescriptor ?? '') : '',
       descriptor: includeDescriptors ? (row.descriptor ?? '') : '',
-    }
-  })
+      refs: sidecar.refs,
+    })
+  }
+  return summaries
 }
 
 /**
@@ -449,6 +535,8 @@ export async function getThread(
       type: wikis.type,
       state: wikis.state,
       content: wikis.content,
+      metadata: wikis.metadata,
+      citationDeclarations: wikis.citationDeclarations,
       lastRebuiltAt: wikis.lastRebuiltAt,
     })
     .from(wikis)
@@ -496,6 +584,15 @@ export async function getThread(
     return { slug: f.slug, type: f.type, title: f.title, snippet }
   })
 
+  // Build sidecar from the *full* stored content so section anchors and
+  // token refs line up with what the REST /wikis/:id route emits.
+  const sidecar = await buildSidecar({
+    content: thread.content ?? '',
+    metadata: thread.metadata ?? null,
+    citationDeclarations: thread.citationDeclarations ?? [],
+    deps: makeSidecarDeps(deps.db),
+  })
+
   return {
     thread: {
       lookupKey: thread.lookupKey,
@@ -507,6 +604,9 @@ export async function getThread(
     },
     wikiBody,
     fragments: fragmentSnippets,
+    refs: sidecar.refs,
+    infobox: sidecar.infobox,
+    sections: sidecar.sections,
   }
 }
 
@@ -549,6 +649,16 @@ export async function getFragment(
   const content = stripFrontmatter(frag.content || '')
   const frontmatter = extractFrontmatter(frag.content || '')
 
+  // Fragments have no infobox per CONTRACT §4; sidecar contributes
+  // refs (any `[[kind:slug]]` tokens in the body) and sections (any
+  // headings). Source scan uses the raw content to match REST behavior.
+  const sidecar = await buildSidecar({
+    content: frag.content ?? '',
+    metadata: null,
+    deps: makeSidecarDeps(deps.db),
+    derivedInfobox: null,
+  })
+
   return {
     slug: frag.slug,
     type: frag.type,
@@ -556,6 +666,8 @@ export async function getFragment(
     tags: frag.tags as string[],
     content,
     frontmatter,
+    refs: sidecar.refs,
+    sections: sidecar.sections,
   }
 }
 
@@ -578,6 +690,7 @@ export async function findPersonById(
       relationship: people.relationship,
       aliases: people.aliases,
       content: people.content,
+      createdAt: people.createdAt,
     })
     .from(people)
     .where(and(eq(people.lookupKey, id), isNull(people.deletedAt)))
@@ -618,6 +731,21 @@ export async function findPersonById(
     return { slug: f.slug, type: f.type, title: f.title, snippet }
   })
 
+  const derivedInfobox = derivePersonInfobox(
+    {
+      relationship: person.relationship,
+      aliases: person.aliases ?? [],
+      createdAt: person.createdAt,
+    },
+    fragmentSnippets.length
+  )
+  const sidecar = await buildSidecar({
+    content: person.content ?? '',
+    metadata: null, // people table has no metadata column
+    deps: makeSidecarDeps(deps.db),
+    derivedInfobox,
+  })
+
   return {
     person: {
       name: person.name,
@@ -627,6 +755,9 @@ export async function findPersonById(
     },
     body,
     fragments: fragmentSnippets,
+    refs: sidecar.refs,
+    infobox: sidecar.infobox,
+    sections: sidecar.sections,
   }
 }
 
@@ -655,6 +786,7 @@ export async function findPersonByQuery(
       relationship: people.relationship,
       aliases: people.aliases,
       content: people.content,
+      createdAt: people.createdAt,
     })
     .from(people)
     .where(isNull(people.deletedAt))
@@ -704,6 +836,21 @@ export async function findPersonByQuery(
     return { slug: f.slug, type: f.type, title: f.title, snippet }
   })
 
+  const derivedInfobox = derivePersonInfobox(
+    {
+      relationship: person.relationship,
+      aliases: person.aliases ?? [],
+      createdAt: person.createdAt,
+    },
+    fragmentSnippets.length
+  )
+  const sidecar = await buildSidecar({
+    content: person.content ?? '',
+    metadata: null,
+    deps: makeSidecarDeps(deps.db),
+    derivedInfobox,
+  })
+
   const result: PersonDetail = {
     person: {
       name: person.name,
@@ -713,6 +860,9 @@ export async function findPersonByQuery(
     },
     body,
     fragments: fragmentSnippets,
+    refs: sidecar.refs,
+    infobox: sidecar.infobox,
+    sections: sidecar.sections,
   }
 
   if ('alternatives' in resolved && resolved.alternatives) {

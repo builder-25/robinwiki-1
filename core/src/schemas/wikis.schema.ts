@@ -117,6 +117,10 @@ export const publicWikiResponseSchema = z.object({
   type: z.string(),
   publishedAt: z.coerce.date(),
   content: z.string(),
+  // ── Sidecar (m-wiki-sidecar) — public reads get the same structured surface ──
+  refs: wikiRefsMapSchema.default({}),
+  infobox: wikiInfoboxSchema.nullable().default(null),
+  sections: z.array(wikiSectionSchema).default([]),
 })
 
 // ── Spawn schemas ────────────────────────────────────────────────────

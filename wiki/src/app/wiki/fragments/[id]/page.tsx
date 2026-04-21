@@ -14,6 +14,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useFragment } from "@/hooks/useFragment";
 import { useAcceptFragment } from "@/hooks/useAcceptFragment";
 import { useRejectFragment } from "@/hooks/useRejectFragment";
+import { useQueryClient } from "@tanstack/react-query";
 import { MarkdownContent } from "@/components/wiki/MarkdownContent";
 import type { FragmentWithContentResponseSchema } from "@/lib/generated/types.gen";
 
@@ -161,7 +162,7 @@ function BacklinksSection({ backlinks }: { backlinks: Array<{ id: string; name: 
                 }}
               >
                 <Link
-                  href={`/wiki/${bl.id}`}
+                  href={bl.type === "person" ? `/wiki/people/${bl.id}` : `/wiki/${bl.id}`}
                   style={{
                     color: "var(--wiki-fragment-link)",
                     textDecoration: "underline",
@@ -297,6 +298,23 @@ export default function FragmentPage() {
 
   const frag = fragment as FragmentData;
   const backlinks = frag.backlinks ?? [];
+  const queryClient = useQueryClient();
+
+  const handleSaveToApi = async (data: { title: string; chipLabel: string; content: string }) => {
+    try {
+      await fetch(`/api/api/content/fragment/${frag.lookupKey}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          frontmatter: { title: data.title, tags: frag.tags ?? [] },
+          body: data.content,
+        }),
+      });
+      await queryClient.invalidateQueries({ queryKey: ['fragment', id] });
+      await queryClient.invalidateQueries({ queryKey: ['fragments'] });
+    } catch { /* local state already saved */ }
+  };
 
   return (
     <>
@@ -309,6 +327,7 @@ export default function FragmentPage() {
       title={frag.title}
       infobox={{ kind: "simple", typeLabel: "Fragment", showSettings: false }}
       renderCustomInfobox={() => <FragmentInfobox fragment={frag} />}
+      onSave={handleSaveToApi}
       customBottomSections={
         <>
           <FragmentReviewActions fragmentId={frag.id} backlinks={backlinks} />

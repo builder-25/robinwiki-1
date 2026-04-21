@@ -12,6 +12,14 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      '@robin/shared/schemas/sidecar': resolve(
+        __dirname,
+        '../packages/shared/src/schemas/sidecar.ts'
+      ),
+      '@robin/shared/fixtures': resolve(
+        __dirname,
+        '../packages/shared/src/fixtures/index.ts'
+      ),
       '@robin/shared': resolve(__dirname, '../packages/shared/src/index.ts'),
       '@robin/agent': resolve(__dirname, '../packages/agent/src/index.ts'),
       '@robin/queue': resolve(__dirname, '../packages/queue/src/index.ts'),

@@ -3,6 +3,8 @@ import { eq, and } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import { wikis } from '../db/schema.js'
 import { publicWikiResponseSchema } from '../schemas/wikis.schema.js'
+import { buildSidecar } from '../lib/wikiSidecar.js'
+import { makeSidecarDeps } from '../lib/wikiSidecarDeps.js'
 
 const publishedRoutes = new Hono()
 
@@ -16,6 +18,8 @@ publishedRoutes.get('/wiki/:nanoid', async (c) => {
       publishedAt: wikis.publishedAt,
       content: wikis.content,
       published: wikis.published,
+      metadata: wikis.metadata,
+      citationDeclarations: wikis.citationDeclarations,
     })
     .from(wikis)
     .where(and(eq(wikis.publishedSlug, nanoid), eq(wikis.published, true)))
@@ -31,12 +35,22 @@ publishedRoutes.get('/wiki/:nanoid', async (c) => {
     return c.text(wiki.content)
   }
 
+  const sidecar = await buildSidecar({
+    content: wiki.content,
+    metadata: wiki.metadata ?? null,
+    citationDeclarations: wiki.citationDeclarations ?? [],
+    deps: makeSidecarDeps(db),
+  })
+
   return c.json(
     publicWikiResponseSchema.parse({
       name: wiki.name,
       type: wiki.type,
       publishedAt: wiki.publishedAt,
       content: wiki.content,
+      refs: sidecar.refs,
+      infobox: sidecar.infobox,
+      sections: sidecar.sections,
     })
   )
 })

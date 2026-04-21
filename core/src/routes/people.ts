@@ -6,6 +6,9 @@ import { db } from '../db/client.js'
 import { people, edges, fragments, wikis } from '../db/schema.js'
 import { logger } from '../lib/logger.js'
 import { validationHook } from '../lib/validation.js'
+import { buildSidecar } from '../lib/wikiSidecar.js'
+import { makeSidecarDeps } from '../lib/wikiSidecarDeps.js'
+import type { WikiInfobox } from '@robin/shared/schemas/sidecar'
 import {
   personDetailResponseSchema,
   personListResponseSchema,
@@ -15,6 +18,32 @@ import {
 import { emitAuditEvent } from '../db/audit.js'
 
 const log = logger.child({ component: 'people' })
+
+/**
+ * Build a server-derived infobox from a person row + mention count. The
+ * contract pins this to read-time computation so it survives person edits
+ * without needing a regeneration pass. Returns null when every row is empty.
+ */
+function derivePersonInfobox(
+  person: typeof people.$inferSelect,
+  mentionCount: number
+): WikiInfobox | null {
+  const firstMentionDate = person.createdAt instanceof Date
+    ? person.createdAt.toISOString().slice(0, 10)
+    : ''
+  const rows = [
+    { label: 'Relationship', value: person.relationship, valueKind: 'text' as const },
+    { label: 'Aliases', value: person.aliases.join(', '), valueKind: 'text' as const },
+    { label: 'First mentioned', value: firstMentionDate, valueKind: 'date' as const },
+    {
+      label: 'Mentions',
+      value: mentionCount > 0 ? String(mentionCount) : '',
+      valueKind: 'text' as const,
+    },
+  ].filter((r) => r.value && r.value !== '0')
+  if (rows.length === 0) return null
+  return { rows }
+}
 
 const peopleRouter = new Hono()
 peopleRouter.use('*', sessionMiddleware)
@@ -109,6 +138,14 @@ peopleRouter.get('/:id', async (c) => {
     fragmentCount: wikiFragCount.get(w.lookupKey) ?? 0,
   }))
 
+  const derivedInfobox = derivePersonInfobox(person, backlinks.length)
+  const sidecar = await buildSidecar({
+    content: person.content ?? '',
+    metadata: null, // people table has no metadata column
+    deps: makeSidecarDeps(db),
+    derivedInfobox,
+  })
+
   return c.json(
     personDetailResponseSchema.parse({
       ...person,
@@ -116,6 +153,9 @@ peopleRouter.get('/:id', async (c) => {
       content: person.content ?? '',
       backlinks,
       wikis: linkedWikis,
+      refs: sidecar.refs,
+      infobox: sidecar.infobox,
+      sections: sidecar.sections,
     })
   )
 })
@@ -149,6 +189,8 @@ peopleRouter.put('/:id', zValidator('json', updatePersonBodySchema, validationHo
     detail: { personKey: id, changedFields: Object.keys(updates).filter(k => k !== 'updatedAt') },
   })
 
+  // Sidecar is best-effort on PUT — no backlink recount, no citations.
+  // Clients that need a fresh infobox/refs/sections should GET after edit.
   return c.json(
     personDetailResponseSchema.parse({
       ...person,

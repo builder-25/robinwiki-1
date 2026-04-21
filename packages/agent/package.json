@@ -24,7 +24,7 @@
     "@robin/shared": "workspace:*",
     "drizzle-orm": "^0.45.1",
     "fuzzball": "^2.2.3",
-    "zod": "^4.3.6"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

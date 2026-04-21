@@ -1,17 +1,38 @@
 import { eq, ne, and, inArray, desc, isNull, sql } from 'drizzle-orm'
+import { z } from 'zod'
 import {
   createIngestAgents,
-  createStringCaller,
   createTypedCaller,
   embedText,
   wikiClassify,
 } from '@robin/agent'
 import {
   loadWikiGenerationSpec,
+  renderFragmentsBlock,
   wikiClassificationSchema,
   type WikiGenerationOverride,
   type WikiType,
 } from '@robin/shared'
+import {
+  wikiCitationDeclarationSchema,
+  wikiInfoboxSchema,
+  type WikiCitationDeclaration,
+  type WikiInfobox,
+  type WikiMetadata,
+} from '@robin/shared/schemas/sidecar'
+
+/**
+ * Shape of the wiki-generation LLM output. All 10 per-type schemas share
+ * this projection (markdown + infobox + per-section citation declarations),
+ * so regen can call the model with a single schema rather than branching
+ * per wiki type.
+ */
+const regenOutputSchema = z.object({
+  markdown: z.string(),
+  infobox: wikiInfoboxSchema.nullable().default(null),
+  citations: z.array(wikiCitationDeclarationSchema).default([]),
+})
+type RegenOutput = z.infer<typeof regenOutputSchema>
 import { db as defaultDb, type DB } from '../db/client.js'
 import { wikis, wikiTypes, edges, fragments, edits } from '../db/schema.js'
 import { loadOpenRouterConfig } from './openrouter-config.js'
@@ -287,7 +308,13 @@ export async function regenerateWiki(
 
   const orConfig = await loadOpenRouterConfig()
   const agents = createIngestAgents(orConfig)
-  const callLlm = createStringCaller(agents.wikiClassifier)
+  // Cast through `unknown` because Zod's `.default()` widens the schema's
+  // input type but createTypedCaller is parameterised by the output type
+  // (what the caller ultimately consumes).
+  const callLlm = createTypedCaller(
+    agents.wikiClassifier,
+    regenOutputSchema as unknown as import('zod').ZodType<RegenOutput>,
+  )
 
   // Gather linked fragments via FRAGMENT_IN_WIKI edges, with signal strength
   const fragmentEdgeRows = await database
@@ -315,7 +342,13 @@ export async function regenerateWiki(
 
   if (fragmentKeys.length > 0) {
     const fragRows = await database
-      .select({ lookupKey: fragments.lookupKey, title: fragments.title, content: fragments.content })
+      .select({
+        lookupKey: fragments.lookupKey,
+        slug: fragments.slug,
+        title: fragments.title,
+        content: fragments.content,
+        createdAt: fragments.createdAt,
+      })
       .from(fragments)
       .where(and(inArray(fragments.lookupKey, fragmentKeys), isNull(fragments.deletedAt)))
 
@@ -331,8 +364,27 @@ export async function regenerateWiki(
 
     fragmentCount = fragRows.length
 
-    const strongText = strongFrags.map((f) => `### ${f.title}\n${f.content}`).join('\n\n')
-    const weakText = weakFrags.map((f) => `### ${f.title}\n${f.content}`).join('\n\n')
+    // Render each fragment with inline id/slug/captured header so the LLM
+    // can emit grounded [[fragment:<slug>]] tokens and per-section
+    // citationDeclarations whose fragmentIds reference real lookupKeys.
+    const strongText = renderFragmentsBlock(
+      strongFrags.map((f) => ({
+        id: f.lookupKey,
+        slug: f.slug,
+        title: f.title,
+        content: f.content,
+        createdAt: f.createdAt,
+      })),
+    )
+    const weakText = renderFragmentsBlock(
+      weakFrags.map((f) => ({
+        id: f.lookupKey,
+        slug: f.slug,
+        title: f.title,
+        content: f.content,
+        createdAt: f.createdAt,
+      })),
+    )
 
     if (weakFrags.length > 0 && strongFrags.length > 0) {
       fragmentsText = `${strongText}\n\n---\n[SUPPLEMENTARY FRAGMENTS — lower confidence, include as supporting context or "See also" references]\n\n${weakText}`
@@ -459,13 +511,30 @@ export async function regenerateWiki(
     spec = loadWikiGenerationSpec(wiki.type as WikiType, vars)
   }
 
-  const markdown = await callLlm(spec.system, spec.user)
+  const llmOutput = await callLlm(spec.system, spec.user)
+  const markdown = llmOutput.markdown
+  const llmInfobox: WikiInfobox | null = llmOutput.infobox ?? null
+  const llmCitations: WikiCitationDeclaration[] = llmOutput.citations ?? []
 
-  // Update wiki content
+  // Merge LLM-emitted infobox into wikis.metadata (preserving any other
+  // structured sidecar fields we may bundle into metadata in the future).
+  const mergedMetadata: WikiMetadata = {
+    ...((wiki.metadata as WikiMetadata | null) ?? {}),
+    infobox: llmInfobox,
+  }
+
+  // Update wiki content + sidecar fields in a single statement so readers
+  // never observe a stale infobox paired with fresh markdown.
   const now = new Date()
   await database
     .update(wikis)
-    .set({ content: markdown, lastRebuiltAt: now, updatedAt: now })
+    .set({
+      content: markdown,
+      metadata: mergedMetadata,
+      citationDeclarations: llmCitations,
+      lastRebuiltAt: now,
+      updatedAt: now,
+    })
     .where(eq(wikis.lookupKey, wikiKey))
 
   // Compute and store embedding for the new content

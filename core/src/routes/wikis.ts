@@ -13,6 +13,8 @@ import { logger } from '../lib/logger.js'
 import { validationHook } from '../lib/validation.js'
 import { nanoid24 } from '../lib/id.js'
 import { regenerateWiki } from '../lib/regen.js'
+import { buildSidecar } from '../lib/wikiSidecar.js'
+import { makeSidecarDeps } from '../lib/wikiSidecarDeps.js'
 import { producer } from '../queue/producer.js'
 import {
   threadResponseSchema,
@@ -258,6 +260,13 @@ wikisRouter.get('/:id', async (c) => {
           .where(inArray(people.lookupKey, personKeys))
       : []
 
+  const sidecar = await buildSidecar({
+    content: thread.content ?? '',
+    metadata: thread.metadata ?? null,
+    citationDeclarations: thread.citationDeclarations ?? [],
+    deps: makeSidecarDeps(db),
+  })
+
   return c.json(
     wikiDetailResponseSchema.parse({
       ...prepareThread(thread),
@@ -272,6 +281,9 @@ wikisRouter.get('/:id', async (c) => {
         id: p.lookupKey,
         name: p.name,
       })),
+      refs: sidecar.refs,
+      infobox: sidecar.infobox,
+      sections: sidecar.sections,
     })
   )
 })

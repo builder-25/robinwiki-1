@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "generatedAt": "2026-04-20T20:34:56.324Z",
+    "generatedAt": "2026-04-21T12:45:20.837Z",
     "description": "Route + JSON Schema manifest for OpenAPI generation. Feed to /apidoc.",
     "schemaCount": 58,
     "routeCount": 54
@@ -1429,6 +1429,193 @@
             "updatedAt": {
               "type": "string",
               "format": "date-time"
+            },
+            "refs": {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "slug": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "person"
+                        ]
+                      },
+                      "relationship": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/definitions/entryResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/id"
+                      },
+                      "slug": {
+                        "$ref": "#/definitions/entryResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/slug"
+                      },
+                      "label": {
+                        "$ref": "#/definitions/entryResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/label"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "fragment"
+                        ]
+                      },
+                      "snippet": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/definitions/entryResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/id"
+                      },
+                      "slug": {
+                        "$ref": "#/definitions/entryResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/slug"
+                      },
+                      "label": {
+                        "$ref": "#/definitions/entryResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/label"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "wiki"
+                        ]
+                      },
+                      "wikiType": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind",
+                      "wikiType"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/definitions/entryResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/id"
+                      },
+                      "slug": {
+                        "$ref": "#/definitions/entryResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/slug"
+                      },
+                      "label": {
+                        "$ref": "#/definitions/entryResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/label"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "entry"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind",
+                      "createdAt"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "default": {}
+            },
+            "sections": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "anchor": {
+                    "type": "string"
+                  },
+                  "heading": {
+                    "type": "string"
+                  },
+                  "level": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 6
+                  },
+                  "citations": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "fragmentId": {
+                          "type": "string"
+                        },
+                        "fragmentSlug": {
+                          "type": "string"
+                        },
+                        "quote": {
+                          "type": "string"
+                        },
+                        "capturedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "fragmentId",
+                        "fragmentSlug",
+                        "capturedAt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "default": []
+                  }
+                },
+                "required": [
+                  "id",
+                  "anchor",
+                  "heading",
+                  "level"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
             }
           },
           "required": [
@@ -1495,6 +1682,193 @@
             "updatedAt": {
               "type": "string",
               "format": "date-time"
+            },
+            "refs": {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "slug": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "person"
+                        ]
+                      },
+                      "relationship": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/definitions/entryCreatedResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/id"
+                      },
+                      "slug": {
+                        "$ref": "#/definitions/entryCreatedResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/slug"
+                      },
+                      "label": {
+                        "$ref": "#/definitions/entryCreatedResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/label"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "fragment"
+                        ]
+                      },
+                      "snippet": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/definitions/entryCreatedResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/id"
+                      },
+                      "slug": {
+                        "$ref": "#/definitions/entryCreatedResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/slug"
+                      },
+                      "label": {
+                        "$ref": "#/definitions/entryCreatedResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/label"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "wiki"
+                        ]
+                      },
+                      "wikiType": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind",
+                      "wikiType"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/definitions/entryCreatedResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/id"
+                      },
+                      "slug": {
+                        "$ref": "#/definitions/entryCreatedResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/slug"
+                      },
+                      "label": {
+                        "$ref": "#/definitions/entryCreatedResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/label"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "entry"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind",
+                      "createdAt"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "default": {}
+            },
+            "sections": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "anchor": {
+                    "type": "string"
+                  },
+                  "heading": {
+                    "type": "string"
+                  },
+                  "level": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 6
+                  },
+                  "citations": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "fragmentId": {
+                          "type": "string"
+                        },
+                        "fragmentSlug": {
+                          "type": "string"
+                        },
+                        "quote": {
+                          "type": "string"
+                        },
+                        "capturedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "fragmentId",
+                        "fragmentSlug",
+                        "capturedAt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "default": []
+                  }
+                },
+                "required": [
+                  "id",
+                  "anchor",
+                  "heading",
+                  "level"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
             },
             "jobId": {
               "type": "string"
@@ -1578,6 +1952,193 @@
                   "updatedAt": {
                     "type": "string",
                     "format": "date-time"
+                  },
+                  "refs": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "slug": {
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "person"
+                              ]
+                            },
+                            "relationship": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "slug",
+                            "label",
+                            "kind"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "$ref": "#/definitions/entryListResponseSchema/properties/entries/items/properties/refs/additionalProperties/anyOf/0/properties/id"
+                            },
+                            "slug": {
+                              "$ref": "#/definitions/entryListResponseSchema/properties/entries/items/properties/refs/additionalProperties/anyOf/0/properties/slug"
+                            },
+                            "label": {
+                              "$ref": "#/definitions/entryListResponseSchema/properties/entries/items/properties/refs/additionalProperties/anyOf/0/properties/label"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "fragment"
+                              ]
+                            },
+                            "snippet": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "slug",
+                            "label",
+                            "kind"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "$ref": "#/definitions/entryListResponseSchema/properties/entries/items/properties/refs/additionalProperties/anyOf/0/properties/id"
+                            },
+                            "slug": {
+                              "$ref": "#/definitions/entryListResponseSchema/properties/entries/items/properties/refs/additionalProperties/anyOf/0/properties/slug"
+                            },
+                            "label": {
+                              "$ref": "#/definitions/entryListResponseSchema/properties/entries/items/properties/refs/additionalProperties/anyOf/0/properties/label"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "wiki"
+                              ]
+                            },
+                            "wikiType": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "slug",
+                            "label",
+                            "kind",
+                            "wikiType"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "$ref": "#/definitions/entryListResponseSchema/properties/entries/items/properties/refs/additionalProperties/anyOf/0/properties/id"
+                            },
+                            "slug": {
+                              "$ref": "#/definitions/entryListResponseSchema/properties/entries/items/properties/refs/additionalProperties/anyOf/0/properties/slug"
+                            },
+                            "label": {
+                              "$ref": "#/definitions/entryListResponseSchema/properties/entries/items/properties/refs/additionalProperties/anyOf/0/properties/label"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "entry"
+                              ]
+                            },
+                            "createdAt": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "slug",
+                            "label",
+                            "kind",
+                            "createdAt"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "default": {}
+                  },
+                  "sections": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "anchor": {
+                          "type": "string"
+                        },
+                        "heading": {
+                          "type": "string"
+                        },
+                        "level": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 6
+                        },
+                        "citations": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "fragmentId": {
+                                "type": "string"
+                              },
+                              "fragmentSlug": {
+                                "type": "string"
+                              },
+                              "quote": {
+                                "type": "string"
+                              },
+                              "capturedAt": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "fragmentId",
+                              "fragmentSlug",
+                              "capturedAt"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "default": []
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "anchor",
+                        "heading",
+                        "level"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "default": []
                   }
                 },
                 "required": [
@@ -2597,6 +3158,252 @@
                 ],
                 "additionalProperties": false
               }
+            },
+            "refs": {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "slug": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "person"
+                        ]
+                      },
+                      "relationship": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/definitions/wikiDetailResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/id"
+                      },
+                      "slug": {
+                        "$ref": "#/definitions/wikiDetailResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/slug"
+                      },
+                      "label": {
+                        "$ref": "#/definitions/wikiDetailResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/label"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "fragment"
+                        ]
+                      },
+                      "snippet": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/definitions/wikiDetailResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/id"
+                      },
+                      "slug": {
+                        "$ref": "#/definitions/wikiDetailResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/slug"
+                      },
+                      "label": {
+                        "$ref": "#/definitions/wikiDetailResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/label"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "wiki"
+                        ]
+                      },
+                      "wikiType": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind",
+                      "wikiType"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/definitions/wikiDetailResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/id"
+                      },
+                      "slug": {
+                        "$ref": "#/definitions/wikiDetailResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/slug"
+                      },
+                      "label": {
+                        "$ref": "#/definitions/wikiDetailResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/label"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "entry"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind",
+                      "createdAt"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "default": {}
+            },
+            "infobox": {
+              "type": "object",
+              "properties": {
+                "image": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "alt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "alt"
+                  ],
+                  "additionalProperties": false
+                },
+                "caption": {
+                  "type": "string"
+                },
+                "rows": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "valueKind": {
+                        "type": "string",
+                        "enum": [
+                          "text",
+                          "ref",
+                          "date",
+                          "status"
+                        ],
+                        "default": "text"
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "value"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "rows"
+              ],
+              "additionalProperties": false,
+              "nullable": true,
+              "default": null
+            },
+            "sections": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "anchor": {
+                    "type": "string"
+                  },
+                  "heading": {
+                    "type": "string"
+                  },
+                  "level": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 6
+                  },
+                  "citations": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "fragmentId": {
+                          "type": "string"
+                        },
+                        "fragmentSlug": {
+                          "type": "string"
+                        },
+                        "quote": {
+                          "type": "string"
+                        },
+                        "capturedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "fragmentId",
+                        "fragmentSlug",
+                        "capturedAt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "default": []
+                  }
+                },
+                "required": [
+                  "id",
+                  "anchor",
+                  "heading",
+                  "level"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
             }
           },
           "required": [
@@ -2716,6 +3523,252 @@
             },
             "content": {
               "type": "string"
+            },
+            "refs": {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "slug": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "person"
+                        ]
+                      },
+                      "relationship": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/definitions/publicWikiResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/id"
+                      },
+                      "slug": {
+                        "$ref": "#/definitions/publicWikiResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/slug"
+                      },
+                      "label": {
+                        "$ref": "#/definitions/publicWikiResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/label"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "fragment"
+                        ]
+                      },
+                      "snippet": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/definitions/publicWikiResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/id"
+                      },
+                      "slug": {
+                        "$ref": "#/definitions/publicWikiResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/slug"
+                      },
+                      "label": {
+                        "$ref": "#/definitions/publicWikiResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/label"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "wiki"
+                        ]
+                      },
+                      "wikiType": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind",
+                      "wikiType"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/definitions/publicWikiResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/id"
+                      },
+                      "slug": {
+                        "$ref": "#/definitions/publicWikiResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/slug"
+                      },
+                      "label": {
+                        "$ref": "#/definitions/publicWikiResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/label"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "entry"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind",
+                      "createdAt"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "default": {}
+            },
+            "infobox": {
+              "type": "object",
+              "properties": {
+                "image": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "alt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "alt"
+                  ],
+                  "additionalProperties": false
+                },
+                "caption": {
+                  "type": "string"
+                },
+                "rows": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "valueKind": {
+                        "type": "string",
+                        "enum": [
+                          "text",
+                          "ref",
+                          "date",
+                          "status"
+                        ],
+                        "default": "text"
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "value"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "rows"
+              ],
+              "additionalProperties": false,
+              "nullable": true,
+              "default": null
+            },
+            "sections": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "anchor": {
+                    "type": "string"
+                  },
+                  "heading": {
+                    "type": "string"
+                  },
+                  "level": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 6
+                  },
+                  "citations": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "fragmentId": {
+                          "type": "string"
+                        },
+                        "fragmentSlug": {
+                          "type": "string"
+                        },
+                        "quote": {
+                          "type": "string"
+                        },
+                        "capturedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "fragmentId",
+                        "fragmentSlug",
+                        "capturedAt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "default": []
+                  }
+                },
+                "required": [
+                  "id",
+                  "anchor",
+                  "heading",
+                  "level"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
             }
           },
           "required": [
@@ -3216,6 +4269,252 @@
                   "slug",
                   "type",
                   "fragmentCount"
+                ],
+                "additionalProperties": false
+              },
+              "default": []
+            },
+            "refs": {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "slug": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "person"
+                        ]
+                      },
+                      "relationship": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/definitions/personDetailResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/id"
+                      },
+                      "slug": {
+                        "$ref": "#/definitions/personDetailResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/slug"
+                      },
+                      "label": {
+                        "$ref": "#/definitions/personDetailResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/label"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "fragment"
+                        ]
+                      },
+                      "snippet": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/definitions/personDetailResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/id"
+                      },
+                      "slug": {
+                        "$ref": "#/definitions/personDetailResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/slug"
+                      },
+                      "label": {
+                        "$ref": "#/definitions/personDetailResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/label"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "wiki"
+                        ]
+                      },
+                      "wikiType": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind",
+                      "wikiType"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/definitions/personDetailResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/id"
+                      },
+                      "slug": {
+                        "$ref": "#/definitions/personDetailResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/slug"
+                      },
+                      "label": {
+                        "$ref": "#/definitions/personDetailResponseSchema/properties/refs/additionalProperties/anyOf/0/properties/label"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "entry"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "slug",
+                      "label",
+                      "kind",
+                      "createdAt"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "default": {}
+            },
+            "infobox": {
+              "type": "object",
+              "properties": {
+                "image": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "alt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "alt"
+                  ],
+                  "additionalProperties": false
+                },
+                "caption": {
+                  "type": "string"
+                },
+                "rows": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "valueKind": {
+                        "type": "string",
+                        "enum": [
+                          "text",
+                          "ref",
+                          "date",
+                          "status"
+                        ],
+                        "default": "text"
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "value"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "rows"
+              ],
+              "additionalProperties": false,
+              "nullable": true,
+              "default": null
+            },
+            "sections": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "anchor": {
+                    "type": "string"
+                  },
+                  "heading": {
+                    "type": "string"
+                  },
+                  "level": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 6
+                  },
+                  "citations": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "fragmentId": {
+                          "type": "string"
+                        },
+                        "fragmentSlug": {
+                          "type": "string"
+                        },
+                        "quote": {
+                          "type": "string"
+                        },
+                        "capturedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "fragmentId",
+                        "fragmentSlug",
+                        "capturedAt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "default": []
+                  }
+                },
+                "required": [
+                  "id",
+                  "anchor",
+                  "heading",
+                  "level"
                 ],
                 "additionalProperties": false
               },

@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { MarkdownContent } from "@/components/wiki/MarkdownContent";
 import { usePerson } from "@/hooks/usePerson";
+import { useQueryClient } from "@tanstack/react-query";
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -222,6 +223,23 @@ export default function WikiPeoplePage() {
   }
 
   const backlinks = person.backlinks ?? [];
+  const queryClient = useQueryClient();
+
+  const handleSaveToApi = async (data: { title: string; chipLabel: string; content: string }) => {
+    try {
+      await fetch(`/api/api/content/person/${person.lookupKey}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          frontmatter: { name: data.title },
+          body: data.content,
+        }),
+      });
+      await queryClient.invalidateQueries({ queryKey: ['person', id] });
+      await queryClient.invalidateQueries({ queryKey: ['people'] });
+    } catch { /* local state already saved */ }
+  };
 
   return (
     <>
@@ -237,6 +255,7 @@ export default function WikiPeoplePage() {
       renderCustomInfobox={({ onSettingsClick }) => (
         <PeopleInfobox person={person} onSettingsClick={onSettingsClick} />
       )}
+      onSave={handleSaveToApi}
       customBottomSections={<PeopleFragmentsSection backlinks={backlinks} />}
     >
       {person.content && (

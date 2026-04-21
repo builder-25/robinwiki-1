@@ -13,6 +13,7 @@ import {
   customType,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
+import type { WikiCitationDeclaration, WikiMetadata } from '@robin/shared/schemas/sidecar'
 import { nanoid } from '../lib/id.js'
 
 // tsvector custom column — managed by raw SQL triggers in the migration.
@@ -233,6 +234,16 @@ export const wikis = pgTable(
       milestones: { label: string; completed: boolean }[]
       percentage: number
     } | null>(),
+    // Sidecar metadata (m-wiki-sidecar). Currently bundles the infobox;
+    // reserved for additional structured sidecar fields over time.
+    metadata: jsonb('metadata').$type<WikiMetadata>(),
+    // Sidecar citation declarations (m-wiki-sidecar). Raw per-section
+    // declarations emitted by the wiki-generation LLM; attached to
+    // resolved section objects at read time via buildSidecar.
+    citationDeclarations: jsonb('citation_declarations')
+      .$type<WikiCitationDeclaration[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
   },
   (t) => [
     uniqueIndex('wikis_slug_uidx').on(t.slug),

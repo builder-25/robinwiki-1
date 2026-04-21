@@ -168,7 +168,13 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
   server.registerTool(
     'list_wikis',
     {
-      description: 'List all wikis with fragment counts, previews, and type descriptors',
+      description:
+        'List all wikis with fragment counts, previews, and type descriptors. ' +
+        'Each item also includes a `refs` map keyed by `${kind}:${slug}` that ' +
+        'resolves any [[kind:slug]] tokens present in the wiki content — use it ' +
+        'to render or follow references without re-fetching each target. ' +
+        'Per-section citations and infoboxes are omitted from list results; ' +
+        'call get_thread for full detail.',
       inputSchema: {
         includeDescriptors: z.boolean().optional().describe(
           'Include type descriptors in the response (default: true). Set false for compact output.'
@@ -198,7 +204,17 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
   server.registerTool(
     'get_thread',
     {
-      description: 'Get thread details by slug including full wiki body and fragment snippets',
+      description:
+        'Get full detail for a wiki (thread) by slug. Response includes:\n' +
+        '- `wikiBody`: markdown content with [[kind:slug]] tokens for internal references\n' +
+        '- `refs`: resolver map from `${kind}:${slug}` → entity metadata. Use to render or ' +
+        'follow tokens without re-fetching each target\n' +
+        '- `sections`: parsed markdown headings with per-section `citations[]` pointing ' +
+        'to the fragments that back each section (empty when the generator did not ' +
+        'declare citations)\n' +
+        '- `infobox`: structured key/value facts (status, dates, owners, etc) when the ' +
+        'wiki type supports one — null otherwise\n' +
+        '- `fragments`: member fragment snippets (unchanged)',
       inputSchema: {
         slug: z.string().describe('Thread slug or partial slug for fuzzy matching'),
       },
@@ -226,7 +242,15 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
   server.registerTool(
     'get_fragment',
     {
-      description: 'Get full fragment content by slug',
+      description:
+        'Get full fragment content by slug. Response includes:\n' +
+        '- `content`: markdown body (frontmatter stripped) with [[kind:slug]] tokens\n' +
+        '- `frontmatter`: raw YAML block for structured parsing\n' +
+        '- `refs`: resolver map from `${kind}:${slug}` → entity metadata for any ' +
+        'tokens in the body\n' +
+        '- `sections`: parsed markdown headings with stable slug anchors (fragments ' +
+        'have no infobox and the generator does not emit citations for them — so ' +
+        '`sections[].citations` is always empty)',
       inputSchema: {
         slug: z.string().describe('Fragment slug or partial slug'),
       },
@@ -258,7 +282,19 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         'Find a person by ID or name. ' +
         'If the input matches the pattern person{ULID} (e.g. "person01ABC..."), it routes to an exact ID lookup. ' +
         'Otherwise it performs fuzzy search across slug, name, and aliases. ' +
-        'Pass id for guaranteed exact lookup; pass query for name-based search.',
+        'Pass id for guaranteed exact lookup; pass query for name-based search.\n\n' +
+        'Response includes:\n' +
+        '- `person`: canonical name, slug, aliases, relationship\n' +
+        '- `body`: person wiki markdown with [[kind:slug]] tokens\n' +
+        '- `refs`: resolver map from `${kind}:${slug}` → entity metadata for tokens ' +
+        'in the body\n' +
+        '- `sections`: parsed headings in the person body (citations empty — ' +
+        'person infoboxes are server-derived, not LLM-cited)\n' +
+        '- `infobox`: structured facts derived from the person row (relationship, ' +
+        'aliases, first-mentioned date, mention count); null when all rows would ' +
+        'be empty\n' +
+        '- `fragments`: snippet list of fragments that mention this person\n' +
+        '- `alternatives` (optional): other candidate names when the match was ambiguous',
       inputSchema: {
         id: z.string().optional().describe(
           'Exact person lookupKey (e.g. "person01ABCDEFGHIJKLMNOPQRS"). Use for precise lookup when you have the ID.'

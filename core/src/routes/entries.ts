@@ -10,6 +10,8 @@ import { resolveEntrySlug } from '../db/slug.js'
 import { computeContentHash, findDuplicateEntry } from '../db/dedup.js'
 import type { ExtractionJob } from '@robin/queue'
 import { validationHook } from '../lib/validation.js'
+import { buildSidecar } from '../lib/wikiSidecar.js'
+import { makeSidecarDeps } from '../lib/wikiSidecarDeps.js'
 import {
   entryResponseSchema,
   entryCreatedResponseSchema,
@@ -114,7 +116,24 @@ entries.get('/:id', async (c) => {
   const [entry] = await db.select().from(entriesTable).where(eq(entriesTable.lookupKey, id))
   if (!entry) return c.json({ error: 'Not found' }, 404)
 
-  return c.json(entryResponseSchema.parse({ ...entry, id: entry.lookupKey }))
+  // Entries have no metadata column and no LLM citations yet; sidecar only
+  // contributes refs (from any [[kind:slug]] tokens in the raw text) and
+  // sections (from any markdown headings).
+  const sidecar = await buildSidecar({
+    content: entry.content ?? '',
+    metadata: null,
+    deps: makeSidecarDeps(db),
+    derivedInfobox: null,
+  })
+
+  return c.json(
+    entryResponseSchema.parse({
+      ...entry,
+      id: entry.lookupKey,
+      refs: sidecar.refs,
+      sections: sidecar.sections,
+    })
+  )
 })
 
 // GET /entries/:id/fragments — get all fragments derived from an entry

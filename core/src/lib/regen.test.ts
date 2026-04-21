@@ -1,13 +1,24 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // ── LLM capture ───────────────────────────────────────────────────────────
-// fakeCallLlm records (system, user) pairs and returns a fixed markdown string.
+// fakeCallLlm records (system, user) pairs and returns a structured object
+// matching the wiki-generation output contract (markdown + infobox + citations).
 // Tests assert against llmCalls[i].system / .user to prove which override the
-// pipeline actually took.
+// pipeline actually took. llmResponse is mutable so individual tests can
+// override the fake response to exercise infobox/citations persistence.
 const llmCalls: Array<{ system: string; user: string }> = []
+let llmResponse: {
+  markdown: string
+  infobox: unknown
+  citations: unknown[]
+} = {
+  markdown: '# Fake regenerated markdown',
+  infobox: null,
+  citations: [],
+}
 const fakeCallLlm = vi.fn(async (system: string, user: string) => {
   llmCalls.push({ system, user })
-  return '# Fake regenerated markdown'
+  return llmResponse
 })
 
 vi.mock('@robin/agent', async (importOriginal) => {
@@ -20,7 +31,7 @@ vi.mock('@robin/agent', async (importOriginal) => {
       entityExtractor: {},
       fragScorer: {},
     })),
-    createStringCaller: vi.fn(() => fakeCallLlm),
+    createTypedCaller: vi.fn(() => fakeCallLlm),
     embedText: vi.fn(async () => null),
   }
 })
@@ -114,6 +125,8 @@ vi.mock('../db/schema.js', () => ({
     prompt: 'wikis.prompt',
     slug: 'wikis.slug',
     content: 'wikis.content',
+    metadata: 'wikis.metadata',
+    citationDeclarations: 'wikis.citationDeclarations',
     deletedAt: 'wikis.deletedAt',
   },
   wikiTypes: {
@@ -129,8 +142,10 @@ vi.mock('../db/schema.js', () => ({
   },
   fragments: {
     lookupKey: 'fragments.lookupKey',
+    slug: 'fragments.slug',
     title: 'fragments.title',
     content: 'fragments.content',
+    createdAt: 'fragments.createdAt',
     deletedAt: 'fragments.deletedAt',
   },
   edits: {
@@ -353,5 +368,110 @@ temperature: 0.3
     // Whitespace was NOT used as the system message — disk default kicked in.
     expect(llmCalls[0].system).toContain('Quill')
     expect(llmCalls[0].system).not.toBe('')
+  })
+})
+
+describe('regenerateWiki — sidecar persistence', () => {
+  beforeEach(() => {
+    llmCalls.length = 0
+    dbUpdates.length = 0
+    dbInserts.length = 0
+    dbResponseQueue.length = 0
+    // Reset the fake LLM response between tests.
+    llmResponse = {
+      markdown: '# Fake regenerated markdown',
+      infobox: null,
+      citations: [],
+    }
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('persists markdown, infobox (inside metadata), and citationDeclarations in a single wikis update', async () => {
+    llmResponse = {
+      markdown: '# Regen output\n\n## Progress\nShipped sidecar.',
+      infobox: {
+        rows: [
+          { label: 'Status', value: 'active', valueKind: 'status' },
+          { label: 'Owner', value: '[[person:sarah-chen]]', valueKind: 'ref' },
+        ],
+      },
+      citations: [
+        { sectionAnchor: 'progress', fragmentIds: ['frag-abc', 'frag-def'] },
+      ],
+    }
+
+    stageDbResponses([
+      [baseWiki()], // 1. wikis select
+      [],           // 2. fragment edges → empty
+      [],           // 3. user edits → empty
+      [],           // 4. wikiTypes select → no userModified row
+    ])
+
+    const result = await regenerateWiki(undefined, 'wiki-key-1', { skipEmbedding: true })
+
+    expect(result.content).toBe(llmResponse.markdown)
+
+    // First update writes content + metadata + citationDeclarations in one shot
+    const contentUpdate = dbUpdates[0]
+    expect(contentUpdate).toBeDefined()
+    expect(contentUpdate.content).toBe(llmResponse.markdown)
+    expect(contentUpdate.citationDeclarations).toEqual(llmResponse.citations)
+    const merged = contentUpdate.metadata as { infobox: unknown }
+    expect(merged).toBeDefined()
+    expect(merged.infobox).toEqual(llmResponse.infobox)
+  })
+
+  it('stores metadata.infobox = null and citationDeclarations = [] when the LLM emits neither', async () => {
+    llmResponse = {
+      markdown: '# Minimal output',
+      infobox: null,
+      citations: [],
+    }
+
+    stageDbResponses([
+      [baseWiki()], // 1. wikis select
+      [],           // 2. fragment edges
+      [],           // 3. user edits
+      [],           // 4. wikiTypes select
+    ])
+
+    await regenerateWiki(undefined, 'wiki-key-1', { skipEmbedding: true })
+
+    const contentUpdate = dbUpdates[0]
+    expect(contentUpdate).toBeDefined()
+    expect(contentUpdate.content).toBe('# Minimal output')
+    expect(contentUpdate.citationDeclarations).toEqual([])
+    const merged = contentUpdate.metadata as { infobox: unknown }
+    expect(merged.infobox).toBeNull()
+  })
+
+  it('preserves other keys in wikis.metadata while overwriting infobox', async () => {
+    llmResponse = {
+      markdown: '# New markdown',
+      infobox: { rows: [{ label: 'Status', value: 'active', valueKind: 'status' }] },
+      citations: [],
+    }
+
+    // Wiki already has metadata with a hypothetical future sidecar field present.
+    const wikiWithExtras = baseWiki({
+      metadata: { infobox: null, futureField: { answer: 42 } } as unknown,
+    })
+
+    stageDbResponses([
+      [wikiWithExtras],
+      [],
+      [],
+      [],
+    ])
+
+    await regenerateWiki(undefined, 'wiki-key-1', { skipEmbedding: true })
+
+    const contentUpdate = dbUpdates[0]
+    const merged = contentUpdate.metadata as { infobox: unknown; futureField?: unknown }
+    expect(merged.infobox).toEqual(llmResponse.infobox)
+    expect(merged.futureField).toEqual({ answer: 42 })
   })
 })
