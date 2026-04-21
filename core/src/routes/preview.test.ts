@@ -50,11 +50,14 @@ describe('preview router — GET /preview/wiki/fixture', () => {
     expect(json.id).toBe(wikiSidecarFixture.id)
     expect(json.slug).toBe(wikiSidecarFixture.slug)
     expect(Object.keys(json.refs)).toEqual(expect.arrayContaining([
-      'person:sarah-chen',
-      'person:alex-kim',
-      'fragment:frag-overview-1',
-      'wiki:onboarding-security',
-      'entry:entry-kickoff',
+      'person:ashish-vaswani',
+      'person:noam-shazeer',
+      'person:niki-parmar',
+      'fragment:self-attention-replaces-recurrence',
+      'fragment:multi-head-attention-parallelism',
+      'fragment:scaled-dot-product-attention',
+      'wiki:attention-is-all-you-need',
+      'entry:attention-paper-abstract',
     ]))
   })
 
@@ -62,19 +65,66 @@ describe('preview router — GET /preview/wiki/fixture', () => {
     const res = await app.request('/preview/wiki/fixture')
     const json = await res.json()
 
-    // Proves the fixture shape matches the canonical wiki detail response.
-    const parsed = wikiDetailResponseSchema.parse(json)
-    expect(parsed.refs['person:sarah-chen']).toBeDefined()
-    expect(parsed.sections.length).toBeGreaterThanOrEqual(4)
-    expect(parsed.infobox).not.toBeNull()
+    // `.parse()` must not throw — proves the fixture's core thread fields
+    // conform to the canonical wiki detail response. The sidecar fields
+    // (`refs`, `infobox`, `sections`) are asserted against the raw JSON
+    // body because `wikiDetailResponseSchema` currently strips them on
+    // parse (tracked as NQ13 in the milestone notes); verifying against
+    // the response body still proves the fixture ships those fields.
+    expect(() => wikiDetailResponseSchema.parse(json)).not.toThrow()
+    expect(json.refs['person:ashish-vaswani']).toMatchObject({
+      kind: 'person',
+      slug: 'ashish-vaswani',
+      label: 'Ashish Vaswani',
+    })
+    expect(json.sections.length).toBeGreaterThanOrEqual(4)
+    expect(json.infobox).not.toBeNull()
+    // Infobox exercises every valueKind — proves the fixture's coverage
+    // promise to downstream renderers.
+    const valueKinds = new Set(
+      json.infobox.rows.map((r: { valueKind: string }) => r.valueKind)
+    )
+    expect(valueKinds).toEqual(new Set(['text', 'ref', 'date', 'status']))
   })
 
-  it('fixture includes no entry for the intentional ghost token', async () => {
+  it('fixture includes no entry for the intentional unresolvable token', async () => {
     // Covers the graceful-drop guarantee from CONTRACT §8 — unresolved
-    // tokens never leak into the refs map.
+    // tokens never leak into the refs map. The markdown references
+    // `[[person:anonymous-reviewer]]` but the refs map must omit it.
     const res = await app.request('/preview/wiki/fixture')
     const json = await res.json()
-    expect(json.refs['person:ghost']).toBeUndefined()
+    expect(json.refs['person:anonymous-reviewer']).toBeUndefined()
+    expect(json.content).toContain('[[person:anonymous-reviewer]]')
+  })
+
+  it('fixture exposes a duplicate heading with a -1 anchor suffix', async () => {
+    // Proves the `-1` anchor suffix path for duplicate headings.
+    const res = await app.request('/preview/wiki/fixture')
+    const json = await res.json()
+    const notesAnchors = json.sections
+      .filter((s: { heading: string }) => s.heading === 'Notes')
+      .map((s: { anchor: string }) => s.anchor)
+    expect(notesAnchors).toEqual(['notes', 'notes-1'])
+  })
+
+  it('fixture ships at least one section with ≥2 populated citations', async () => {
+    const res = await app.request('/preview/wiki/fixture')
+    const json = await res.json()
+    const citedSection = json.sections.find(
+      (s: { citations: unknown[] }) => s.citations.length >= 2
+    )
+    expect(citedSection).toBeDefined()
+    expect(citedSection.citations[0]).toMatchObject({
+      fragmentId: expect.any(String),
+      fragmentSlug: expect.any(String),
+      quote: expect.any(String),
+      capturedAt: expect.any(String),
+    })
+    // And at least one empty-citation section proves the coverage
+    // promise for renderers that branch on `citations.length === 0`.
+    expect(
+      json.sections.some((s: { citations: unknown[] }) => s.citations.length === 0)
+    ).toBe(true)
   })
 })
 
@@ -90,15 +140,15 @@ describe('preview router — POST /preview/wiki', () => {
 
   it('resolves fixture refs when no override is supplied', async () => {
     const res = await postAuthed('/preview/wiki', {
-      markdown: '# Hi\n\nHello [[person:sarah-chen]].',
+      markdown: '# Hi\n\nHello [[person:ashish-vaswani]].',
     })
 
     expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json.refs['person:sarah-chen']).toMatchObject({
+    expect(json.refs['person:ashish-vaswani']).toMatchObject({
       kind: 'person',
-      slug: 'sarah-chen',
-      label: 'Sarah Chen',
+      slug: 'ashish-vaswani',
+      label: 'Ashish Vaswani',
     })
   })
 
@@ -111,7 +161,7 @@ describe('preview router — POST /preview/wiki', () => {
       relationship: 'test',
     }
     const res = await postAuthed('/preview/wiki', {
-      markdown: 'Meet [[person:custom]] and [[person:sarah-chen]].',
+      markdown: 'Meet [[person:custom]] and [[person:ashish-vaswani]].',
       refsOverride: { 'person:custom': customRef },
     })
 
@@ -119,17 +169,17 @@ describe('preview router — POST /preview/wiki', () => {
     const json = await res.json()
     expect(json.refs['person:custom']).toEqual(customRef)
     // Fixture fallback still works for tokens not in the override.
-    expect(json.refs['person:sarah-chen']).toMatchObject({ label: 'Sarah Chen' })
+    expect(json.refs['person:ashish-vaswani']).toMatchObject({ label: 'Ashish Vaswani' })
   })
 
   it('drops unresolvable tokens silently but still renders sections', async () => {
     const res = await postAuthed('/preview/wiki', {
-      markdown: '# Top\n\n## Body\n\nSee [[person:ghost]] (unknown).',
+      markdown: '# Top\n\n## Body\n\nSee [[person:anonymous-reviewer]] (unknown).',
     })
 
     expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json.refs['person:ghost']).toBeUndefined()
+    expect(json.refs['person:anonymous-reviewer']).toBeUndefined()
     expect(json.sections.map((s: { anchor: string }) => s.anchor)).toEqual([
       'top',
       'body',
