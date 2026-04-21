@@ -11,6 +11,7 @@ import {
   Laptop,
   Lightbulb,
   Link2,
+  NotebookText,
   Quote as QuoteIcon,
   UserRound,
   Wind,
@@ -91,8 +92,8 @@ const WIKI_TYPE_ICONS: Record<WikiType, LucideIcon | undefined> = {
   Voice: AudioWaveform,
   People: UserRound,
   Person: UserRound,
-  Entry: undefined,
-  Fragment: undefined,
+  Entry: NotebookText,
+  Fragment: FileText,
 };
 
 export function isPeopleWikiType(type: string) {
@@ -100,7 +101,6 @@ export function isPeopleWikiType(type: string) {
 }
 
 export function getWikiTypeIcon(type: string): LucideIcon | undefined {
-  if (ICONLESS_TYPES.has(type)) return undefined;
   return (
     WIKI_TYPE_ICONS[type as WikiType] ??
     FRAGMENT_TYPE_ICONS[type as FragmentType] ??
