@@ -33,12 +33,17 @@ export default function LoginPage() {
       })
       if (signInError) {
         setError(signInError.message ?? 'Sign in failed')
+        setLoading(false)
         return
       }
-      router.push('/')
+      // Don't navigate here — better-auth's session atom refreshes
+      // asynchronously (10ms after sign-in). If we router.push('/')
+      // immediately, the home page sees stale isAuthenticated=false
+      // and bounces back to /login. Instead, keep the spinner visible
+      // and let the useEffect above redirect once useSession() reflects
+      // the new session.
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed')
-    } finally {
       setLoading(false)
     }
   }
