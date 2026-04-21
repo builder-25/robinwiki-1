@@ -18,7 +18,10 @@
  * never reimplement the regex locally.
  */
 
-import { WIKI_LINK_RE } from '@robin/shared'
+// Inlined copy of WIKI_LINK_RE from @robin/shared/wiki-links.ts.
+// Importing from the @robin/shared barrel pulls prompts/index.js which
+// uses node:fs — Turbopack refuses to bundle that graph for the browser.
+const WIKI_LINK_RE = /\[\[(?:([a-z]+):)?([a-z0-9-]+)\]\]/g
 
 /**
  * Marker value carried on the synthetic span's `data-wiki-chip-key`

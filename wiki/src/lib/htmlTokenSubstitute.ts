@@ -35,7 +35,9 @@
 
 import { useEffect, type RefObject } from 'react'
 import type { WikiRef } from '@/lib/sidecarTypes'
-import { WIKI_LINK_RE } from '@robin/shared'
+// Inlined from @robin/shared/wiki-links.ts — avoids poisoning the client
+// bundle with prompts/index.js (which uses node:fs).
+const WIKI_LINK_RE = /\[\[(?:([a-z]+):)?([a-z0-9-]+)\]\]/g
 
 /** Map from `${kind}:${slug}` (or unqualified `${slug}`) to a `WikiRef`. */
 export type RefsMap = Record<string, WikiRef>
