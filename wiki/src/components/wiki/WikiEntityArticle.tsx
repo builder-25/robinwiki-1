@@ -324,6 +324,8 @@ export type WikiEntityArticleProps = {
   customBottomSections?: ReactNode;
   /** Real wiki id for settings-mode PUT. Prototype pages omit → 'preview' sentinel. */
   wikiId?: string;
+  /** Called after local save completes — persist to backend here. */
+  onSave?: (data: { title: string; chipLabel: string; content: string }) => void;
   children: ReactNode;
 };
 
@@ -365,6 +367,7 @@ export function WikiEntityArticle({
   renderCustomInfobox,
   customBottomSections,
   wikiId,
+  onSave,
   children,
 }: WikiEntityArticleProps) {
   const [infoVisible, setInfoVisible] = useState(true);
@@ -579,7 +582,10 @@ export function WikiEntityArticle({
                       <button
                         type="button"
                         className="wiki-article-tab"
-                        onClick={handleSave}
+                        onClick={() => {
+                          handleSave();
+                          onSave?.({ title: draftTitle || title, chipLabel: draftChipLabel || chipLabel, content: draftContent });
+                        }}
                         style={{
                           background: "none",
                           borderTop: "none",
