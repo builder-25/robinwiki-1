@@ -135,6 +135,7 @@ fragmentsRouter.post('/', zValidator('json', createFragmentBodySchema, validatio
       slug,
       entryId,
       title,
+      content: content ?? '',
       dedupHash: content ? computeContentHash(content) : null,
       tags,
     })
