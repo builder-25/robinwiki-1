@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { wikiRefsMapSchema, wikiSectionSchema } from '@robin/shared/schemas/sidecar'
 import { lookupKeySchema, objectStateSchema, paginationQuerySchema } from './base.schema.js'
 
 // ── Response schemas ────────────────────────────────────────────────────────
@@ -15,6 +16,9 @@ export const entryResponseSchema = z.object({
   ingestStatus: z.string(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
+  // ── Sidecar (m-wiki-sidecar) — entries never carry an infobox ──
+  refs: wikiRefsMapSchema.default({}),
+  sections: z.array(wikiSectionSchema).default([]),
 })
 
 export const entryCreatedResponseSchema = entryResponseSchema.extend({
