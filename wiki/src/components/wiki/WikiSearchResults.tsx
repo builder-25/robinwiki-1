@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { T } from "@/lib/typography";
 import { WikiTypeBadge } from "@/components/wiki/WikiTypeBadge";
 import { WikiSectionH2 } from "@/components/wiki/WikiEntityArticle";
 import { Spinner } from "@/components/ui/spinner";
+import { Chip } from "@/components/ui/chip";
 import { useSearch } from "@/hooks/useSearch";
 
 function SectionRule() {
@@ -19,43 +20,6 @@ function SectionRule() {
         flexShrink: 0,
       }}
     />
-  );
-}
-
-function FilterChip({
-  icon,
-  label,
-  active,
-  onClick,
-}: {
-  icon: ReactNode;
-  label: string;
-  active?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        active
-          ? "wiki-search-filter-chip wiki-search-filter-chip--active"
-          : "wiki-search-filter-chip"
-      }
-    >
-      <span className="flex h-3 w-3 shrink-0 items-center justify-center">
-        {icon}
-      </span>
-      <span
-        style={{
-          ...T.micro,
-          letterSpacing: "-0.0288px",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {label}
-      </span>
-    </button>
   );
 }
 
@@ -184,7 +148,7 @@ function SearchResultRow({ item }: { item: SearchResultItem }) {
         className="wiki-search-result-meta flex items-center"
         style={{
           ...T.micro,
-          color: "#444444",
+          color: "var(--wiki-count)",
           gap: 3,
           whiteSpace: "nowrap",
         }}
@@ -271,20 +235,20 @@ export default function WikiSearchResults({ query }: { query: string }) {
       </div>
 
       <div className="flex flex-wrap items-start" style={{ gap: 8 }}>
-        <FilterChip
+        <Chip
           icon={<IconCircle />}
           label={`All (${totalCount})`}
           active={filter === "all"}
           onClick={() => setFilter("all")}
         />
-        <FilterChip
+        <Chip
           icon={<IconFileCode />}
           label={`Fragments (${fragmentCount})`}
           active={filter === "fragments"}
           onClick={() => setFilter("fragments")}
         />
         {wikiCount > 0 && (
-          <FilterChip
+          <Chip
             icon={<IconWiki />}
             label={`Wiki (${wikiCount})`}
             active={filter === "wiki"}
@@ -292,7 +256,7 @@ export default function WikiSearchResults({ query }: { query: string }) {
           />
         )}
         {peopleCount > 0 && (
-          <FilterChip
+          <Chip
             icon={<IconUserRound />}
             label={`People (${peopleCount})`}
             active={filter === "people"}

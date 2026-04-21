@@ -31,7 +31,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
           onClick={onMenuToggle}
           className="flex cursor-pointer items-center justify-center"
           style={{
-            padding: "5px 13px",
+            padding: "4px 12px",
             height: 32,
             borderRadius: 2,
             background: "none",
@@ -189,7 +189,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
                 border: "1px solid var(--card-border)",
                 borderRadius: 6,
                 padding: "4px 0",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+                boxShadow: "var(--shadow-dropdown)",
               }}
             >
               <button

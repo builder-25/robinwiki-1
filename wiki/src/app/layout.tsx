@@ -1,22 +1,13 @@
 import type { Metadata } from "next";
-import { Source_Serif_4, Inter, IBM_Plex_Sans, Geist } from "next/font/google";
+import { STIX_Two_Text, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { ThemeProvider } from "@/context/ThemeContext";
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
-
-const sourceSerif = Source_Serif_4({
-  variable: "--font-source-serif-4",
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
-  display: "swap",
-});
-
-const inter = Inter({
-  variable: "--font-inter",
+const stixTwoText = STIX_Two_Text({
+  variable: "--font-stix-two-text",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   display: "swap",
@@ -25,7 +16,14 @@ const inter = Inter({
 const ibmPlexSans = IBM_Plex_Sans({
   variable: "--font-ibm-plex-sans",
   subsets: ["latin"],
-  weight: ["400", "500"],
+  weight: ["400", "500", "600"],
+  display: "swap",
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  variable: "--font-ibm-plex-mono",
+  subsets: ["latin"],
+  weight: ["400"],
   display: "swap",
 });
 
@@ -44,11 +42,10 @@ export default function RootLayout({
       lang="en"
       className={cn(
         "h-full",
-        sourceSerif.variable,
-        inter.variable,
+        stixTwoText.variable,
         ibmPlexSans.variable,
+        ibmPlexMono.variable,
         "font-sans",
-        geist.variable,
       )}
       suppressHydrationWarning
     >

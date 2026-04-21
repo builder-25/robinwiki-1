@@ -96,13 +96,13 @@ function PeopleInfobox({
       </button>
 
       {person.relationship && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <p style={label}>Relationship</p>
           <p style={{ ...body, margin: 0 }}>{person.relationship}</p>
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <p style={label}>Last Updated</p>
         <p
           style={{

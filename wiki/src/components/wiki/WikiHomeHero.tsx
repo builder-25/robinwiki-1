@@ -17,11 +17,11 @@ type HeroFilter = "people" | "fragments" | "wiki";
 
 const FILTER_COLORS: Record<HeroFilter, { fg: string; bg: string }> = {
   // People stays yellow (our deviation)
-  people: { fg: "#854d0e", bg: "#fef9c3" },
+  people: { fg: "var(--wiki-type-people-text)", bg: "var(--wiki-type-people-bg)" },
   // Fragments — pick a neutral fragment color; using the Fact/sky shade
-  fragments: { fg: "#0284c7", bg: "rgba(14, 165, 233, 0.10)" },
+  fragments: { fg: "var(--fragment-type-fact-text)", bg: "var(--fragment-type-fact-bg)" },
   // Wiki — uses the wiki-link blue
-  wiki: { fg: "#3366cc", bg: "rgba(51, 102, 204, 0.10)" },
+  wiki: { fg: "var(--wiki-link)", bg: "rgba(51, 102, 204, 0.10)" },
 };
 
 function HomeSearchBlock({ activeFilter }: { activeFilter: HeroFilter | null }) {
@@ -89,8 +89,8 @@ function FilterChip({
   onToggle: (id: HeroFilter) => void;
 }) {
   const colors = FILTER_COLORS[id];
-  const idleColor = "#a6a6a6";
-  const idleBg = "#f5f5f5";
+  const idleColor = "var(--wiki-count)";
+  const idleBg = "var(--surface-subtle)";
   return (
     <button
       type="button"

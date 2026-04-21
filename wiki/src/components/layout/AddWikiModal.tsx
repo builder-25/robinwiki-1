@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { T } from "@/lib/typography";
 import { Button } from "@/components/ui/button";
 import { ActionButton } from "@/components/ui/action-button";
+import { Toast } from "@/components/ui/toast";
 import {
   Dialog,
   DialogContent,
@@ -441,8 +442,8 @@ export default function AddWikiModal({
                   ? `Customized ${typeLabel} Prompt`
                   : `Default ${typeLabel} Prompt`;
               const badgeColors = wikiPromptEdited
-                ? { fg: "#3366cc", bg: "rgba(51, 102, 204, 0.10)", bd: "#3366cc" }
-                : { fg: "#545353", bg: "#f5f5f5", bd: "#e5e5e5" };
+                ? { fg: "var(--wiki-link)", bg: "rgba(51, 102, 204, 0.10)", bd: "var(--wiki-link)" }
+                : { fg: "var(--input-label)", bg: "var(--surface-subtle)", bd: "var(--btn-disabled-bg)" };
               return (
                 <div
                   className="flex h-10 w-full items-center justify-between rounded-lg border border-input bg-transparent px-2.5"
@@ -501,7 +502,7 @@ export default function AddWikiModal({
               type="button"
               onClick={handleConfirm}
               disabled={submitting}
-              className="rounded-none bg-[#3366cc] text-white hover:bg-[#2a56b0]"
+              className="rounded-none bg-[var(--wiki-link)] text-white hover:bg-[var(--wiki-link-hover)]"
             >
               {locked
                 ? confirmLabel
@@ -580,25 +581,11 @@ export default function AddWikiModal({
         </DialogContent>
       </Dialog>
 
-      {/* Saved toast (kept as a simple fixed banner) */}
-      {!open && showSavedToast ? (
-        <div
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          className="fixed left-1/2 bottom-10 z-[300] -translate-x-1/2 rounded-lg bg-[#1a1a1a] px-5 py-2.5 text-[#fafafa]"
-          style={{
-            ...T.button,
-            fontWeight: 500,
-            letterSpacing: "-0.02px",
-            boxShadow:
-              "0 10px 28px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.06)",
-            pointerEvents: "none",
-          }}
-        >
-          {toastMessage}
-        </div>
-      ) : null}
+      <Toast
+        message={toastMessage}
+        visible={!open && showSavedToast}
+        onDismiss={() => setShowSavedToast(false)}
+      />
     </>
   );
 }

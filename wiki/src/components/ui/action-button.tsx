@@ -26,7 +26,7 @@ export interface ActionButtonProps extends BaseButtonProps {
 }
 
 const brandClasses =
-  "rounded-none bg-[#3366cc] text-white hover:bg-[#2a56b0] disabled:bg-[var(--btn-disabled-bg)] disabled:text-[var(--btn-disabled-text)]";
+  "rounded-none bg-[var(--wiki-link)] text-white hover:bg-[var(--wiki-link-hover)] disabled:bg-[var(--btn-disabled-bg)] disabled:text-[var(--btn-disabled-text)]";
 
 export function ActionButton({
   loading = false,

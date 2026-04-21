@@ -24,6 +24,7 @@ import {
   getWikiTypeIcon,
 } from "@/components/wiki/WikiTypeBadge";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { Spinner } from "@/components/ui/spinner";
 import {
   useExplorerFilters,
@@ -193,35 +194,20 @@ function ExplorerInner() {
                   const isExplicit = filters.types.includes(type);
 
                   return (
-                    <button
+                    <Chip
                       key={type}
-                      type="button"
+                      icon={<Icon size={12} strokeWidth={1.5} />}
+                      label={meta.label}
+                      active={isActive}
                       onClick={() => toggleType(type)}
-                      className={
-                        isActive
-                          ? "wiki-search-filter-chip wiki-search-filter-chip--active"
-                          : "wiki-search-filter-chip"
-                      }
                     >
-                      <span className="relative flex h-3 w-3 shrink-0 items-center justify-center">
-                        <Icon size={12} strokeWidth={1.5} />
-                      </span>
-                      <span
-                        style={{
-                          ...T.micro,
-                          letterSpacing: "-0.0288px",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {meta.label}
-                      </span>
                       {isExplicit && (
                         <span
                           className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-current"
                           aria-hidden
                         />
                       )}
-                    </button>
+                    </Chip>
                   );
                 })}
               </div>
@@ -243,59 +229,33 @@ function ExplorerInner() {
                   Group
                 </span>
                 <div className="flex flex-wrap items-start" style={{ gap: 8 }}>
-                  <button
-                    type="button"
+                  <Chip
+                    label="All groups"
+                    active={filters.group === null}
                     onClick={() => setFilter("group", null)}
-                    className={
-                      filters.group === null
-                        ? "wiki-search-filter-chip wiki-search-filter-chip--active"
-                        : "wiki-search-filter-chip"
-                    }
-                  >
-                    <span
-                      style={{
-                        ...T.micro,
-                        letterSpacing: "-0.0288px",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      All groups
-                    </span>
-                  </button>
+                  />
                   {groups.map((group) => (
-                    <button
+                    <Chip
                       key={group.id}
-                      type="button"
+                      icon={
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full"
+                          style={{
+                            backgroundColor:
+                              group.color || "var(--wiki-count)",
+                          }}
+                          aria-hidden
+                        />
+                      }
+                      label={group.name}
+                      active={filters.group === group.id}
                       onClick={() =>
                         setFilter(
                           "group",
                           filters.group === group.id ? null : group.id,
                         )
                       }
-                      className={
-                        filters.group === group.id
-                          ? "wiki-search-filter-chip wiki-search-filter-chip--active"
-                          : "wiki-search-filter-chip"
-                      }
-                    >
-                      <span
-                        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{
-                          backgroundColor:
-                            group.color || "var(--wiki-count)",
-                        }}
-                        aria-hidden
-                      />
-                      <span
-                        style={{
-                          ...T.micro,
-                          letterSpacing: "-0.0288px",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {group.name}
-                      </span>
-                    </button>
+                    />
                   ))}
                 </div>
               </div>
@@ -323,49 +283,23 @@ function ExplorerInner() {
                     { value: "alpha", label: "A-Z" },
                   ] as const
                 ).map(({ value, label }) => (
-                  <button
+                  <Chip
                     key={value}
-                    type="button"
+                    label={label}
+                    active={filters.sort === value}
                     onClick={() => setFilter("sort", value)}
-                    className={
-                      filters.sort === value
-                        ? "wiki-search-filter-chip wiki-search-filter-chip--active"
-                        : "wiki-search-filter-chip"
-                    }
-                  >
-                    <span
-                      style={{
-                        ...T.micro,
-                        letterSpacing: "-0.0288px",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {label}
-                    </span>
-                  </button>
+                  />
                 ))}
               </div>
             </div>
 
             {/* Clear filters */}
             {hasActiveFilters && (
-              <button
-                type="button"
+              <Chip
+                icon={<X size={12} strokeWidth={1.5} />}
+                label="Clear filters"
                 onClick={clearFilters}
-                className="wiki-search-filter-chip"
-                style={{ gap: 6 }}
-              >
-                <X size={12} strokeWidth={1.5} />
-                <span
-                  style={{
-                    ...T.micro,
-                    letterSpacing: "-0.0288px",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Clear filters
-                </span>
-              </button>
+              />
             )}
           </div>
         )}

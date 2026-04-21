@@ -57,19 +57,19 @@ function FragmentInfobox({ fragment }: { fragment: FragmentData }) {
         alignSelf: "flex-start",
       }}
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <p style={label}>Type</p>
         <p style={body}>{fragment.type}</p>
       </div>
 
       {fragment.tags.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <p style={label}>Tags</p>
           <p style={body}>{fragment.tags.join(", ")}</p>
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <p style={label}>Created</p>
         <p style={body}>{formatDate(fragment.createdAt)}</p>
       </div>

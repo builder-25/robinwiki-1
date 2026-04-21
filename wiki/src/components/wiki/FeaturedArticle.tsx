@@ -46,7 +46,7 @@ export default function FeaturedArticle() {
       <div
         style={{
           borderBottom: "1px solid var(--wiki-card-border)",
-          backgroundColor: "#eeeeee",
+          backgroundColor: "var(--surface-subtle)",
           padding: "10px 16px",
         }}
       >

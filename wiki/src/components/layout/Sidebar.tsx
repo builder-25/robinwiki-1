@@ -150,8 +150,8 @@ function SidebarSection({
   return (
     <div
       style={{
-        paddingLeft: 22,
-        paddingRight: 14,
+        paddingLeft: 24,
+        paddingRight: 16,
         paddingTop: 16,
         paddingBottom: 24,
       }}

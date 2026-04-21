@@ -22,40 +22,102 @@ type GraphCanvasProps = {
   currentDepth: number;
 };
 
-// Edge / chrome palette
-const EDGE_BASE = "rgba(114, 119, 125, 0.5)";
-const EDGE_WIKILINK = "rgba(51, 102, 204, 0.55)";
-const EDGE_HOVER = "#3366cc";
-const LABEL_COLOR = "#202122";
-const LABEL_COLOR_HOVER = "#000000";
-const SELECTED_STROKE = "#202122";
-const HOVER_STROKE = "#555555";
-const GRID_COLOR = "rgba(162, 169, 177, 0.18)";
-const TOOLTIP_BG = "#ffffff";
-const TOOLTIP_BORDER = "#a2a9b1";
-
-const PERSON_COLOR = "#854d0e";
-const WIKI_FALLBACK = "#475569";
-const FRAGMENT_FALLBACK = "#0284c7";
-
-const SUBTYPE_COLOR: Record<string, string> = {
-  Log: "#475569",
-  Research: "#7c3aed",
-  Belief: "#2563eb",
-  Decision: "#ea580c",
-  Project: "#0891b2",
-  Objective: "#d97706",
-  Skill: "#059669",
-  Agent: "#c026d3",
-  Voice: "#db2777",
-  Principles: "#e11d48",
-  Fact: "#0284c7",
-  Question: "#9333ea",
-  Idea: "#ca8a04",
-  Action: "#16a34a",
-  Quote: "#4f46e5",
-  Reference: "#0d9488",
+// Resolved at mount from CSS custom properties (see useGraphColors below).
+// Fallbacks match the light-mode defaults from globals.css.
+type GraphColors = {
+  edgeBase: string;
+  edgeWikilink: string;
+  edgeHover: string;
+  labelColor: string;
+  labelColorHover: string;
+  selectedStroke: string;
+  hoverStroke: string;
+  gridColor: string;
+  tooltipBg: string;
+  tooltipBorder: string;
+  panelBg: string;
+  personColor: string;
+  wikiFallback: string;
+  fragmentFallback: string;
+  subtypeColors: Record<string, string>;
 };
+
+function readGraphColors(): GraphColors {
+  if (typeof document === "undefined") return defaultGraphColors();
+  const s = getComputedStyle(document.documentElement);
+  const v = (name: string, fb: string) => s.getPropertyValue(name).trim() || fb;
+  return {
+    edgeBase: v("--graph-edge-base", "rgba(114, 119, 125, 0.5)"),
+    edgeWikilink: v("--graph-edge-wikilink", "rgba(51, 102, 204, 0.55)"),
+    edgeHover: v("--wiki-link", "#3366cc"),
+    labelColor: v("--wiki-title", "#202122"),
+    labelColorHover: v("--heading-color", "#000000"),
+    selectedStroke: v("--wiki-title", "#202122"),
+    hoverStroke: v("--wiki-sidebar-text", "#555555"),
+    gridColor: v("--graph-grid", "rgba(162, 169, 177, 0.18)"),
+    tooltipBg: v("--graph-panel-bg", "#ffffff"),
+    tooltipBorder: v("--wiki-nav-border", "#a2a9b1"),
+    panelBg: v("--graph-panel-bg", "#ffffff"),
+    personColor: v("--wiki-type-people-text", "#854d0e"),
+    wikiFallback: v("--wiki-type-log-text", "#475569"),
+    fragmentFallback: v("--fragment-type-fact-text", "#0284c7"),
+    subtypeColors: {
+      Log: v("--wiki-type-log-text", "#475569"),
+      Research: v("--wiki-type-research-text", "#7c3aed"),
+      Belief: v("--wiki-type-belief-text", "#2563eb"),
+      Decision: v("--wiki-type-decision-text", "#ea580c"),
+      Project: v("--wiki-type-project-text", "#0891b2"),
+      Objective: v("--wiki-type-objective-text", "#d97706"),
+      Skill: v("--wiki-type-skill-text", "#059669"),
+      Agent: v("--wiki-type-agent-text", "#c026d3"),
+      Voice: v("--wiki-type-voice-text", "#db2777"),
+      Principles: v("--wiki-type-principles-text", "#e11d48"),
+      Fact: v("--fragment-type-fact-text", "#0284c7"),
+      Question: v("--fragment-type-question-text", "#9333ea"),
+      Idea: v("--fragment-type-idea-text", "#ca8a04"),
+      Action: v("--fragment-type-action-text", "#16a34a"),
+      Quote: v("--fragment-type-quote-text", "#4f46e5"),
+      Reference: v("--fragment-type-reference-text", "#0d9488"),
+    },
+  };
+}
+
+function defaultGraphColors(): GraphColors {
+  return {
+    edgeBase: "rgba(114, 119, 125, 0.5)",
+    edgeWikilink: "rgba(51, 102, 204, 0.55)",
+    edgeHover: "#3366cc",
+    labelColor: "#202122",
+    labelColorHover: "#000000",
+    selectedStroke: "#202122",
+    hoverStroke: "#555555",
+    gridColor: "rgba(162, 169, 177, 0.18)",
+    tooltipBg: "#ffffff",
+    tooltipBorder: "#a2a9b1",
+    panelBg: "#ffffff",
+    personColor: "#854d0e",
+    wikiFallback: "#475569",
+    fragmentFallback: "#0284c7",
+    subtypeColors: {
+      Log: "#475569",
+      Research: "#7c3aed",
+      Belief: "#2563eb",
+      Decision: "#ea580c",
+      Project: "#0891b2",
+      Objective: "#d97706",
+      Skill: "#059669",
+      Agent: "#c026d3",
+      Voice: "#db2777",
+      Principles: "#e11d48",
+      Fact: "#0284c7",
+      Question: "#9333ea",
+      Idea: "#ca8a04",
+      Action: "#16a34a",
+      Quote: "#4f46e5",
+      Reference: "#0d9488",
+    },
+  };
+}
 
 // Physics constants
 const SPRING_LENGTH = 120;
@@ -74,10 +136,10 @@ const HOP_REVEAL_DURATION = 300; // ms per hop level
 // Hop-level opacity
 const HOP_OPACITY = [1, 1, 0.7, 0.45] as const;
 
-function nodeColor(n: GraphNode): string {
-  if (n.type === "person") return PERSON_COLOR;
-  if (n.subtype && SUBTYPE_COLOR[n.subtype]) return SUBTYPE_COLOR[n.subtype];
-  return n.type === "fragment" ? FRAGMENT_FALLBACK : WIKI_FALLBACK;
+function nodeColor(n: GraphNode, colors: GraphColors): string {
+  if (n.type === "person") return colors.personColor;
+  if (n.subtype && colors.subtypeColors[n.subtype]) return colors.subtypeColors[n.subtype];
+  return n.type === "fragment" ? colors.fragmentFallback : colors.wikiFallback;
 }
 
 export default function GraphCanvas({
@@ -98,6 +160,7 @@ export default function GraphCanvas({
   const hoveredRef = useRef<string | null>(null);
   const timeRef = useRef(0);
   const activeTypesRef = useRef(activeTypes);
+  const colorsRef = useRef<GraphColors>(defaultGraphColors());
   const dragRef = useRef<{
     nodeId: string | null;
     isPanning: boolean;
@@ -159,6 +222,11 @@ export default function GraphCanvas({
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dims, setDims] = useState({ width: 0, height: 0 });
+
+  // Read CSS custom properties once at mount
+  useEffect(() => {
+    colorsRef.current = readGraphColors();
+  }, []);
 
   useEffect(() => {
     activeTypesRef.current = activeTypes;
@@ -414,10 +482,11 @@ export default function GraphCanvas({
       }
 
       // Render
+      const gc = colorsRef.current;
       ctx.save();
       ctx.clearRect(0, 0, dims.width, dims.height);
 
-      ctx.fillStyle = "#ffffff";
+      ctx.fillStyle = gc.panelBg;
       ctx.fillRect(0, 0, dims.width, dims.height);
 
       // Subtle grid
@@ -426,7 +495,7 @@ export default function GraphCanvas({
       const gridSize = 40 * zoom;
       const ox = ((pan.x % gridSize) + gridSize) % gridSize;
       const oy = ((pan.y % gridSize) + gridSize) % gridSize;
-      ctx.strokeStyle = GRID_COLOR;
+      ctx.strokeStyle = gc.gridColor;
       ctx.lineWidth = 0.5;
       for (let x = ox; x < dims.width; x += gridSize) {
         ctx.beginPath();
@@ -485,15 +554,15 @@ export default function GraphCanvas({
         } else if (connectedHover) {
           const pulse = Math.sin(t * 3) * 0.15 + 0.85;
           ctx.globalAlpha = egoAlpha;
-          ctx.strokeStyle = EDGE_HOVER;
+          ctx.strokeStyle = gc.edgeHover;
           ctx.lineWidth = 1.75 * pulse;
         } else if (e.edgeType === "wikilink") {
           ctx.globalAlpha = egoAlpha;
-          ctx.strokeStyle = EDGE_WIKILINK;
+          ctx.strokeStyle = gc.edgeWikilink;
           ctx.lineWidth = 1.25;
         } else {
           ctx.globalAlpha = egoAlpha;
-          ctx.strokeStyle = EDGE_BASE;
+          ctx.strokeStyle = gc.edgeBase;
           ctx.lineWidth = 1;
         }
         ctx.stroke();
@@ -520,7 +589,7 @@ export default function GraphCanvas({
         const isHovered = hoveredRef.current === n.id;
         const isSelected = selectedId === n.id;
         const isFocusNode = egoActive && n.id === focusId;
-        const color = nodeColor(n);
+        const color = nodeColor(n, gc);
         const size = n.size * (isHovered ? 1.15 : 1);
 
         // Compute combined alpha
@@ -547,7 +616,7 @@ export default function GraphCanvas({
         ctx.fill();
 
         if (isSelected || isHovered) {
-          ctx.strokeStyle = isSelected ? SELECTED_STROKE : HOVER_STROKE;
+          ctx.strokeStyle = isSelected ? gc.selectedStroke : gc.hoverStroke;
           ctx.lineWidth = isSelected ? 2.5 : 1.5;
           ctx.stroke();
         }
@@ -555,7 +624,7 @@ export default function GraphCanvas({
         // Ego-center ring
         if (isFocusNode) {
           ctx.globalAlpha = 0.8;
-          ctx.strokeStyle = SELECTED_STROKE;
+          ctx.strokeStyle = gc.selectedStroke;
           ctx.lineWidth = 2;
           ctx.beginPath();
           ctx.arc(n.x, n.y, size + 4, 0, Math.PI * 2);
@@ -572,7 +641,7 @@ export default function GraphCanvas({
             if (labelAlpha > 0) {
               ctx.globalAlpha = labelAlpha;
               ctx.font = `500 ${isHovered ? 12 : 11}px Inter, system-ui, sans-serif`;
-              ctx.fillStyle = isHovered ? LABEL_COLOR_HOVER : LABEL_COLOR;
+              ctx.fillStyle = isHovered ? gc.labelColorHover : gc.labelColor;
               ctx.textAlign = "center";
               ctx.textBaseline = "top";
               ctx.fillText(n.label, n.x, n.y + size + 6);
@@ -582,7 +651,7 @@ export default function GraphCanvas({
           // Full-graph mode: show all wiki + person labels
           if ((n.type === "wiki" || n.type === "person") && !dimmed) {
             ctx.font = `500 ${isHovered ? 12 : 11}px Inter, system-ui, sans-serif`;
-            ctx.fillStyle = isHovered ? LABEL_COLOR_HOVER : LABEL_COLOR;
+            ctx.fillStyle = isHovered ? gc.labelColorHover : gc.labelColor;
             ctx.textAlign = "center";
             ctx.textBaseline = "top";
             ctx.fillText(n.label, n.x, n.y + size + 6);
@@ -597,14 +666,14 @@ export default function GraphCanvas({
           const th = 22;
           const tx = n.x - tw / 2;
           const ty = n.y - size - th - 6;
-          ctx.fillStyle = TOOLTIP_BG;
-          ctx.strokeStyle = TOOLTIP_BORDER;
+          ctx.fillStyle = gc.tooltipBg;
+          ctx.strokeStyle = gc.tooltipBorder;
           ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.roundRect(tx, ty, tw, th, 4);
           ctx.fill();
           ctx.stroke();
-          ctx.fillStyle = LABEL_COLOR;
+          ctx.fillStyle = gc.labelColor;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           ctx.fillText(n.label, n.x, ty + th / 2);

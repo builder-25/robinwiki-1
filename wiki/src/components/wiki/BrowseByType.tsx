@@ -222,7 +222,7 @@ export default function BrowseByType() {
     <div
       style={{
         border: "1px solid var(--wiki-card-border)",
-        backgroundColor: "rgba(238, 238, 238, 1)",
+        backgroundColor: "var(--surface-subtle)",
         width: "100%",
       }}
     >

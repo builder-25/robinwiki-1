@@ -160,7 +160,7 @@ const components: Components = {
   pre: ({ children }) => (
     <pre
       style={{
-        backgroundColor: "#f6f8fa",
+        backgroundColor: "var(--code-block-bg)",
         border: "1px solid var(--wiki-card-border)",
         borderRadius: 4,
         padding: 12,

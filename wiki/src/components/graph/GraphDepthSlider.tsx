@@ -18,7 +18,7 @@ export function GraphDepthSlider({ depth, onDepthChange, hasFocus }: GraphDepthS
         bottom: 16,
         left: "50%",
         transform: "translateX(-50%)",
-        background: "#ffffff",
+        background: "var(--graph-panel-bg)",
         border: "1px solid var(--wiki-card-border)",
         padding: "8px 14px",
         display: "flex",

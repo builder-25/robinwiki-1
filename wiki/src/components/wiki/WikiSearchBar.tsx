@@ -1,6 +1,6 @@
 "use client";
 
-import { T } from "@/lib/typography";
+import { cn } from "@/lib/utils";
 
 function SendArrowIcon({ size }: { size: number }) {
   return (
@@ -37,38 +37,33 @@ export default function WikiSearchBar({
   onChange: (v: string) => void;
   onSubmit: () => void;
   placeholder?: string;
-  /** When true, no outer fill/padding (parent provides card, e.g. wiki home) */
   embedded?: boolean;
-  /** Tighter row for the fixed wiki header (50px strip) */
   compact?: boolean;
-  /** `stacked` = ROBIN home: input on top, send button bottom-right (node 217:35530) */
   layout?: "inline" | "stacked";
 }) {
   const hasValue = value.length > 0;
+  const sendSize = layout === "stacked" ? 24 : compact ? 22 : 24;
+  const iconSize = layout === "stacked" ? 16 : compact ? 14 : 16;
+
   const sendBtn = (
     <button
       type="submit"
       aria-label="Search"
+      className={cn(
+        "wiki-search-bar__send",
+        compact && layout !== "stacked" && "wiki-search-bar__send--compact",
+      )}
       style={{
-        flexShrink: 0,
-        width: layout === "stacked" ? 24 : compact ? 22 : 24,
-        height: layout === "stacked" ? 24 : compact ? 22 : 24,
-        minWidth: layout === "stacked" ? 24 : compact ? 22 : 24,
-        minHeight: layout === "stacked" ? 24 : compact ? 22 : 24,
-        padding: layout === "stacked" ? 4 : compact ? 3 : 4,
-        border: "none",
-        borderRadius: 80,
+        width: sendSize,
+        height: sendSize,
+        minWidth: sendSize,
+        minHeight: sendSize,
         background: hasValue
           ? "rgba(0, 0, 0, 0.12)"
           : "var(--wiki-chat-send-bg)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        cursor: "pointer",
-        transition: "background-color 150ms ease",
       }}
     >
-      <SendArrowIcon size={layout === "stacked" ? 16 : compact ? 14 : 16} />
+      <SendArrowIcon size={iconSize} />
     </button>
   );
 
@@ -82,33 +77,15 @@ export default function WikiSearchBar({
         }}
       >
         <label
-          className="border border-[#e5e7ea] focus-within:border-[#c8cdd2] transition-colors"
+          className={cn(
+            "wiki-search-bar__stacked-label border border-[var(--wiki-card-border)] focus-within:border-[var(--wiki-search-border)] transition-colors",
+          )}
           style={{
-            width: "100%",
-            maxWidth: 591,
-            minHeight: 88,
-            padding: 12,
-            boxSizing: "border-box",
             background: embedded ? "transparent" : "var(--wiki-chat-bg)",
             borderRadius: embedded ? 0 : 12,
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-            justifyContent: "center",
-            overflow: "hidden",
-            cursor: "text",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              width: "100%",
-              padding: "4px 8px",
-              borderRadius: 12,
-              boxSizing: "border-box",
-            }}
-          >
+          <div className="flex w-full flex-col" style={{ padding: "4px 8px", borderRadius: 12 }}>
             <input
               type="text"
               value={value}
@@ -117,7 +94,9 @@ export default function WikiSearchBar({
               className="wiki-chat-input min-w-0 w-full bg-transparent outline-none"
               style={{
                 height: 20,
-                ...T.input,
+                fontFamily: "var(--font-ibm-plex-sans), 'IBM Plex Sans', sans-serif",
+                fontSize: 14,
+                fontWeight: 400,
                 letterSpacing: 0,
                 lineHeight: "20px",
                 color: "var(--wiki-title)",
@@ -125,17 +104,7 @@ export default function WikiSearchBar({
               }}
             />
           </div>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              alignItems: "center",
-              justifyContent: "flex-end",
-              width: "100%",
-              gap: 8,
-              borderRadius: 12,
-            }}
-          >
+          <div className="flex w-full flex-wrap items-center justify-end" style={{ gap: 8, borderRadius: 12 }}>
             {sendBtn}
           </div>
         </label>
@@ -152,29 +121,19 @@ export default function WikiSearchBar({
       }}
     >
       <div
+        className={cn(
+          "wiki-search-bar__inline-wrap",
+          embedded && "wiki-search-bar__inline-wrap--embedded",
+        )}
         style={{
-          width: "100%",
-          maxWidth: 591,
-          minHeight: embedded ? undefined : 53,
-          padding: embedded ? 0 : 12,
-          borderRadius: 0,
           background: embedded ? "transparent" : "var(--wiki-chat-bg)",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          boxSizing: "border-box",
         }}
       >
         <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            width: "100%",
-            padding: compact ? "2px 6px" : "4px 8px",
-            borderRadius: 12,
-            gap: compact ? 6 : 8,
-            boxSizing: "border-box",
-          }}
+          className={cn(
+            "wiki-search-bar__input-row",
+            compact && "wiki-search-bar__input-row--compact",
+          )}
         >
           <input
             type="text"
@@ -184,7 +143,9 @@ export default function WikiSearchBar({
             className="wiki-chat-input min-w-0 flex-1 bg-transparent outline-none"
             style={{
               height: compact ? 18 : 20,
-              ...T.input,
+              fontFamily: "var(--font-ibm-plex-sans), 'IBM Plex Sans', sans-serif",
+              fontSize: 14,
+              fontWeight: 400,
               letterSpacing: 0,
               lineHeight: compact ? "18px" : "20px",
               color: "var(--wiki-title)",

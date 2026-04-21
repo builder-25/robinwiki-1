@@ -12,34 +12,53 @@ const TYPE_LABEL: Record<GraphNodeType, string> = {
 };
 
 const TYPE_BADGE_BG: Record<GraphNodeType, string> = {
-  wiki: "#eef2ff",
-  fragment: "#ecfeff",
-  person: "#fef3c7",
+  wiki: "var(--wiki-type-log-bg)",
+  fragment: "var(--fragment-type-fact-bg)",
+  person: "var(--wiki-type-people-bg)",
 };
 
 const TYPE_BADGE_COLOR: Record<GraphNodeType, string> = {
-  wiki: "#475569",
-  fragment: "#0284c7",
-  person: "#854d0e",
+  wiki: "var(--wiki-type-log-text)",
+  fragment: "var(--fragment-type-fact-text)",
+  person: "var(--wiki-type-people-text)",
 };
 
 const SUBTYPE_COLOR: Record<string, string> = {
-  Log: "#475569",
-  Research: "#7c3aed",
-  Belief: "#2563eb",
-  Decision: "#ea580c",
-  Project: "#0891b2",
-  Objective: "#d97706",
-  Skill: "#059669",
-  Agent: "#c026d3",
-  Voice: "#db2777",
-  Principles: "#e11d48",
-  Fact: "#0284c7",
-  Question: "#9333ea",
-  Idea: "#ca8a04",
-  Action: "#16a34a",
-  Quote: "#4f46e5",
-  Reference: "#0d9488",
+  Log: "var(--wiki-type-log-text)",
+  Research: "var(--wiki-type-research-text)",
+  Belief: "var(--wiki-type-belief-text)",
+  Decision: "var(--wiki-type-decision-text)",
+  Project: "var(--wiki-type-project-text)",
+  Objective: "var(--wiki-type-objective-text)",
+  Skill: "var(--wiki-type-skill-text)",
+  Agent: "var(--wiki-type-agent-text)",
+  Voice: "var(--wiki-type-voice-text)",
+  Principles: "var(--wiki-type-principles-text)",
+  Fact: "var(--fragment-type-fact-text)",
+  Question: "var(--fragment-type-question-text)",
+  Idea: "var(--fragment-type-idea-text)",
+  Action: "var(--fragment-type-action-text)",
+  Quote: "var(--fragment-type-quote-text)",
+  Reference: "var(--fragment-type-reference-text)",
+};
+
+const SUBTYPE_BG: Record<string, string> = {
+  Log: "var(--wiki-type-log-bg)",
+  Research: "var(--wiki-type-research-bg)",
+  Belief: "var(--wiki-type-belief-bg)",
+  Decision: "var(--wiki-type-decision-bg)",
+  Project: "var(--wiki-type-project-bg)",
+  Objective: "var(--wiki-type-objective-bg)",
+  Skill: "var(--wiki-type-skill-bg)",
+  Agent: "var(--wiki-type-agent-bg)",
+  Voice: "var(--wiki-type-voice-bg)",
+  Principles: "var(--wiki-type-principles-bg)",
+  Fact: "var(--fragment-type-fact-bg)",
+  Question: "var(--fragment-type-question-bg)",
+  Idea: "var(--fragment-type-idea-bg)",
+  Action: "var(--fragment-type-action-bg)",
+  Quote: "var(--fragment-type-quote-bg)",
+  Reference: "var(--fragment-type-reference-bg)",
 };
 
 type GraphDetailPanelProps = {
@@ -66,7 +85,7 @@ export function GraphDetailPanel({
     right: 0,
     height: "100%",
     width: 240,
-    background: "#ffffff",
+    background: "var(--graph-panel-bg)",
     borderLeft: "1px solid var(--wiki-card-border)",
     padding: 12,
     overflowY: "auto",
@@ -109,7 +128,7 @@ export function GraphDetailPanel({
                   justifyContent: "space-between",
                   alignItems: "center",
                   padding: "6px 8px",
-                  background: active ? "var(--wiki-search-chip-bg)" : "#fafafa",
+                  background: active ? "var(--wiki-search-chip-bg)" : "var(--surface-dialog-footer)",
                   border: "1px solid var(--wiki-card-border)",
                   cursor: "pointer",
                   textAlign: "left",
@@ -242,8 +261,8 @@ export function GraphDetailPanel({
               fontWeight: 500,
               padding: "2px 8px",
               borderRadius: 10,
-              background: `${SUBTYPE_COLOR[selectedNode.subtype] ?? "#666"}18`,
-              color: SUBTYPE_COLOR[selectedNode.subtype] ?? "#666",
+              background: SUBTYPE_BG[selectedNode.subtype] ?? "var(--surface-subtle)",
+              color: SUBTYPE_COLOR[selectedNode.subtype] ?? "var(--wiki-sidebar-text)",
             }}
           >
             {selectedNode.subtype}
@@ -305,7 +324,7 @@ export function GraphDetailPanel({
                     fontWeight: 500,
                     padding: "2px 8px",
                     borderRadius: 10,
-                    background: "#f4f4f4",
+                    background: "var(--surface-subtle)",
                     color: "var(--wiki-sidebar-text)",
                   }}
                 >
@@ -325,7 +344,7 @@ export function GraphDetailPanel({
           width: "100%",
           padding: "8px 12px",
           background: "var(--wiki-title)",
-          color: "#ffffff",
+          color: "var(--accent-fg)",
           border: "none",
           cursor: "pointer",
           ...T.buttonSmall,

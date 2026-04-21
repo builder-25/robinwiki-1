@@ -39,7 +39,7 @@ function EyeOpenIcon() {
     <svg width={17} height={13} viewBox="0 0 17 13" fill="none" aria-hidden>
       <path
         d="M8.5 0.25C4.636 0.25 1.34 2.66 0 6.25C1.34 9.84 4.636 12.25 8.5 12.25C12.364 12.25 15.66 9.84 17 6.25C15.66 2.66 12.364 0.25 8.5 0.25ZM8.5 10.25C6.291 10.25 4.5 8.459 4.5 6.25C4.5 4.041 6.291 2.25 8.5 2.25C10.709 2.25 12.5 4.041 12.5 6.25C12.5 8.459 10.709 10.25 8.5 10.25ZM8.5 4.25C7.395 4.25 6.5 5.145 6.5 6.25C6.5 7.355 7.395 8.25 8.5 8.25C9.605 8.25 10.5 7.355 10.5 6.25C10.5 5.145 9.605 4.25 8.5 4.25Z"
-        fill="rgba(0, 0, 0, 1)"
+        fill="var(--foreground)"
       />
     </svg>
   );
@@ -50,7 +50,7 @@ function EyeClosedIcon() {
     <svg width={17} height={15} viewBox="0 0 17 15" fill="none" aria-hidden>
       <path
         d="M8.5 2.5C10.709 2.5 12.5 4.291 12.5 6.5C12.5 7.02 12.39 7.51 12.21 7.97L14.54 10.3C15.77 9.29 16.73 7.99 17 6.5C15.66 2.91 12.364 0.5 8.5 0.5C7.474 0.5 6.49 0.68 5.57 0.99L7.28 2.7C7.74 2.52 8.22 2.5 8.5 2.5ZM0.94 1.37L2.69 3.12L3.08 3.51C1.73 4.55 0.68 5.93 0 6.5C1.34 10.09 4.636 12.5 8.5 12.5C9.63 12.5 10.71 12.28 11.71 11.89L12.08 12.26L14.38 14.56L15.33 13.61L1.89 0.42L0.94 1.37ZM5.18 5.61L6.32 6.75C6.29 6.83 6.27 6.92 6.27 7C6.27 8.105 7.165 9 8.27 9C8.35 9 8.44 8.98 8.52 8.95L9.66 10.09C9.24 10.3 8.78 10.43 8.27 10.43C6.061 10.43 4.27 8.639 4.27 6.43C4.27 5.92 4.4 5.46 4.61 5.04L5.18 5.61ZM8.36 4.08L10.69 6.41L10.71 6.27C10.71 5.165 9.815 4.27 8.71 4.27L8.36 4.08Z"
-        fill="rgba(0, 0, 0, 1)"
+        fill="var(--foreground)"
       />
     </svg>
   );
@@ -138,12 +138,12 @@ export function WikiInfoboxTypeUpdated({
         </button>
       ) : null}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <p style={infoboxLabel}>Type</p>
         <p style={{ ...infoboxBodyMuted, margin: 0 }}>{typeLabel}</p>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <p style={infoboxLabel}>Last Updated</p>
         <p
           style={{
@@ -235,7 +235,7 @@ export function WikiInfoboxGoalStyle({
       {rows.map((row) => (
         <div
           key={row.label}
-          style={{ display: "flex", flexDirection: "column", gap: 7 }}
+          style={{ display: "flex", flexDirection: "column", gap: 8 }}
         >
           <p style={infoboxLabel}>{row.label}</p>
           <p
@@ -414,14 +414,14 @@ export function WikiEntityArticle({
           maxWidth: 864,
           display: "flex",
           flexDirection: "column",
-          gap: 56,
+          gap: 48,
         }}
       >
         <div
           style={{
             display: "flex",
             flexDirection: "column",
-            gap: 22,
+            gap: 24,
             width: "100%",
           }}
         >
@@ -469,7 +469,7 @@ export function WikiEntityArticle({
                           alignItems: "center",
                           gap: 4,
                           backgroundColor: draftChipColors.bg,
-                          color: "rgba(0, 0, 0, 1)",
+                          color: "var(--foreground)",
                           borderColor: draftChipColors.border,
                           borderWidth: 1,
                           borderStyle: "solid",
@@ -535,7 +535,7 @@ export function WikiEntityArticle({
                     aria-label="Wiki title"
                     style={{
                       margin: 0,
-                      paddingBottom: 7,
+                      paddingBottom: 8,
                       ...T.h1,
                       fontFamily: FONT.SERIF,
                       color: "var(--wiki-title)",
@@ -551,7 +551,7 @@ export function WikiEntityArticle({
                     className="wiki-article-h1"
                     style={{
                       margin: 0,
-                      paddingBottom: 7,
+                      paddingBottom: 8,
                       ...T.h1,
                       fontFamily: FONT.SERIF,
                       color: "var(--wiki-title)",
@@ -570,7 +570,7 @@ export function WikiEntityArticle({
                   style={{
                     display: "flex",
                     alignItems: "flex-end",
-                    gap: 13,
+                    gap: 12,
                     flexShrink: 0,
                   }}
                 >
@@ -589,7 +589,7 @@ export function WikiEntityArticle({
                           ...T.bodySmall,
                           fontFamily: FONT.SANS,
                           lineHeight: "20px",
-                          paddingBottom: 7,
+                          paddingBottom: 8,
                           whiteSpace: "nowrap",
                         }}
                       >
@@ -608,7 +608,7 @@ export function WikiEntityArticle({
                           ...T.bodySmall,
                           fontFamily: FONT.SANS,
                           lineHeight: "20px",
-                          paddingBottom: 7,
+                          paddingBottom: 8,
                           whiteSpace: "nowrap",
                         }}
                       >
@@ -655,7 +655,7 @@ export function WikiEntityArticle({
                             ...T.bodySmall,
                             fontFamily: FONT.SANS,
                             lineHeight: "20px",
-                            paddingBottom: 7,
+                            paddingBottom: 8,
                             whiteSpace: "nowrap",
                           }}
                         >

@@ -1,28 +1,32 @@
 import type { CSSProperties } from "react";
 
 const SERIF =
-  "var(--font-source-serif-4), 'Source Serif 4', Georgia, serif" as const;
-const SANS = "var(--font-inter), 'Inter', sans-serif" as const;
+  "var(--font-stix-two-text), 'STIX Two Text', Georgia, serif" as const;
+const SANS =
+  "var(--font-ibm-plex-sans), 'IBM Plex Sans', sans-serif" as const;
+const MONO =
+  "var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace" as const;
 
-export const FONT = { SERIF, SANS } as const;
+export const FONT = { SERIF, SANS, MONO } as const;
 
 /**
- * Shared type scale — two families only (Source Serif 4 for headings, Inter for everything else).
- * Sizes derived from Wikimedia/Wikipedia Codex design system, adapted for this app.
+ * Shared type scale — three families: STIX Two Text (serif headings),
+ * IBM Plex Sans (body/UI), IBM Plex Mono (code/indices).
+ * Sizes derived from designsys.html spec.
  */
 export const T = {
   hero: {
     fontFamily: SERIF,
-    fontSize: 40,
+    fontSize: 48,
     fontWeight: 400,
-    lineHeight: "48px",
+    lineHeight: "50px",
   } satisfies CSSProperties,
 
   h1: {
     fontFamily: SERIF,
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 400,
-    lineHeight: "35px",
+    lineHeight: "38px",
   } satisfies CSSProperties,
 
   h2: {
@@ -46,11 +50,18 @@ export const T = {
     lineHeight: "20px",
   } satisfies CSSProperties,
 
+  sectionTitle: {
+    fontFamily: SANS,
+    fontSize: 20,
+    fontWeight: 600,
+    lineHeight: "1.3",
+  } satisfies CSSProperties,
+
   body: {
     fontFamily: SANS,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 400,
-    lineHeight: "26px",
+    lineHeight: "22px",
   } satisfies CSSProperties,
 
   bodySmall: {
@@ -105,8 +116,8 @@ export const T = {
 
   cardTitle: {
     fontFamily: SANS,
-    fontSize: 12,
-    fontWeight: 600,
+    fontSize: 15,
+    fontWeight: 500,
     lineHeight: "15px",
   } satisfies CSSProperties,
 
@@ -126,8 +137,8 @@ export const T = {
 
   label: {
     fontFamily: SANS,
-    fontSize: 12,
-    fontWeight: 400,
+    fontSize: 13,
+    fontWeight: 500,
     lineHeight: "16px",
     letterSpacing: "0.32px",
   } satisfies CSSProperties,
@@ -138,5 +149,19 @@ export const T = {
     fontWeight: 400,
     lineHeight: "18px",
     letterSpacing: "0.16px",
+  } satisfies CSSProperties,
+
+  mono: {
+    fontFamily: MONO,
+    fontSize: 13,
+    fontWeight: 400,
+    lineHeight: "1.5",
+  } satisfies CSSProperties,
+
+  monoSmall: {
+    fontFamily: MONO,
+    fontSize: 11,
+    fontWeight: 400,
+    lineHeight: "1.45",
   } satisfies CSSProperties,
 } as const;

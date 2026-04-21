@@ -42,15 +42,15 @@ const formatRelative = (ts: number) => {
 
 const diffStyles = {
   added: {
-    backgroundColor: "#d4f4d4",
-    color: "#14532d",
+    backgroundColor: "var(--diff-added-bg)",
+    color: "var(--diff-added-text)",
     textDecoration: "none",
     padding: "0 1px",
     borderRadius: 2,
   },
   removed: {
-    backgroundColor: "#fbd5d5",
-    color: "#7f1d1d",
+    backgroundColor: "var(--diff-removed-bg)",
+    color: "var(--diff-removed-text)",
     textDecoration: "line-through",
     padding: "0 1px",
     borderRadius: 2,
@@ -193,7 +193,7 @@ export default function WikiHistoryTimeline({ revisions }: WikiHistoryTimelinePr
                 width: 11,
                 height: 11,
                 borderRadius: "50%",
-                background: isLatest ? "#000" : "#fff",
+                background: isLatest ? "var(--foreground)" : "var(--background)",
                 border: "2px solid var(--wiki-meta-line)",
               }}
             />
@@ -240,8 +240,8 @@ export default function WikiHistoryTimeline({ revisions }: WikiHistoryTimelinePr
                     gap: 6,
                   }}
                 >
-                  <span style={{ color: "#14532d" }}>+{diff.added}</span>
-                  <span style={{ color: "#7f1d1d" }}>−{diff.removed}</span>
+                  <span style={{ color: "var(--diff-added-text)" }}>+{diff.added}</span>
+                  <span style={{ color: "var(--diff-removed-text)" }}>−{diff.removed}</span>
                 </span>
               ) : null}
             </div>
@@ -317,7 +317,7 @@ export default function WikiHistoryTimeline({ revisions }: WikiHistoryTimelinePr
                       padding: "10px 12px",
                       border: "1px solid var(--wiki-card-border)",
                       borderRadius: 4,
-                      background: "#fafafa",
+                      background: "var(--code-block-bg)",
                       whiteSpace: "pre-wrap",
                       wordBreak: "break-word",
                       lineHeight: "22px",
