@@ -16,6 +16,10 @@
     "./schemas/sidecar": {
       "import": "./dist/schemas/sidecar.mjs",
       "types": "./dist/schemas/sidecar.d.mts"
+    },
+    "./fixtures": {
+      "import": "./dist/fixtures/index.mjs",
+      "types": "./dist/fixtures/index.d.mts"
     }
   },
   "scripts": {
