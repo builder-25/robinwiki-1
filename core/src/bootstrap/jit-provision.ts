@@ -6,6 +6,7 @@ import { generateDek, loadMasterKey, wrapDek } from '../lib/crypto.js'
 import { logger } from '../lib/logger.js'
 import { producer } from '../queue/producer.js'
 import { runMigrations } from './run-migrations.js'
+import { seedDemoWiki } from './seed-demo-wiki.js'
 
 const log = logger.child({ component: 'jit-provision' })
 
@@ -81,6 +82,11 @@ export async function ensureFirstUser(): Promise<void> {
     })
     .then(() => log.info({ userId }, 'enqueued provision job for keypair generation'))
     .catch((err) => log.error({ userId, err }, 'failed to enqueue provision job'))
+
+  // First-run demo content: seed the Transformer fixture wiki so the user
+  // lands on populated onboarding content and we smoke-test the wiki stack.
+  // Idempotent + error-isolated inside seedDemoWiki — never blocks sign-in.
+  await seedDemoWiki()
 
   provisioned = true
   log.info({ userId, email }, 'first user provisioned with DEK and password_reset_required=true')
