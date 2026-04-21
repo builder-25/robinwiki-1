@@ -3,8 +3,11 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { T } from "@/lib/typography";
+import { WikiChip } from "@/components/wiki/WikiChip";
+import remarkWikiTokens, { WIKI_CHIP_DATA_ATTR } from "@/lib/remarkWikiTokens";
+import { refToHref, type RefsMap } from "@/lib/htmlTokenSubstitute";
 
 const baseText: CSSProperties = {
   ...T.bodySmall,
@@ -12,188 +15,243 @@ const baseText: CSSProperties = {
   lineHeight: 1.6,
 };
 
-const components: Components = {
-  h1: ({ children }) => (
-    <h2
-      style={{
-        ...T.h2,
-        color: "var(--wiki-article-h2)",
-        margin: "24px 0 8px",
-        borderBottom: "1px solid var(--wiki-card-border)",
-        paddingBottom: 4,
-      }}
-    >
-      {children}
-    </h2>
-  ),
-  h2: ({ children }) => (
-    <h2
-      style={{
-        ...T.h2,
-        color: "var(--wiki-article-h2)",
-        margin: "24px 0 8px",
-        borderBottom: "1px solid var(--wiki-card-border)",
-        paddingBottom: 4,
-      }}
-    >
-      {children}
-    </h2>
-  ),
-  h3: ({ children }) => (
-    <h3
-      style={{
-        ...T.h3,
-        color: "var(--wiki-article-h2)",
-        margin: "20px 0 6px",
-      }}
-    >
-      {children}
-    </h3>
-  ),
-  h4: ({ children }) => (
-    <h4
-      style={{
-        ...T.h4,
-        color: "var(--wiki-article-h2)",
-        margin: "16px 0 4px",
-      }}
-    >
-      {children}
-    </h4>
-  ),
-  p: ({ children }) => (
-    <p style={{ ...baseText, margin: "8px 0" }}>{children}</p>
-  ),
-  a: ({ href, children }) => (
-    <a
-      href={href}
-      style={{
-        color: "var(--wiki-article-link)",
-        textDecoration: "underline",
-        textDecorationSkipInk: "none",
-      }}
-      target={href?.startsWith("http") ? "_blank" : undefined}
-      rel={href?.startsWith("http") ? "noopener noreferrer" : undefined}
-    >
-      {children}
-    </a>
-  ),
-  ul: ({ children }) => (
-    <ul
-      style={{
-        ...baseText,
-        listStyle: "disc",
-        paddingLeft: 24,
-        margin: "8px 0",
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-      }}
-    >
-      {children}
-    </ul>
-  ),
-  ol: ({ children }) => (
-    <ol
-      style={{
-        ...baseText,
-        listStyle: "decimal",
-        paddingLeft: 24,
-        margin: "8px 0",
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-      }}
-    >
-      {children}
-    </ol>
-  ),
-  li: ({ children }) => <li style={{ margin: 0 }}>{children}</li>,
-  strong: ({ children }) => (
-    <strong style={{ fontWeight: 600 }}>{children}</strong>
-  ),
-  em: ({ children }) => <em>{children}</em>,
-  blockquote: ({ children }) => (
-    <blockquote
-      style={{
-        borderLeft: "3px solid var(--wiki-card-border)",
-        paddingLeft: 16,
-        margin: "12px 0",
-        color: "var(--wiki-article-text)",
-        opacity: 0.8,
-        fontStyle: "italic",
-      }}
-    >
-      {children}
-    </blockquote>
-  ),
-  code: ({ children, className }) => {
-    const isBlock = className?.startsWith("language-");
-    if (isBlock) {
+/**
+ * Extract the token-key attribute from a synthetic `<span>` emitted by
+ * `remarkWikiTokens`. React converts the `data-wiki-chip-key` attribute
+ * we set in the plugin into a prop with the same name on the element
+ * component, so we read it directly from props.
+ */
+function resolveChipProps(
+  props: Record<string, unknown>,
+): { chipKey: string; raw: ReactNode } | null {
+  const key = props[WIKI_CHIP_DATA_ATTR];
+  if (typeof key !== "string" || key.length === 0) return null;
+  // children carries the original raw token text (e.g. "[[person:foo]]")
+  // so we can fall back to it when refs has no entry (Q1 locked decision).
+  const raw = (props as { children?: ReactNode }).children ?? key;
+  return { chipKey: key, raw };
+}
+
+function buildComponents(refs: RefsMap | undefined): Components {
+  const renderSpan: NonNullable<Components["span"]> = (rawProps) => {
+    // react-markdown threads a `node` extra prop when `passNode` is on;
+    // strip it so it never leaks onto the DOM where React would warn.
+    const { children, node: _node, ...rest } =
+      rawProps as typeof rawProps & { node?: unknown };
+    void _node;
+
+    const resolved = resolveChipProps({ ...rest, children } as Record<string, unknown>);
+    if (!resolved) {
+      // Not a wiki-chip span — pass through untouched.
+      return <span {...rest}>{children}</span>;
+    }
+
+    const ref = refs?.[resolved.chipKey];
+    if (!ref) {
+      // Q1: unresolved tokens render as raw `[[kind:slug]]` plain text.
+      return <>{resolved.raw}</>;
+    }
+
+    // Q2: single chip style — pass label + href only, no kind variant.
+    return <WikiChip label={ref.label} href={refToHref(ref)} />;
+  };
+
+  return {
+    span: renderSpan,
+    h1: ({ children }) => (
+      <h2
+        style={{
+          ...T.h2,
+          color: "var(--wiki-article-h2)",
+          margin: "24px 0 8px",
+          borderBottom: "1px solid var(--wiki-card-border)",
+          paddingBottom: 4,
+        }}
+      >
+        {children}
+      </h2>
+    ),
+    h2: ({ children }) => (
+      <h2
+        style={{
+          ...T.h2,
+          color: "var(--wiki-article-h2)",
+          margin: "24px 0 8px",
+          borderBottom: "1px solid var(--wiki-card-border)",
+          paddingBottom: 4,
+        }}
+      >
+        {children}
+      </h2>
+    ),
+    h3: ({ children }) => (
+      <h3
+        style={{
+          ...T.h3,
+          color: "var(--wiki-article-h2)",
+          margin: "20px 0 6px",
+        }}
+      >
+        {children}
+      </h3>
+    ),
+    h4: ({ children }) => (
+      <h4
+        style={{
+          ...T.h4,
+          color: "var(--wiki-article-h2)",
+          margin: "16px 0 4px",
+        }}
+      >
+        {children}
+      </h4>
+    ),
+    p: ({ children }) => (
+      <p style={{ ...baseText, margin: "8px 0" }}>{children}</p>
+    ),
+    a: ({ href, children }) => (
+      <a
+        href={href}
+        style={{
+          color: "var(--wiki-article-link)",
+          textDecoration: "underline",
+          textDecorationSkipInk: "none",
+        }}
+        target={href?.startsWith("http") ? "_blank" : undefined}
+        rel={href?.startsWith("http") ? "noopener noreferrer" : undefined}
+      >
+        {children}
+      </a>
+    ),
+    ul: ({ children }) => (
+      <ul
+        style={{
+          ...baseText,
+          listStyle: "disc",
+          paddingLeft: 24,
+          margin: "8px 0",
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+        }}
+      >
+        {children}
+      </ul>
+    ),
+    ol: ({ children }) => (
+      <ol
+        style={{
+          ...baseText,
+          listStyle: "decimal",
+          paddingLeft: 24,
+          margin: "8px 0",
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+        }}
+      >
+        {children}
+      </ol>
+    ),
+    li: ({ children }) => <li style={{ margin: 0 }}>{children}</li>,
+    strong: ({ children }) => (
+      <strong style={{ fontWeight: 600 }}>{children}</strong>
+    ),
+    em: ({ children }) => <em>{children}</em>,
+    blockquote: ({ children }) => (
+      <blockquote
+        style={{
+          borderLeft: "3px solid var(--wiki-card-border)",
+          paddingLeft: 16,
+          margin: "12px 0",
+          color: "var(--wiki-article-text)",
+          opacity: 0.8,
+          fontStyle: "italic",
+        }}
+      >
+        {children}
+      </blockquote>
+    ),
+    code: ({ children, className }) => {
+      const isBlock = className?.startsWith("language-");
+      if (isBlock) {
+        return (
+          <code
+            style={{
+              display: "block",
+              fontFamily: "monospace",
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
+            {children}
+          </code>
+        );
+      }
       return (
         <code
           style={{
-            display: "block",
             fontFamily: "monospace",
-            fontSize: 13,
-            lineHeight: 1.5,
+            fontSize: "0.9em",
+            backgroundColor: "var(--wiki-card-border)",
+            padding: "1px 4px",
+            borderRadius: 3,
           }}
         >
           {children}
         </code>
       );
-    }
-    return (
-      <code
+    },
+    pre: ({ children }) => (
+      <pre
         style={{
-          fontFamily: "monospace",
-          fontSize: "0.9em",
-          backgroundColor: "var(--wiki-card-border)",
-          padding: "1px 4px",
-          borderRadius: 3,
+          backgroundColor: "var(--code-block-bg)",
+          border: "1px solid var(--wiki-card-border)",
+          borderRadius: 4,
+          padding: 12,
+          margin: "12px 0",
+          overflow: "auto",
+          fontSize: 13,
+          lineHeight: 1.5,
         }}
       >
         {children}
-      </code>
-    );
-  },
-  pre: ({ children }) => (
-    <pre
-      style={{
-        backgroundColor: "var(--code-block-bg)",
-        border: "1px solid var(--wiki-card-border)",
-        borderRadius: 4,
-        padding: 12,
-        margin: "12px 0",
-        overflow: "auto",
-        fontSize: 13,
-        lineHeight: 1.5,
-      }}
-    >
-      {children}
-    </pre>
-  ),
-  hr: () => (
-    <hr
-      style={{
-        border: "none",
-        borderTop: "1px solid var(--wiki-card-border)",
-        margin: "16px 0",
-      }}
-    />
-  ),
-};
+      </pre>
+    ),
+    hr: () => (
+      <hr
+        style={{
+          border: "none",
+          borderTop: "1px solid var(--wiki-card-border)",
+          margin: "16px 0",
+        }}
+      />
+    ),
+  };
+}
 
 interface MarkdownContentProps {
   content: string;
   className?: string;
   style?: CSSProperties;
+  /**
+   * Map from `${kind}:${slug}` (or unqualified slug) to the hydrated
+   * `WikiRef`. When provided, `[[kind:slug]]` tokens in `content` are
+   * rendered as `<WikiChip>` pills; otherwise they fall through as
+   * raw text (Q1: unresolved tokens render their literal `[[...]]`
+   * form — we never silently drop them).
+   */
+  refs?: RefsMap;
 }
 
-export function MarkdownContent({ content, className, style }: MarkdownContentProps) {
+export function MarkdownContent({ content, className, style, refs }: MarkdownContentProps) {
+  const components = buildComponents(refs);
   return (
     <div className={className} style={style}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkWikiTokens]}
+        components={components}
+      >
         {content}
       </ReactMarkdown>
     </div>

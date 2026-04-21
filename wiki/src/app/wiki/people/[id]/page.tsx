@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, UserRound, type LucideIcon } from "lucide-react";
-import { type CSSProperties } from "react";
+import { type CSSProperties, type ReactNode } from "react";
 import { FONT, T } from "@/lib/typography";
 import {
   WikiEntityArticle,
@@ -12,12 +12,67 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { MarkdownContent } from "@/components/wiki/MarkdownContent";
+import { WikiInfobox } from "@/components/wiki/WikiInfobox";
+import { WikiChip } from "@/components/wiki/WikiChip";
+import type {
+  WikiInfobox as WikiInfoboxData,
+  WikiRef,
+} from "@/lib/sidecarTypes";
 import { usePerson } from "@/hooks/usePerson";
 import { useQueryClient } from "@tanstack/react-query";
 
 function formatDate(iso: string) {
   const d = new Date(iso);
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/**
+ * Single-token matcher — expects the whole value to be a `[[kind:slug]]`
+ * reference. Matches the canonical WIKI_LINK_RE in
+ * `packages/shared/src/wiki-links.ts`. Kept inline here so this page does
+ * not reach across the `markdown-token-rendering` phase's file boundary.
+ */
+const REF_VALUE_RE = /^\s*\[\[([a-z]+):([a-z0-9-]+)\]\]\s*$/;
+
+function hrefForRef(ref: WikiRef): string | undefined {
+  switch (ref.kind) {
+    case "person":
+      return `/wiki/people/${ref.id}`;
+    case "fragment":
+      return `/wiki/fragments/${ref.id}`;
+    case "wiki":
+      return `/wiki/${ref.id}`;
+    case "entry":
+      return `/wiki/entries/${ref.id}`;
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Resolve a row value from the sidecar infobox into a ReactNode for the
+ * `<WikiInfobox>` cell. Only `valueKind: 'ref'` gets special handling —
+ * every other kind (`text`, `date`, `status`) renders as plain text per
+ * the Q7 default in PHASES.md.
+ */
+function renderInfoboxValue(
+  row: WikiInfoboxData["rows"][number],
+  refs: Record<string, WikiRef>,
+): ReactNode {
+  if (row.valueKind === "ref") {
+    const match = row.value.match(REF_VALUE_RE);
+    if (match) {
+      const [, kind, slug] = match;
+      const ref = refs[`${kind}:${slug}`];
+      if (ref) {
+        return <WikiChip label={ref.label} href={hrefForRef(ref)} />;
+      }
+    }
+    // Unresolved ref — fall back to the raw string so the user still sees
+    // something meaningful rather than a silent drop.
+    return row.value;
+  }
+  return row.value;
 }
 
 function SettingsIcon() {
@@ -223,6 +278,9 @@ export default function WikiPeoplePage() {
   }
 
   const backlinks = person.backlinks ?? [];
+  const refs: Record<string, WikiRef> = (person.refs ?? {}) as Record<string, WikiRef>;
+  const sidecarInfobox: WikiInfoboxData | null =
+    (person.infobox ?? null) as WikiInfoboxData | null;
   const queryClient = useQueryClient();
 
   const handleSaveToApi = async (data: { title: string; chipLabel: string; content: string }) => {
@@ -252,9 +310,25 @@ export default function WikiPeoplePage() {
       chipLabel="People"
       title={person.name}
       infobox={{ kind: "simple", typeLabel: "People", showSettings: true }}
-      renderCustomInfobox={({ onSettingsClick }) => (
-        <PeopleInfobox person={person} onSettingsClick={onSettingsClick} />
-      )}
+      renderCustomInfobox={({ onSettingsClick }) =>
+        sidecarInfobox ? (
+          <WikiInfobox
+            title={person.name}
+            image={sidecarInfobox.image?.url}
+            caption={sidecarInfobox.caption}
+            sections={[
+              {
+                rows: sidecarInfobox.rows.map((row) => ({
+                  key: row.label,
+                  value: renderInfoboxValue(row, refs),
+                })),
+              },
+            ]}
+          />
+        ) : (
+          <PeopleInfobox person={person} onSettingsClick={onSettingsClick} />
+        )
+      }
       onSave={handleSaveToApi}
       customBottomSections={<PeopleFragmentsSection backlinks={backlinks} />}
     >

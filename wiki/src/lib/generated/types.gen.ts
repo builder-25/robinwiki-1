@@ -4,6 +4,64 @@ export type ClientOptions = {
     baseUrl: 'http://localhost:3000' | (string & {});
 };
 
+export type WikiRefSchema = {
+    id: string;
+    slug: string;
+    label: string;
+    kind: 'person';
+    relationship?: string;
+} | {
+    id: string;
+    slug: string;
+    label: string;
+    kind: 'fragment';
+    snippet?: string;
+} | {
+    id: string;
+    slug: string;
+    label: string;
+    kind: 'wiki';
+    wikiType: string;
+} | {
+    id: string;
+    slug: string;
+    label: string;
+    kind: 'entry';
+    createdAt: string;
+};
+
+export type WikiRefsMapSchema = {
+    [key: string]: WikiRefSchema;
+};
+
+export type WikiInfoboxSchema = {
+    image?: {
+        url: string;
+        alt: string;
+    };
+    caption?: string;
+    rows: Array<{
+        label: string;
+        value: string;
+        valueKind?: 'text' | 'ref' | 'date' | 'status';
+    }>;
+};
+
+export type WikiCitationSchema = {
+    fragmentId: string;
+    fragmentSlug: string;
+    quote?: string;
+    capturedAt: string;
+};
+
+export type WikiSectionSchema = {
+    id: string;
+    anchor: string;
+    heading: string;
+    level: number;
+    citations?: Array<WikiCitationSchema>;
+};
+
 export type ErrorResponseSchema = {
     error: string;
     fields?: unknown;
@@ -41,6 +99,8 @@ export type EntryResponseSchema = {
     ingestStatus: string;
     createdAt: string;
     updatedAt: string;
+    refs?: WikiRefsMapSchema;
+    sections?: Array<WikiSectionSchema>;
 };
 
 export type EntryCreatedResponseSchema = {
@@ -283,6 +343,9 @@ export type WikiDetailResponseSchema = {
         id: string;
         name: string;
     }>;
+    refs?: WikiRefsMapSchema;
+    infobox?: WikiInfoboxSchema;
+    sections?: Array<WikiSectionSchema>;
 };
 
 export type BouncerModeBodySchema = {
@@ -306,6 +369,9 @@ export type PublicWikiResponseSchema = {
     type: string;
     publishedAt: string;
     content: string;
+    refs?: WikiRefsMapSchema;
+    infobox?: WikiInfoboxSchema;
+    sections?: Array<WikiSectionSchema>;
 };
 
 export type ToggleRegenerateBodySchema = {
@@ -417,6 +483,9 @@ export type PersonDetailResponseSchema = {
         type: string;
         fragmentCount: number;
     }>;
+    refs?: WikiRefsMapSchema;
+    infobox?: WikiInfoboxSchema;
+    sections?: Array<WikiSectionSchema>;
 };
 
 export type PersonWithBacklinksResponseSchema = {

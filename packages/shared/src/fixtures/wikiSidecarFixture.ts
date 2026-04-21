@@ -1,18 +1,22 @@
 /**
- * Exhaustive wiki sidecar fixture.
+ * Exhaustive wiki sidecar fixture — Transformer architecture.
  *
- * One sample that exercises every affordance of the wiki detail surface:
+ * One sample that doubles as (a) the canonical preview/design target for the
+ * wiki renderer and (b) the onboarding sample a new user sees on first run.
+ * Content mirrors Vaswani et al.'s "Attention Is All You Need" (2017) so the
+ * prose carries real weight rather than placeholder copy.
+ *
+ * The fixture exercises every affordance of the wiki detail surface:
  * - every token kind (`person`, `fragment`, `wiki`, `entry`)
- * - a deliberately unresolvable token (`[[person:ghost]]`) so the renderer
- *   can prove its graceful-drop path
+ * - a deliberately unresolvable token (`[[person:anonymous-reviewer]]`) so
+ *   the renderer can prove its graceful-drop / raw-text fallback
  * - duplicate heading producing `notes` + `notes-1` anchors
  * - headings at levels 1, 2, and 3
- * - one section with ≥2 populated citations, one section with an empty
- *   citation array
+ * - one section with two populated citations (fragmentId, fragmentSlug,
+ *   quote, capturedAt), and additional sections with empty citation arrays
  * - infobox with image, caption, and rows covering every `valueKind`
  *   (`text`, `ref`, `date`, `status`)
- * - refs map entries for every kind the markdown references (minus the
- *   intentional ghost)
+ * - refs map entries for every kind (person, fragment, wiki, entry)
  *
  * Consumed by:
  * - `GET /preview/wiki/fixture` in `core/src/routes/preview.ts` — canonical
@@ -20,6 +24,8 @@
  * - `POST /preview/wiki` fallback ref resolver — when a caller's
  *   `refsOverride` misses, we fall back to these refs
  * - Prompt/generator regression tests that need a known-good shape
+ * - Seed script + bootstrap flow (downstream phases) — a new user's first
+ *   wiki is populated from this object
  */
 
 import type {
@@ -31,106 +37,169 @@ import type {
 
 /**
  * Raw markdown body for the fixture. Exported separately so `POST /preview/wiki`
- * can use it as a sane default and tests can re-parse it through `buildSidecar`.
+ * can use it as a sane default, tests can re-parse it through `buildSidecar`,
+ * and the downstream seed script can write it to disk/DB without re-inlining.
  */
-export const fixtureMarkdown = `# Robin sample wiki
+export const fixtureMarkdown = `# Transformer Architecture
 
-Short intro paragraph mentioning [[person:sarah-chen]] and [[wiki:onboarding-security]].
+The Transformer is a sequence-to-sequence model introduced by [[person:ashish-vaswani]], [[person:noam-shazeer]], and [[person:niki-parmar]] (with others) in [[entry:attention-paper-abstract]]. It discards recurrence entirely in favour of attention, which makes training dramatically more parallelisable. The original paper is available as [[wiki:attention-is-all-you-need]].
 
 ## Overview
 
-This section cites [[fragment:frag-overview-1]]. It also mentions [[entry:entry-kickoff]] and a ghost reference [[person:ghost]] that should drop silently.
+The core claim is [[fragment:self-attention-replaces-recurrence]]: a stack of self-attention layers can model long-range dependencies without the sequential bottleneck of an RNN. Paired with [[fragment:multi-head-attention-parallelism]], the architecture is able to attend to information from different representation subspaces at different positions simultaneously.
 
-### Scope
+### The Attention Mechanism
 
-A level-3 heading to exercise deeper section rendering.
+Attention is computed as a weighted sum of values, where the weight on each value is a compatibility function between a query and the corresponding key. The specific variant used here is [[fragment:scaled-dot-product-attention]], which divides the dot products by the square root of the key dimension to keep gradients well-behaved.
 
-## Progress
+## Architecture
 
-Work is underway with [[person:alex-kim]].
+[[fragment:encoder-decoder-stacks]] — both encoder and decoder are a stack of N=6 identical layers. [[fragment:positional-encoding-sequence-order]] is added to the input embeddings so the model has access to order information despite the lack of recurrence or convolution.
+
+### Encoder Stack
+
+Each encoder layer has two sub-layers: a multi-head self-attention mechanism and a position-wise fully connected feed-forward network. Residual connections surround each sub-layer, followed by layer normalization.
+
+### Decoder Stack
+
+The decoder inserts a third sub-layer that performs multi-head attention over the encoder's output. The decoder's self-attention is masked to prevent positions from attending to subsequent positions, preserving the autoregressive property.
 
 ## Notes
 
-First Notes section — empty citations.
+A note from [[person:anonymous-reviewer]]: the paper's scalability results generalize far beyond translation, though the original benchmarks focused on WMT 2014 English-to-German and English-to-French.
 
 ## Notes
 
-Duplicate heading; anchor should be notes-1.
+Duplicate heading on purpose — the renderer should disambiguate this anchor as \`notes-1\`.
 `
 
 const refs: Record<string, WikiRef> = {
-  'person:sarah-chen': {
+  'person:ashish-vaswani': {
     kind: 'person',
-    id: 'p1',
-    slug: 'sarah-chen',
-    label: 'Sarah Chen',
-    relationship: 'coworker',
+    id: 'p-ashish-vaswani',
+    slug: 'ashish-vaswani',
+    label: 'Ashish Vaswani',
+    relationship: "Co-author of 'Attention Is All You Need'",
   },
-  'person:alex-kim': {
+  'person:noam-shazeer': {
     kind: 'person',
-    id: 'p2',
-    slug: 'alex-kim',
-    label: 'Alex Kim',
-    relationship: 'manager',
+    id: 'p-noam-shazeer',
+    slug: 'noam-shazeer',
+    label: 'Noam Shazeer',
+    relationship: "Co-author of 'Attention Is All You Need'",
   },
-  'fragment:frag-overview-1': {
+  'person:niki-parmar': {
+    kind: 'person',
+    id: 'p-niki-parmar',
+    slug: 'niki-parmar',
+    label: 'Niki Parmar',
+    relationship: "Co-author of 'Attention Is All You Need'",
+  },
+  'fragment:self-attention-replaces-recurrence': {
     kind: 'fragment',
-    id: 'f1',
-    slug: 'frag-overview-1',
-    label: 'Project kickoff note',
-    snippet: 'We agreed to ship by Q2.',
+    id: 'f-self-attention-replaces-recurrence',
+    slug: 'self-attention-replaces-recurrence',
+    label: 'Self-attention replaces recurrence',
+    snippet: 'A stack of self-attention layers models long-range dependencies without the sequential bottleneck of an RNN.',
   },
-  'wiki:onboarding-security': {
+  'fragment:multi-head-attention-parallelism': {
+    kind: 'fragment',
+    id: 'f-multi-head-attention-parallelism',
+    slug: 'multi-head-attention-parallelism',
+    label: 'Multi-head attention enables parallelism',
+    snippet: 'Running attention h times in parallel lets the model attend to different representation subspaces at different positions.',
+  },
+  'fragment:positional-encoding-sequence-order': {
+    kind: 'fragment',
+    id: 'f-positional-encoding-sequence-order',
+    slug: 'positional-encoding-sequence-order',
+    label: 'Positional encoding injects sequence order',
+    snippet: 'Since the architecture has no recurrence or convolution, sinusoidal positional encodings are added to embeddings to convey order.',
+  },
+  'fragment:scaled-dot-product-attention': {
+    kind: 'fragment',
+    id: 'f-scaled-dot-product-attention',
+    slug: 'scaled-dot-product-attention',
+    label: 'Scaled dot-product attention',
+    snippet: 'Attention(Q, K, V) = softmax(QKᵀ / √d_k) V — the scaling factor keeps gradients stable for large key dimensions.',
+  },
+  'fragment:encoder-decoder-stacks': {
+    kind: 'fragment',
+    id: 'f-encoder-decoder-stacks',
+    slug: 'encoder-decoder-stacks',
+    label: 'Encoder and decoder stacks of N=6 layers',
+    snippet: 'Both the encoder and decoder are a stack of six identical layers, each with residual connections and layer normalization.',
+  },
+  'wiki:attention-is-all-you-need': {
     kind: 'wiki',
-    id: 'w1',
-    slug: 'onboarding-security',
-    label: 'Onboarding security',
-    wikiType: 'project',
+    id: 'w-attention-is-all-you-need',
+    slug: 'attention-is-all-you-need',
+    label: 'Attention Is All You Need (paper)',
+    wikiType: 'reference',
   },
-  'entry:entry-kickoff': {
+  'entry:attention-paper-abstract': {
     kind: 'entry',
-    id: 'e1',
-    slug: 'entry-kickoff',
-    label: 'Kickoff meeting notes',
-    createdAt: '2026-02-01',
+    id: 'e-attention-paper-abstract',
+    slug: 'attention-paper-abstract',
+    label: 'Abstract — Attention Is All You Need',
+    createdAt: '2017-06-12',
   },
-  // NOTE: `person:ghost` is intentionally absent — the markdown references it
-  // so the renderer can prove its graceful-drop path.
+  // NOTE: `person:anonymous-reviewer` is intentionally absent from this map.
+  // The markdown references the token so the renderer can prove its graceful
+  // drop / raw-text fallback for unresolved references.
 }
 
 const infobox: WikiInfobox = {
-  image: { url: '/images/fixture-banner.png', alt: 'Project banner' },
-  caption: 'Sample project wiki for design/preview',
+  image: {
+    url: '/images/transformer-architecture.png',
+    alt: 'Encoder-decoder architecture from the original Transformer paper',
+  },
+  caption: 'Figure 1 from Vaswani et al. — the canonical encoder-decoder diagram.',
   rows: [
-    { label: 'Status', value: 'active', valueKind: 'status' },
-    { label: 'Goal', value: 'Ship sidecar v1', valueKind: 'text' },
-    { label: 'Started', value: '2026-02-01', valueKind: 'date' },
-    { label: 'Owner', value: '[[person:sarah-chen]]', valueKind: 'ref' },
+    { label: 'Status', value: 'complete', valueKind: 'status' },
+    { label: 'Paper', value: 'Attention Is All You Need', valueKind: 'text' },
+    { label: 'Lead author', value: '[[person:ashish-vaswani]]', valueKind: 'ref' },
+    { label: 'Published', value: '2017-06-12', valueKind: 'date' },
   ],
 }
 
 const overviewCitations: WikiCitation[] = [
   {
-    fragmentId: 'f1',
-    fragmentSlug: 'frag-overview-1',
-    quote: 'We agreed to ship by Q2.',
-    capturedAt: '2026-02-01',
+    fragmentId: 'f-self-attention-replaces-recurrence',
+    fragmentSlug: 'self-attention-replaces-recurrence',
+    quote: 'A stack of self-attention layers models long-range dependencies without the sequential bottleneck of an RNN.',
+    capturedAt: '2017-06-12',
   },
   {
-    fragmentId: 'f2',
-    fragmentSlug: 'frag-overview-2',
-    quote: 'Scoped infobox to 5 fields.',
-    capturedAt: '2026-02-05',
+    fragmentId: 'f-multi-head-attention-parallelism',
+    fragmentSlug: 'multi-head-attention-parallelism',
+    quote: 'Running attention h times in parallel lets the model attend to different representation subspaces at different positions.',
+    capturedAt: '2017-06-12',
+  },
+]
+
+const architectureCitations: WikiCitation[] = [
+  {
+    fragmentId: 'f-encoder-decoder-stacks',
+    fragmentSlug: 'encoder-decoder-stacks',
+    quote: 'Both the encoder and decoder are a stack of six identical layers.',
+    capturedAt: '2017-06-12',
+  },
+  {
+    fragmentId: 'f-positional-encoding-sequence-order',
+    fragmentSlug: 'positional-encoding-sequence-order',
+    quote: 'Since the architecture has no recurrence or convolution, sinusoidal positional encodings are added to embeddings to convey order.',
+    capturedAt: '2017-06-12',
   },
 ]
 
 const sections: WikiSection[] = [
-  // H1 covered by the `# Robin sample wiki` title line — emitted as a section
-  // so the renderer sees at least one level-1 entry.
+  // H1 — emitted as a section so renderers that honour top-level headings
+  // still see a level-1 entry.
   {
-    id: 'robin-sample-wiki',
-    anchor: 'robin-sample-wiki',
-    heading: 'Robin sample wiki',
+    id: 'transformer-architecture',
+    anchor: 'transformer-architecture',
+    heading: 'Transformer Architecture',
     level: 1,
     citations: [],
   },
@@ -142,17 +211,31 @@ const sections: WikiSection[] = [
     citations: overviewCitations,
   },
   {
-    id: 'scope',
-    anchor: 'scope',
-    heading: 'Scope',
+    id: 'the-attention-mechanism',
+    anchor: 'the-attention-mechanism',
+    heading: 'The Attention Mechanism',
     level: 3,
     citations: [],
   },
   {
-    id: 'progress',
-    anchor: 'progress',
-    heading: 'Progress',
+    id: 'architecture',
+    anchor: 'architecture',
+    heading: 'Architecture',
     level: 2,
+    citations: architectureCitations,
+  },
+  {
+    id: 'encoder-stack',
+    anchor: 'encoder-stack',
+    heading: 'Encoder Stack',
+    level: 3,
+    citations: [],
+  },
+  {
+    id: 'decoder-stack',
+    anchor: 'decoder-stack',
+    heading: 'Decoder Stack',
+    level: 3,
     citations: [],
   },
   {
@@ -178,20 +261,21 @@ const sections: WikiSection[] = [
  */
 export const wikiSidecarFixture = {
   // ── Thread/wiki core fields ─────────────────────────────────────
-  id: 'wiki-fixture',
-  lookupKey: 'wiki-fixture',
-  slug: 'sample-wiki',
-  name: 'Robin sample wiki',
+  id: 'wiki-transformer-architecture',
+  lookupKey: 'wiki-transformer-architecture',
+  slug: 'transformer-architecture',
+  name: 'Transformer Architecture',
   type: 'project',
   prompt: '',
   state: 'RESOLVED' as const,
-  lastRebuiltAt: '2026-02-10T12:00:00.000Z',
-  createdAt: '2026-02-01T09:00:00.000Z',
-  updatedAt: '2026-02-10T12:00:00.000Z',
-  noteCount: 2,
-  lastUpdated: '2026-02-10T12:00:00.000Z',
-  shortDescriptor: 'Design preview sample',
-  descriptor: 'An exhaustive fixture used by the wiki renderer preview pane.',
+  lastRebuiltAt: '2017-06-12T00:00:00.000Z',
+  createdAt: '2017-06-12T00:00:00.000Z',
+  updatedAt: '2017-06-12T00:00:00.000Z',
+  noteCount: 5,
+  lastUpdated: '2017-06-12T00:00:00.000Z',
+  shortDescriptor: 'Attention-only sequence-to-sequence architecture',
+  descriptor:
+    'A walkthrough of the Transformer, the architecture that replaced recurrence with attention and set the foundation for modern large language models.',
   progress: null,
 
   // ── Wiki detail fields ──────────────────────────────────────────
@@ -199,21 +283,45 @@ export const wikiSidecarFixture = {
   content: fixtureMarkdown,
   fragments: [
     {
-      id: 'f1',
-      slug: 'frag-overview-1',
-      title: 'Project kickoff note',
-      snippet: 'We agreed to ship by Q2.',
+      id: 'f-self-attention-replaces-recurrence',
+      slug: 'self-attention-replaces-recurrence',
+      title: 'Self-attention replaces recurrence',
+      snippet:
+        'A stack of self-attention layers models long-range dependencies without the sequential bottleneck of an RNN.',
     },
     {
-      id: 'f2',
-      slug: 'frag-overview-2',
-      title: 'Infobox scoping',
-      snippet: 'Scoped infobox to 5 fields.',
+      id: 'f-multi-head-attention-parallelism',
+      slug: 'multi-head-attention-parallelism',
+      title: 'Multi-head attention enables parallelism',
+      snippet:
+        'Running attention h times in parallel lets the model attend to different representation subspaces at different positions.',
+    },
+    {
+      id: 'f-positional-encoding-sequence-order',
+      slug: 'positional-encoding-sequence-order',
+      title: 'Positional encoding injects sequence order',
+      snippet:
+        'Sinusoidal positional encodings are added to embeddings so the model has access to order information.',
+    },
+    {
+      id: 'f-scaled-dot-product-attention',
+      slug: 'scaled-dot-product-attention',
+      title: 'Scaled dot-product attention',
+      snippet:
+        'Attention(Q, K, V) = softmax(QKᵀ / √d_k) V — the scale factor stabilises gradients for large key dimensions.',
+    },
+    {
+      id: 'f-encoder-decoder-stacks',
+      slug: 'encoder-decoder-stacks',
+      title: 'Encoder and decoder stacks of N=6 layers',
+      snippet:
+        'Both the encoder and decoder are a stack of six identical layers with residual connections and layer normalization.',
     },
   ],
   people: [
-    { id: 'p1', name: 'Sarah Chen' },
-    { id: 'p2', name: 'Alex Kim' },
+    { id: 'p-ashish-vaswani', name: 'Ashish Vaswani' },
+    { id: 'p-noam-shazeer', name: 'Noam Shazeer' },
+    { id: 'p-niki-parmar', name: 'Niki Parmar' },
   ],
 
   // ── Sidecar (m-wiki-sidecar) ────────────────────────────────────
