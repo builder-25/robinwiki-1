@@ -17,7 +17,8 @@ import {
 import { getWikiTypeIcon } from "@/components/wiki/WikiTypeBadge";
 import { MarkdownContent } from "@/components/wiki/MarkdownContent";
 
-function capitalize(s: string) {
+function capitalize(s: string | null | undefined) {
+  if (!s) return '';
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
