@@ -14,7 +14,8 @@
     "format": "biome format --write ./src",
     "lint": "biome lint ./src",
     "mcp:inspect": "npx @modelcontextprotocol/inspector",
-    "openapi:manifest": "tsx scripts/generate-openapi-manifest.ts"
+    "openapi:manifest": "tsx scripts/generate-openapi-manifest.ts",
+    "seed-fixture": "tsx scripts/seed-fixture.ts"
   },
   "dependencies": {
     "@bull-board/api": "^6.20.3",
