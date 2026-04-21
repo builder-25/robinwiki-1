@@ -9,6 +9,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useWiki } from "@/hooks/useWiki";
 import { useRegenerateWiki } from "@/hooks/useRegenerateWiki";
 import { useDeleteWiki } from "@/hooks/useDeleteWiki";
+import { useQueryClient } from "@tanstack/react-query";
 import ConfirmDialog from "@/components/prompts/ConfirmDialog";
 import {
   WikiEntityArticle,
@@ -17,7 +18,8 @@ import {
 import { getWikiTypeIcon } from "@/components/wiki/WikiTypeBadge";
 import { MarkdownContent } from "@/components/wiki/MarkdownContent";
 
-function capitalize(s: string) {
+function capitalize(s: string | null | undefined) {
+  if (!s) return '';
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
@@ -27,7 +29,31 @@ export default function WikiDetailPage() {
   const { data: wiki, isLoading, error } = useWiki(id);
   const regenerate = useRegenerateWiki();
   const deleteWiki = useDeleteWiki();
+  const queryClient = useQueryClient();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const handleSaveToApi = async (data: { title: string; chipLabel: string; content: string }) => {
+    if (!wiki) return;
+    try {
+      await fetch(`/api/api/content/wiki/${wiki.lookupKey}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          frontmatter: {
+            name: data.title,
+            type: data.chipLabel.toLowerCase(),
+            prompt: wiki.prompt ?? '',
+          },
+          body: data.content,
+        }),
+      });
+      await queryClient.invalidateQueries({ queryKey: ['wiki', id] });
+      await queryClient.invalidateQueries({ queryKey: ['wikis'] });
+    } catch {
+      // Silently fail — local state is already saved
+    }
+  };
 
   if (isLoading) {
     return (
@@ -58,6 +84,7 @@ export default function WikiDetailPage() {
       title={wiki.name}
       infobox={{ kind: "simple", typeLabel, lastUpdated: wiki.updatedAt, showSettings: true }}
       wikiId={wiki.id}
+      onSave={handleSaveToApi}
       customBottomSections={
         <>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -138,7 +165,11 @@ export default function WikiDetailPage() {
       }
     >
       {wiki.wikiContent && (
-        <MarkdownContent content={wiki.wikiContent} style={bodyStyle} />
+        wiki.wikiContent.trim().startsWith('<') ? (
+          <div className="wiki-richtext-rendered" style={bodyStyle} dangerouslySetInnerHTML={{ __html: wiki.wikiContent }} />
+        ) : (
+          <MarkdownContent content={wiki.wikiContent} style={bodyStyle} />
+        )
       )}
 
       {wiki.fragments && wiki.fragments.length > 0 && (

@@ -434,7 +434,7 @@ function ExplorerRow({ item }: { item: ExplorerItem }) {
         }}
       >
         <WikiTypeBadge
-          type={item.subtype ?? (item.type === "person" ? "Person" : item.type)}
+          type={item.subtype ?? (item.type.charAt(0).toUpperCase() + item.type.slice(1))}
         />
 
         {item.groupColor && item.groupName && (

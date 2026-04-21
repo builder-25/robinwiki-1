@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -12,6 +13,7 @@ import {
   Pencil,
   RefreshCw,
 } from "lucide-react";
+import { T, FONT } from "@/lib/typography";
 import { ModelSelector } from "@/components/ModelSelector";
 import {
   isEmbeddingModel,
@@ -43,24 +45,38 @@ import { useRegenerateWiki } from "@/hooks/useRegenerateWiki";
 import { useLogout } from "@/hooks/useLogout";
 import { exportUserData, getUserKeypair } from "@/lib/api";
 
-function SectionLabel({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <p
-      className={cn(
-        "text-xs font-semibold uppercase tracking-wider text-muted-foreground",
-        className,
-      )}
-    >
-      {children}
-    </p>
-  );
-}
+const sectionLabel: CSSProperties = {
+  ...T.micro,
+  fontWeight: 600,
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+  color: "var(--wiki-count)",
+  margin: 0,
+};
+
+const dangerLabel: CSSProperties = {
+  ...sectionLabel,
+  color: "var(--destructive)",
+};
+
+const bodyText: CSSProperties = {
+  ...T.bodySmall,
+  color: "var(--heading-secondary)",
+  margin: 0,
+};
+
+const bodySmallText: CSSProperties = {
+  ...T.micro,
+  color: "var(--heading-secondary)",
+  margin: 0,
+};
+
+const titleText: CSSProperties = {
+  ...T.body,
+  fontWeight: 500,
+  color: "var(--heading-color)",
+  margin: 0,
+};
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -146,57 +162,57 @@ export default function ProfilePage() {
 
   return (
     <AuthGuard>
-    <div className="min-h-screen overflow-y-auto bg-background text-foreground">
+    <div className="min-h-screen overflow-y-auto" style={{ background: "var(--background)", color: "var(--foreground)" }}>
       <div className="mx-auto max-w-[780px] px-10 pt-12 pb-20">
         {/* Back navigation */}
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          size="sm"
           onClick={() => router.push("/wiki")}
-          className="mb-6 -ml-2 h-auto gap-1.5 px-2 text-muted-foreground"
+          className="mb-6 -ml-2 flex cursor-pointer items-center gap-1.5 border-none bg-transparent px-2"
+          style={{ ...T.bodySmall, color: "var(--wiki-count)" }}
         >
           <ArrowLeft className="size-4" strokeWidth={1.5} />
           Back
-        </Button>
+        </button>
 
         {/* Profile header */}
-        <h1 className="font-heading text-3xl font-semibold text-foreground">
+        <h1 style={{ ...T.h1, fontFamily: FONT.SERIF, color: "var(--heading-color)", margin: 0 }}>
           Profile
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p style={{ ...bodyText, marginTop: 4 }}>
           Your Robin control panel
         </p>
 
         {/* MCP CONNECTION */}
-        <section className="mt-8 space-y-3">
-          <SectionLabel>MCP Connection</SectionLabel>
+        <section className="mt-8" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <p style={sectionLabel}>MCP Connection</p>
 
           <Card size="sm" className="gap-3 rounded-none">
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Status</p>
+                <p style={bodyText}>Status</p>
                 <div className="flex items-center gap-1.5">
                   <span className="size-2 rounded-full bg-emerald-500" />
-                  <span className="text-sm font-medium text-emerald-600">
+                  <span style={{ ...T.body, fontWeight: 500, color: "var(--emerald-600, #059669)" }}>
                     Connected
                   </span>
                 </div>
               </div>
 
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                <p style={{ ...T.tiny, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--wiki-count)", margin: 0 }}>
                   Endpoint
                 </p>
-                <div className="mt-1.5 flex items-center gap-3 border border-border bg-muted/40 px-3.5 py-2.5">
-                  <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                <div className="mt-1.5 flex items-center gap-3" style={{ border: "1px solid var(--card-border)", background: "var(--muted)", padding: "10px 14px" }}>
+                  <p style={{ ...T.micro, color: "var(--wiki-count)", margin: 0, minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {endpointUrl}
                   </p>
                   <button
                     type="button"
                     onClick={handleCopy}
                     title={copied ? "Copied!" : "Copy endpoint"}
-                    className="flex shrink-0 cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+                    className="flex shrink-0 cursor-pointer border-none bg-transparent"
+                    style={{ color: "var(--wiki-count)", transition: "color 0.15s" }}
                   >
                     {copied ? (
                       <Check className="size-4" strokeWidth={1.75} />
@@ -211,17 +227,17 @@ export default function ProfilePage() {
         </section>
 
         {/* KNOWLEDGE STATS */}
-        <section className="mt-8 space-y-3">
-          <SectionLabel>Knowledge Stats</SectionLabel>
+        <section className="mt-8" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <p style={sectionLabel}>Knowledge Stats</p>
 
           <Card size="sm" className="gap-0 rounded-none py-0">
             <div className="grid grid-cols-4 divide-x divide-border">
               {stats.map((stat) => (
                 <div key={stat.label} className="px-2 py-5 text-center">
-                  <p className="font-heading text-2xl font-semibold text-foreground">
+                  <p style={{ ...T.h1, fontFamily: FONT.SERIF, color: "var(--heading-color)", margin: 0 }}>
                     {stat.count}
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p style={{ ...T.micro, color: "var(--wiki-count)", marginTop: 4, marginBottom: 0 }}>
                     {stat.label}
                   </p>
                 </div>
@@ -231,15 +247,15 @@ export default function ProfilePage() {
         </section>
 
         {/* PROMPTS */}
-        <section className="mt-8 space-y-3">
-          <SectionLabel>Prompts</SectionLabel>
+        <section className="mt-8" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <p style={sectionLabel}>Prompts</p>
           <Card size="sm" className="rounded-none">
             <CardContent className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-medium text-foreground">
+                <p style={titleText}>
                   Customize prompts
                 </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
+                <p style={{ ...bodySmallText, marginTop: 2 }}>
                   Edit how each wiki type structures your knowledge.
                 </p>
               </div>
@@ -248,31 +264,31 @@ export default function ProfilePage() {
                 size="sm"
                 onClick={() => router.push("/profile/prompts")}
               >
-                Manage prompts
+                <span style={T.buttonSmall}>Manage prompts</span>
               </Button>
             </CardContent>
           </Card>
         </section>
 
         {/* AI MODELS */}
-        <section className="mt-8 space-y-3">
-          <SectionLabel>AI Models</SectionLabel>
+        <section className="mt-8" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <p style={sectionLabel}>AI Models</p>
 
           <Card size="sm" className="rounded-none">
             <CardContent className="space-y-1">
-              <p className="text-xs text-muted-foreground">
+              <p style={bodySmallText}>
                 Configure which models Robin uses for each pipeline stage.
               </p>
 
               {modelPrefs.loading ? (
                 <div className="flex items-center gap-2 py-4">
                   <Spinner className="size-4" />
-                  <span className="text-xs text-muted-foreground">
+                  <span style={{ ...T.micro, color: "var(--wiki-count)" }}>
                     Loading models...
                   </span>
                 </div>
               ) : modelPrefs.error && !modelPrefs.preferences ? (
-                <p className="py-4 text-xs text-destructive">
+                <p style={{ ...T.micro, color: "var(--destructive)", paddingTop: 16, paddingBottom: 16 }}>
                   {modelPrefs.error}
                 </p>
               ) : (
@@ -323,13 +339,17 @@ export default function ProfilePage() {
 
               {modelPrefs.saveStatus !== "idle" && (
                 <p
-                  className={cn(
-                    "pt-1 text-xs transition-opacity",
-                    modelPrefs.saveStatus === "saving" &&
-                      "text-muted-foreground",
-                    modelPrefs.saveStatus === "saved" && "text-emerald-600",
-                    modelPrefs.saveStatus === "error" && "text-destructive",
-                  )}
+                  style={{
+                    ...T.micro,
+                    paddingTop: 4,
+                    transition: "opacity 0.15s",
+                    color:
+                      modelPrefs.saveStatus === "saving"
+                        ? "var(--wiki-count)"
+                        : modelPrefs.saveStatus === "saved"
+                          ? "var(--emerald-600, #059669)"
+                          : "var(--destructive)",
+                  }}
                 >
                   {modelPrefs.saveStatus === "saving" && "Saving..."}
                   {modelPrefs.saveStatus === "saved" && "Saved"}
@@ -341,23 +361,24 @@ export default function ProfilePage() {
         </section>
 
         {/* WIKI MANAGEMENT */}
-        <section className="mt-8 space-y-3">
-          <SectionLabel>Wiki Management</SectionLabel>
+        <section className="mt-8" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <p style={sectionLabel}>Wiki Management</p>
 
           <Card size="sm" className="rounded-none">
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-foreground">
+                  <span style={titleText}>
                     {profileQuery.data?.name ?? username}
                   </span>
-                  <span className="text-xs text-muted-foreground">
+                  <span style={{ ...T.micro, color: "var(--wiki-count)" }}>
                     {statsQuery.data?.totalThreads ?? 0} wikis
                   </span>
                 </div>
                 <button
                   type="button"
-                  className="flex shrink-0 cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+                  className="flex shrink-0 cursor-pointer border-none bg-transparent"
+                  style={{ color: "var(--wiki-count)", transition: "color 0.15s" }}
                   title="Edit vault"
                 >
                   <Pencil className="size-4" strokeWidth={1.5} />
@@ -374,13 +395,13 @@ export default function ProfilePage() {
                   onClick={handleRegenerate}
                 >
                   <RefreshCw className={cn("size-3.5", regenStatus === "running" && "animate-spin")} strokeWidth={1.5} />
-                  {regenStatus === "running" ? "Regenerating..." : "Re-profile"}
+                  <span style={T.buttonSmall}>{regenStatus === "running" ? "Regenerating..." : "Re-profile"}</span>
                 </Button>
                 {regenStatus === "done" && (
-                  <span className="text-xs text-emerald-600">All wikis regenerated</span>
+                  <span style={{ ...T.micro, color: "var(--emerald-600, #059669)" }}>All wikis regenerated</span>
                 )}
                 {regenStatus === "error" && (
-                  <span className="text-xs text-destructive">Regeneration failed</span>
+                  <span style={{ ...T.micro, color: "var(--destructive)" }}>Regeneration failed</span>
                 )}
               </div>
             </CardContent>
@@ -388,8 +409,8 @@ export default function ProfilePage() {
         </section>
 
         {/* DATA */}
-        <section className="mt-8 space-y-3">
-          <SectionLabel>Data</SectionLabel>
+        <section className="mt-8" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <p style={sectionLabel}>Data</p>
           <Card size="sm" className="rounded-none">
             <CardContent className="space-y-5">
               <ActionRow
@@ -409,8 +430,8 @@ export default function ProfilePage() {
         </section>
 
         {/* LOG OUT */}
-        <section className="mt-8 space-y-3">
-          <SectionLabel>Session</SectionLabel>
+        <section className="mt-8" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <p style={sectionLabel}>Session</p>
           <Card size="sm" className="rounded-none">
             <CardContent>
               <ActionRow
@@ -424,16 +445,16 @@ export default function ProfilePage() {
         </section>
 
         {/* DANGER ZONE */}
-        <section className="mt-8 space-y-3">
-          <SectionLabel className="text-destructive">Danger zone</SectionLabel>
-          <Card size="sm" className="rounded-none ring-destructive/30">
+        <section className="mt-8" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <p style={dangerLabel}>Danger zone</p>
+          <Card size="sm" className="rounded-none" style={{ borderColor: "color-mix(in srgb, var(--destructive) 30%, transparent)" }}>
             <CardContent>
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">
+                  <p style={titleText}>
                     Delete all data
                   </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
+                  <p style={{ ...bodySmallText, marginTop: 2 }}>
                     Permanently delete all wikis and people
                   </p>
                 </div>
@@ -451,7 +472,7 @@ export default function ProfilePage() {
                         size="sm"
                         className="bg-destructive text-white hover:bg-destructive/90"
                       >
-                        Delete
+                        <span style={T.buttonSmall}>Delete</span>
                       </Button>
                     }
                   />
@@ -464,9 +485,9 @@ export default function ProfilePage() {
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-2">
-                      <Label htmlFor="delete-confirm" className="text-xs">
+                      <Label htmlFor="delete-confirm" style={{ ...T.micro, color: "var(--heading-secondary)" }}>
                         Type{" "}
-                        <span className="font-mono font-semibold text-foreground">
+                        <span style={{ fontFamily: FONT.MONO, fontWeight: 600, color: "var(--heading-color)" }}>
                           {username}
                         </span>{" "}
                         to confirm.
@@ -483,7 +504,7 @@ export default function ProfilePage() {
                       <DialogClose
                         render={
                           <Button type="button" variant="outline" size="sm">
-                            Cancel
+                            <span style={T.buttonSmall}>Cancel</span>
                           </Button>
                         }
                       />
@@ -497,7 +518,7 @@ export default function ProfilePage() {
                           setDeleteConfirm("");
                         }}
                       >
-                        Delete everything
+                        <span style={T.buttonSmall}>Delete everything</span>
                       </Button>
                     </DialogFooter>
                   </DialogContent>
@@ -527,13 +548,13 @@ function ActionRow({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full cursor-pointer items-center justify-between gap-4 text-left"
+      className="flex w-full cursor-pointer items-center justify-between gap-4 border-none bg-transparent text-left"
     >
       <div className="min-w-0">
-        <p className="text-sm font-medium text-foreground">{title}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+        <p style={{ ...T.body, fontWeight: 500, color: "var(--heading-color)", margin: 0 }}>{title}</p>
+        <p style={{ ...T.micro, color: "var(--heading-secondary)", margin: 0, marginTop: 2 }}>{description}</p>
       </div>
-      <span className="shrink-0 text-muted-foreground transition-colors group-hover:text-foreground">
+      <span className="shrink-0" style={{ color: "var(--wiki-count)", transition: "color 0.15s" }}>
         {icon}
       </span>
     </button>

@@ -510,6 +510,23 @@ input:focus {
   border-radius: 3px;
 }
 
+/* Tiptap editor placeholder + minimum editing area */
+.wiki-richtext-editor .ProseMirror {
+  min-height: 200px;
+  outline: none;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--wiki-article-text);
+}
+.wiki-richtext-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--input-placeholder);
+  pointer-events: none;
+  height: 0;
+}
+
 /* (Legacy shells removed — all pages now use .wiki-page.) */
 
 .wiki-cards-row {

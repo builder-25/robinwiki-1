@@ -1,4 +1,9 @@
 import { z } from 'zod'
+import {
+  wikiRefsMapSchema,
+  wikiInfoboxSchema,
+  wikiSectionSchema,
+} from '@robin/shared/schemas/sidecar'
 import { lookupKeySchema, objectStateSchema, queuedResponseSchema } from './base.schema.js'
 
 // ── Progress schemas ───────────────────────────────────────────────────────
@@ -61,6 +66,11 @@ export const wikiDetailResponseSchema = threadResponseSchema.extend({
       name: z.string(),
     })
   ),
+  // ── Sidecar (m-wiki-sidecar) ──
+  // Defaults are empty/null so unmigrated rows and legacy clients keep working.
+  refs: wikiRefsMapSchema.default({}),
+  infobox: wikiInfoboxSchema.nullable().default(null),
+  sections: z.array(wikiSectionSchema).default([]),
 })
 
 export const threadListResponseSchema = z.object({

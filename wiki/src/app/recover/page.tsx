@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { T, FONT } from '@/lib/typography'
 
 export default function RecoverPage() {
   const router = useRouter()
@@ -39,34 +41,61 @@ export default function RecoverPage() {
     }
   }
 
-  const inputStyle = {
-    width: '100%',
-    padding: '8px 12px',
-    border: '1px solid #d1d5db',
-    borderRadius: 8,
-    fontSize: 14,
-    boxSizing: 'border-box' as const,
-  }
-
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+        background: 'var(--bg)',
+        fontFamily: FONT.SANS,
+      }}
+    >
       <div style={{ width: '100%', maxWidth: 360 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, textAlign: 'center' }}>
-          Reset Password
+        <h1
+          style={{
+            ...T.h1,
+            fontFamily: FONT.SERIF,
+            textAlign: 'center',
+            marginBottom: 8,
+            color: 'var(--heading-color)',
+          }}
+        >
+          Reset password
         </h1>
-
-        <p style={{ fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 24 }}>
-          Enter the server secret key to reset your password to the current initial password value.
+        <p
+          style={{
+            ...T.bodySmall,
+            textAlign: 'center',
+            color: 'var(--heading-secondary)',
+            marginBottom: 32,
+          }}
+        >
+          Enter the server secret key to reset your password.
         </p>
 
         {success ? (
-          <p style={{ color: '#16a34a', fontSize: 14, textAlign: 'center' }}>
+          <p
+            style={{
+              ...T.bodySmall,
+              color: 'var(--profile-connected)',
+              textAlign: 'center',
+            }}
+          >
             Password has been reset. Redirecting to login...
           </p>
         ) : (
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div>
-              <label htmlFor="secretKey" style={{ display: 'block', fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label
+                htmlFor="secretKey"
+                style={{
+                  ...T.label,
+                  color: 'var(--input-label)',
+                }}
+              >
                 Server Secret Key
               </label>
               <input
@@ -75,39 +104,53 @@ export default function RecoverPage() {
                 value={secretKey}
                 onChange={(e) => setSecretKey(e.target.value)}
                 required
-                style={inputStyle}
+                style={{
+                  ...T.input,
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid var(--input-border)',
+                  borderRadius: 2,
+                  background: 'transparent',
+                  color: 'var(--heading-color)',
+                  boxSizing: 'border-box',
+                  outline: 'none',
+                }}
               />
             </div>
 
-            {error && <p style={{ color: '#dc2626', fontSize: 14, margin: 0 }}>{error}</p>}
+            {error && (
+              <p style={{ ...T.bodySmall, color: 'var(--destructive)', margin: 0 }}>
+                {error}
+              </p>
+            )}
 
             <button
               type="submit"
               disabled={loading}
               style={{
+                ...T.button,
                 width: '100%',
                 padding: '10px 0',
-                background: '#111',
-                color: '#fff',
+                background: 'var(--btn-primary-bg)',
+                color: 'var(--btn-primary-text)',
                 border: 'none',
-                borderRadius: 8,
-                fontSize: 14,
+                borderRadius: 2,
                 cursor: loading ? 'not-allowed' : 'pointer',
                 opacity: loading ? 0.5 : 1,
               }}
             >
-              {loading ? 'Please wait...' : 'Reset Password'}
+              {loading ? 'Resetting...' : 'Reset password'}
             </button>
           </form>
         )}
 
-        <p style={{ fontSize: 14, textAlign: 'center', marginTop: 16, color: '#666' }}>
-          <a
+        <p style={{ ...T.bodySmall, textAlign: 'center', marginTop: 16 }}>
+          <Link
             href="/login"
-            style={{ color: '#111', textDecoration: 'underline', fontSize: 14 }}
+            style={{ color: 'var(--wiki-link)', textDecoration: 'none' }}
           >
-            Back to login
-          </a>
+            Back to sign in
+          </Link>
         </p>
       </div>
     </div>
