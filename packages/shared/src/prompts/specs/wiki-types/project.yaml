@@ -1,5 +1,5 @@
 name: QuillTheWriter
-version: 1
+version: 2
 category: generation
 display_label: "Project"
 display_description: "A living document tracking an active initiative, its goals, progress, and status"

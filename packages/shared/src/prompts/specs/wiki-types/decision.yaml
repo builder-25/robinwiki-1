@@ -1,5 +1,5 @@
 name: QuillTheWriter
-version: 1
+version: 2
 category: generation
 display_label: "Decision"
 display_description: "A record of a discrete choice, its context, alternatives considered, and reasoning"

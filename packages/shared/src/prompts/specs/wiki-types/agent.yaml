@@ -1,5 +1,5 @@
 name: QuillTheWriter
-version: 1
+version: 2
 category: generation
 display_label: "Agent"
 display_description: "Documentation for a configured AI assistant's purpose, behavior, and capabilities"
