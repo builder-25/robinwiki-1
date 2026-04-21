@@ -12,6 +12,10 @@
     "./prompts": {
       "import": "./dist/prompts/index.mjs",
       "types": "./dist/prompts/index.d.mts"
+    },
+    "./schemas/sidecar": {
+      "import": "./dist/schemas/sidecar.mjs",
+      "types": "./dist/schemas/sidecar.d.mts"
     }
   },
   "scripts": {
