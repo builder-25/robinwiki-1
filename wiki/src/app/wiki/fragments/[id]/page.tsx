@@ -161,7 +161,7 @@ function BacklinksSection({ backlinks }: { backlinks: Array<{ id: string; name: 
                 }}
               >
                 <Link
-                  href={`/wiki/${bl.id}`}
+                  href={bl.type === "person" ? `/wiki/people/${bl.id}` : `/wiki/${bl.id}`}
                   style={{
                     color: "var(--wiki-fragment-link)",
                     textDecoration: "underline",
