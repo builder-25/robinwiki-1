@@ -11,6 +11,7 @@ import { useRegenerateWiki } from "@/hooks/useRegenerateWiki";
 import { useDeleteWiki } from "@/hooks/useDeleteWiki";
 import { useQueryClient } from "@tanstack/react-query";
 import ConfirmDialog from "@/components/prompts/ConfirmDialog";
+import SectionEditor from "@/components/editor/SectionEditor";
 import {
   WikiEntityArticle,
   WikiSectionH2,
@@ -20,8 +21,10 @@ import { MarkdownContent } from "@/components/wiki/MarkdownContent";
 import { WikiInfobox } from "@/components/wiki/WikiInfobox";
 import { WikiChip } from "@/components/wiki/WikiChip";
 import { WikiCitations } from "@/components/wiki/WikiCitations";
+import { WikiEditLink } from "@/components/wiki/WikiFurniture";
 import {
   parseSectionsFromMarkdown,
+  replaceSectionInMarkdown,
   type SectionInfo,
 } from "@/lib/sectionEdit";
 import { useWikiTokenSubstitution } from "@/lib/htmlTokenSubstitute";
@@ -128,6 +131,77 @@ function buildCitationsByAnchor(
 }
 
 /**
+ * Heading styles mirroring `MarkdownContent`'s internal `buildComponents`
+ * heading mapping so that section-scoped headings (rendered by this
+ * page) look identical to headings rendered inside `<MarkdownContent>`
+ * body blocks. Kept inline rather than extracted to a shared module so
+ * the duplication is local and easy to resync when either side drifts.
+ */
+const sectionHeadingStyle: Record<2 | 3 | 4, CSSProperties> = {
+  2: {
+    ...T.h2,
+    color: "var(--wiki-article-h2)",
+    margin: "24px 0 8px",
+    borderBottom: "1px solid var(--wiki-card-border)",
+    paddingBottom: 4,
+  },
+  3: {
+    ...T.h3,
+    color: "var(--wiki-article-h2)",
+    margin: "20px 0 6px",
+  },
+  4: {
+    ...T.h4,
+    color: "var(--wiki-article-h2)",
+    margin: "16px 0 4px",
+  },
+};
+
+/**
+ * Render a section's heading line with a trailing `[edit]` affordance.
+ * The edit link is suppressed for H1 (per the phase spec — editing H1
+ * is equivalent to full-body edit, which lives on the Edit tab) and for
+ * H5/H6 (no visual treatment exists in `MarkdownContent`; fall through
+ * to plain `MarkdownContent` rendering).
+ *
+ * Returns `null` when the level is outside 2–4 so the caller falls back
+ * to rendering the whole section — including its heading — via
+ * `<MarkdownContent>`.
+ */
+function SectionHeadingWithEdit({
+  section,
+  onEdit,
+  showEditLink,
+}: {
+  section: SectionInfo;
+  onEdit: (sectionId: string) => void;
+  showEditLink: boolean;
+}) {
+  const style = sectionHeadingStyle[section.level as 2 | 3 | 4];
+  if (!style) return null;
+
+  const HeadingTag = (section.level === 3
+    ? "h3"
+    : section.level === 4
+      ? "h4"
+      : "h2") as "h2" | "h3" | "h4";
+
+  const editLink = showEditLink ? (
+    <>
+      {" "}
+      <WikiEditLink onClick={() => onEdit(section.id)} />
+    </>
+  ) : null;
+
+  return (
+    <HeadingTag style={style}>
+      {section.heading}
+      {editLink}
+    </HeadingTag>
+  );
+}
+
+/**
  * Render the markdown body as a sequence of section-scoped
  * `<MarkdownContent>` blocks, each followed by its `<WikiCitations>`
  * superscripts. Preamble before the first heading (if any) renders as
@@ -135,17 +209,26 @@ function buildCitationsByAnchor(
  *
  * If the body has no headings, falls back to a single whole-body render
  * — `sections` is empty in that case, so no citations are rendered.
+ *
+ * When `onEditSection` is provided, H2/H3/H4 headings gain a trailing
+ * `[edit]` bracket affordance. H1 is excluded (editing it is equivalent
+ * to whole-body edit). The heading itself is extracted and rendered
+ * separately so the `[edit]` link can sit next to the heading text;
+ * only the section body (lines after the heading) goes through
+ * `<MarkdownContent>`.
  */
 function SectionedMarkdownBody({
   content,
   refs,
   sections,
   style,
+  onEditSection,
 }: {
   content: string;
   refs: Record<string, WikiRef>;
   sections: WikiSection[] | undefined;
   style: CSSProperties;
+  onEditSection?: (sectionId: string) => void;
 }) {
   const parsed: SectionInfo[] = parseSectionsFromMarkdown(content);
   if (parsed.length === 0) {
@@ -169,11 +252,40 @@ function SectionedMarkdownBody({
   }
 
   for (const section of parsed) {
+    const matched = citationsByAnchor.get(section.anchor);
+    const citations = matched?.citations ?? [];
+
+    // H1 never gets the [edit] affordance — it's the document-level
+    // heading and section-editing it is equivalent to full-body edit.
+    // Levels outside 2–4 fall through to plain MarkdownContent so the
+    // `[edit]` affordance isn't shown on H5/H6 that MarkdownContent
+    // renders with default styling.
+    const canExtractHeading =
+      section.level >= 2 && section.level <= 4 && onEditSection !== undefined;
+
+    if (canExtractHeading) {
+      const bodyOnly = lines
+        .slice(section.startLine + 1, section.endLine + 1)
+        .join("\n");
+      blocks.push(
+        <div key={section.anchor} id={section.anchor}>
+          <SectionHeadingWithEdit
+            section={section}
+            onEdit={onEditSection}
+            showEditLink={true}
+          />
+          {bodyOnly.trim().length > 0 && (
+            <MarkdownContent content={bodyOnly} refs={refs} style={style} />
+          )}
+          {citations.length > 0 && <WikiCitations citations={citations} />}
+        </div>,
+      );
+      continue;
+    }
+
     const body = lines
       .slice(section.startLine, section.endLine + 1)
       .join("\n");
-    const matched = citationsByAnchor.get(section.anchor);
-    const citations = matched?.citations ?? [];
     blocks.push(
       <div key={section.anchor} id={section.anchor}>
         <MarkdownContent content={body} refs={refs} style={style} />
@@ -193,6 +305,13 @@ export default function WikiDetailPage() {
   const deleteWiki = useDeleteWiki();
   const queryClient = useQueryClient();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Section-scoped edit state. `editingSectionId` doubles as the
+  // "dialog open" indicator — non-null ⇒ open. The anchor id is stable
+  // across renders as long as the heading text hasn't changed server-side.
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
+  const [sectionSaveError, setSectionSaveError] = useState<string | null>(null);
+  const [isSavingSection, setIsSavingSection] = useState(false);
 
   const handleSaveToApi = async (data: { title: string; chipLabel: string; content: string }) => {
     if (!wiki) return;
@@ -214,6 +333,68 @@ export default function WikiDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ['wikis'] });
     } catch {
       // Silently fail — local state is already saved
+    }
+  };
+
+  /**
+   * Save a section-scoped edit. Re-parses the current wiki body (not a
+   * cached snapshot) so the anchor lookup sees the latest document — if
+   * another tab just regenerated the wiki, this gives us a chance to
+   * surface a stale-section error rather than overwrite the wrong span.
+   *
+   * Heading line is preserved verbatim so anchor slugs stay stable; only
+   * the body after the heading is replaced with the user's edit.
+   */
+  const handleSectionSave = async (sectionId: string, editedBody: string) => {
+    if (!wiki || typeof wiki.wikiContent !== "string") return;
+    const currentBody = wiki.wikiContent;
+    const parsedNow = parseSectionsFromMarkdown(currentBody);
+    const target = parsedNow.find((s) => s.id === sectionId);
+    if (!target) {
+      setSectionSaveError(
+        "This section no longer exists — the wiki may have been regenerated. Close this dialog and reopen the section you want to edit.",
+      );
+      return;
+    }
+    const lines = currentBody.split("\n");
+    const headingLine = lines[target.startLine];
+    const newSectionBody = `${headingLine}\n${editedBody}`;
+    const newFullBody = replaceSectionInMarkdown(
+      currentBody,
+      sectionId,
+      newSectionBody,
+    );
+
+    setIsSavingSection(true);
+    setSectionSaveError(null);
+    try {
+      const response = await fetch(`/api/api/content/wiki/${wiki.lookupKey}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          frontmatter: {
+            name: wiki.name,
+            type: wiki.type,
+            prompt: wiki.prompt ?? "",
+          },
+          body: newFullBody,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`Save failed (${response.status})`);
+      }
+      await queryClient.invalidateQueries({ queryKey: ["wiki", id] });
+      await queryClient.invalidateQueries({ queryKey: ["wikis"] });
+      setEditingSectionId(null);
+    } catch (e) {
+      setSectionSaveError(
+        e instanceof Error
+          ? e.message
+          : "Failed to save. Check your connection and try again.",
+      );
+    } finally {
+      setIsSavingSection(false);
     }
   };
 
@@ -253,6 +434,37 @@ export default function WikiDetailPage() {
   const isHtmlBody =
     typeof wiki.wikiContent === "string" &&
     wiki.wikiContent.trim().startsWith("<");
+
+  // Resolve the currently-editing section's heading + body-only prefill.
+  // Parses the live wiki content so a mid-session regeneration is
+  // detected at dialog-open time — if the anchor no longer resolves,
+  // `editingHeading` stays empty and the dialog surfaces a stale-anchor
+  // message synthesized below instead of showing an empty editor.
+  let editingHeading = "";
+  let editingInitialBody = "";
+  let sectionMissing = false;
+  if (
+    editingSectionId &&
+    typeof wiki.wikiContent === "string" &&
+    !isHtmlBody
+  ) {
+    const parsedForEdit = parseSectionsFromMarkdown(wiki.wikiContent);
+    const target = parsedForEdit.find((s) => s.id === editingSectionId);
+    if (target) {
+      editingHeading = target.heading;
+      const lines = wiki.wikiContent.split("\n");
+      editingInitialBody = lines
+        .slice(target.startLine + 1, target.endLine + 1)
+        .join("\n");
+    } else {
+      sectionMissing = true;
+      editingHeading = editingSectionId;
+    }
+  }
+  const dialogError =
+    sectionMissing && !sectionSaveError
+      ? "This section no longer exists on the current wiki — it may have been regenerated while you weren't looking. Close this dialog and pick a section from the current page."
+      : sectionSaveError;
 
   return (
     <WikiEntityArticle
@@ -410,14 +622,44 @@ export default function WikiDetailPage() {
           // substitution via `remarkWikiTokens` when refs is passed.
           // Rendering section-by-section lets us append `<WikiCitations>`
           // after each section's prose.
+          //
+          // `onEditSection` enables the per-heading `[edit]` bracket
+          // affordance. It's wired here (not on the HTML branch) because
+          // section-scoped editing requires markdown fidelity — when the
+          // body has been round-tripped through Tiptap HTML, the [[token]]
+          // syntax and fenced blocks don't survive cleanly. Q9 default
+          // option (b): hide the affordance on HTML-saved bodies. The
+          // user is told to regenerate to re-enable it.
           <SectionedMarkdownBody
             content={wiki.wikiContent}
             refs={refs}
             sections={sidecarSections}
             style={bodyStyle}
+            onEditSection={(sectionId) => {
+              setSectionSaveError(null);
+              setEditingSectionId(sectionId);
+            }}
           />
         )
       )}
+      <SectionEditor
+        open={editingSectionId !== null}
+        onOpenChange={(next) => {
+          if (!next) {
+            setEditingSectionId(null);
+            setSectionSaveError(null);
+          }
+        }}
+        heading={editingHeading}
+        initialBody={editingInitialBody}
+        isSaving={isSavingSection}
+        error={dialogError}
+        onSave={(body) => {
+          if (editingSectionId && !sectionMissing) {
+            void handleSectionSave(editingSectionId, body);
+          }
+        }}
+      />
 
       {wiki.fragments && wiki.fragments.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
