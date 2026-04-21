@@ -146,10 +146,16 @@ export function WikiTypeBadge({
         backgroundColor: colors.bg,
         color: colors.text,
         borderColor: colors.border,
-        padding: "4px 8px",
+        height: 22,
+        padding: "0 8px",
+        fontSize: 11,
+        fontWeight: 500,
+        letterSpacing: "0.01em",
+        lineHeight: 1,
+        gap: 4,
       }}
     >
-      {badgeIcon ? createElement(badgeIcon) : null}
+      {badgeIcon ? createElement(badgeIcon, { size: 12, strokeWidth: 1.5 }) : null}
       {type === "People" ? "Person" : type}
     </Badge>
   );
