@@ -149,7 +149,19 @@ describe('MCP resolvers (real DB)', () => {
       name: 'AI Infrastructure & Startups',
       type: 'log',
       state: 'RESOLVED',
-      content: '---\ntitle: AI\n---\nWiki body about AI infra.',
+      content:
+        '---\ntitle: AI\n---\n' +
+        '# Overview\n' +
+        'Wiki body about AI infra. Context from [[person:david-chen]].\n\n' +
+        '## Current Status\n' +
+        'See [[wiki:ai-infrastructure]] for prior notes.\n',
+      metadata: {
+        infobox: {
+          rows: [
+            { label: 'Status', value: 'active', valueKind: 'status' },
+          ],
+        },
+      },
       lastRebuiltAt: new Date('2025-06-01'),
     })
 
@@ -160,7 +172,10 @@ describe('MCP resolvers (real DB)', () => {
         title: 'Vector DB Note',
         type: 'observation',
         tags: ['ai', 'databases'],
-        content: '---\ntitle: Vector DB Note\ntags: [ai, databases]\n---\nContent about vector DBs.',
+        content:
+          '---\ntitle: Vector DB Note\ntags: [ai, databases]\n---\n' +
+          '# Vector DB Note\n' +
+          'Content about vector DBs — see [[person:david-chen]].\n',
         entryId: entryKey,
         state: 'RESOLVED',
       },
@@ -183,7 +198,10 @@ describe('MCP resolvers (real DB)', () => {
         name: 'David Chen',
         relationship: 'colleague',
         aliases: ['Dave', 'D. Chen'],
-        content: '---\nname: David Chen\n---\nPerson body about David.',
+        content:
+          '---\nname: David Chen\n---\n' +
+          '# Background\n' +
+          'Person body about David — works with [[wiki:ai-infrastructure]].\n',
         state: 'RESOLVED',
       },
       {
@@ -270,6 +288,36 @@ describe('MCP resolvers (real DB)', () => {
       const result = await listWikis({ db })
       expect(result[0].wikiPreview).toBe('')
     })
+
+    // ─── sidecar shape (list policy: refs only) ───
+
+    it('includes refs for [[kind:slug]] tokens in content', async () => {
+      const result = await listWikis({ db })
+      expect(result).toHaveLength(1)
+      // person:david-chen token in the seed body should resolve to the
+      // fixture person row.
+      expect(result[0].refs).toHaveProperty('person:david-chen')
+      expect(result[0].refs['person:david-chen']).toMatchObject({
+        kind: 'person',
+        slug: 'david-chen',
+        label: 'David Chen',
+      })
+    })
+
+    it('omits infobox and sections from list rows (list policy)', async () => {
+      const result = await listWikis({ db })
+      expect(result[0]).not.toHaveProperty('infobox')
+      expect(result[0]).not.toHaveProperty('sections')
+    })
+
+    it('returns an empty refs map when content has no tokens', async () => {
+      await db
+        .update(wikis)
+        .set({ content: '# Overview\nNo tokens here at all.' })
+        .where(eq(wikis.lookupKey, wikiKey))
+      const result = await listWikis({ db })
+      expect(result[0].refs).toEqual({})
+    })
   })
 
   // ─── getThread ───
@@ -316,6 +364,48 @@ describe('MCP resolvers (real DB)', () => {
         expect(result.fragments[0].slug).toBe('vector-db-note')
       }
     })
+
+    // ─── sidecar shape (full detail) ───
+
+    it('emits sidecar refs/sections/infobox on thread detail', async () => {
+      const result = await getThread({ db }, 'ai-infrastructure')
+      expect('thread' in result).toBe(true)
+      if (!('thread' in result)) return
+
+      // refs: tokens in the seed body
+      expect(result.refs).toHaveProperty('person:david-chen')
+      expect(result.refs['person:david-chen']).toMatchObject({
+        kind: 'person',
+        slug: 'david-chen',
+      })
+      expect(result.refs).toHaveProperty('wiki:ai-infrastructure')
+      expect(result.refs['wiki:ai-infrastructure']).toMatchObject({
+        kind: 'wiki',
+        slug: 'ai-infrastructure',
+      })
+
+      // sections: headings in the seed body with stable slug anchors
+      const anchors = result.sections.map((s) => s.anchor)
+      expect(anchors).toEqual(['overview', 'current-status'])
+      // No LLM-declared citations yet — citations[] is always an array
+      for (const section of result.sections) {
+        expect(Array.isArray(section.citations)).toBe(true)
+      }
+
+      // infobox: sourced from wikis.metadata.infobox (seeded above)
+      expect(result.infobox).toEqual({
+        rows: [{ label: 'Status', value: 'active', valueKind: 'status' }],
+      })
+    })
+
+    it('emits infobox=null when wikis.metadata is unset', async () => {
+      await db.update(wikis).set({ metadata: null }).where(eq(wikis.lookupKey, wikiKey))
+      const result = await getThread({ db }, 'ai-infrastructure')
+      expect('thread' in result).toBe(true)
+      if ('thread' in result) {
+        expect(result.infobox).toBeNull()
+      }
+    })
   })
 
   // ─── getFragment ───
@@ -355,6 +445,30 @@ describe('MCP resolvers (real DB)', () => {
 
       const result = await getFragment({ db }, 'vector-db-note')
       expect('error' in result).toBe(true)
+    })
+
+    // ─── sidecar shape (refs + sections; no infobox for fragments) ───
+
+    it('emits sidecar refs and sections on fragment detail', async () => {
+      const result = await getFragment({ db }, 'vector-db-note')
+      expect('slug' in result).toBe(true)
+      if (!('slug' in result)) return
+
+      expect(result.refs).toHaveProperty('person:david-chen')
+      expect(result.refs['person:david-chen']).toMatchObject({
+        kind: 'person',
+        slug: 'david-chen',
+      })
+
+      const anchors = result.sections.map((s) => s.anchor)
+      expect(anchors).toContain('vector-db-note')
+      for (const section of result.sections) {
+        // Fragments never carry citations — always []
+        expect(section.citations).toEqual([])
+      }
+
+      // Fragments never expose an infobox field
+      expect(result).not.toHaveProperty('infobox')
     })
   })
 
@@ -417,6 +531,51 @@ describe('MCP resolvers (real DB)', () => {
         expect(result.fragments).toHaveLength(0)
       }
     })
+
+    // ─── sidecar shape (refs + server-derived infobox + sections) ───
+
+    it('emits sidecar refs/sections and a server-derived infobox', async () => {
+      const result = await findPersonByQuery({ db }, 'David Chen')
+      expect('person' in result).toBe(true)
+      if (!('person' in result)) return
+
+      // refs drawn from tokens in the person body
+      expect(result.refs).toHaveProperty('wiki:ai-infrastructure')
+      expect(result.refs['wiki:ai-infrastructure']).toMatchObject({
+        kind: 'wiki',
+        slug: 'ai-infrastructure',
+      })
+
+      // sections from the body headings
+      expect(result.sections.map((s) => s.anchor)).toContain('background')
+
+      // Server-derived infobox: contract pins the label set
+      expect(result.infobox).not.toBeNull()
+      const labels = result.infobox!.rows.map((r) => r.label)
+      expect(labels).toContain('Relationship')
+      expect(labels).toContain('Aliases')
+      expect(labels).toContain('First mentioned')
+      expect(labels).toContain('Mentions')
+      // Mentions row reflects the one FRAGMENT_MENTIONS_PERSON edge we seeded
+      const mentions = result.infobox!.rows.find((r) => r.label === 'Mentions')
+      expect(mentions?.value).toBe('1')
+    })
+
+    it('emits infobox=null for a person with empty relationship/aliases and no mentions', async () => {
+      // sarah-jones has no mention edges and an empty body; createdAt is
+      // still set, so the "First mentioned" row will populate. To force the
+      // all-empty case, we have to strip the default-now createdAt too.
+      await db
+        .update(people)
+        .set({ relationship: '', aliases: [], createdAt: null as unknown as Date })
+        .where(eq(people.lookupKey, personKey2))
+
+      const result = await findPersonByQuery({ db }, 'Sarah Jones')
+      expect('person' in result).toBe(true)
+      if ('person' in result) {
+        expect(result.infobox).toBeNull()
+      }
+    })
   })
 
   // ─── findPersonById ───
@@ -451,6 +610,20 @@ describe('MCP resolvers (real DB)', () => {
       await db.update(people).set({ deletedAt: new Date() }).where(eq(people.lookupKey, personKey1))
       const result = await findPersonById({ db }, personKey1)
       expect('error' in result).toBe(true)
+    })
+
+    it('emits sidecar refs/sections and a server-derived infobox (by id)', async () => {
+      const result = await findPersonById({ db }, personKey1)
+      expect('person' in result).toBe(true)
+      if (!('person' in result)) return
+
+      expect(result.refs).toHaveProperty('wiki:ai-infrastructure')
+      expect(result.sections.map((s) => s.anchor)).toContain('background')
+      expect(result.infobox).not.toBeNull()
+      const labels = result.infobox!.rows.map((r) => r.label)
+      expect(labels).toEqual(
+        expect.arrayContaining(['Relationship', 'Aliases', 'First mentioned', 'Mentions'])
+      )
     })
   })
 
