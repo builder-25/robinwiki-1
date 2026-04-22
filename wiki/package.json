@@ -6,11 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "manifest": "openapi-ts && find src/lib/generated -name '*.ts' -exec sed -i \"s/\\.js'/'/g\" {} +"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
-    "@robin/shared": "workspace:*",
     "@codemirror/commands": "6.10.3",
     "@codemirror/lang-yaml": "6.1.3",
     "@codemirror/language": "6.12.3",
@@ -18,6 +19,7 @@
     "@codemirror/theme-one-dark": "6.1.3",
     "@codemirror/view": "6.41.1",
     "@hey-api/client-fetch": "^0.13.1",
+    "@robin/shared": "workspace:*",
     "@tanstack/react-query": "^5.99.0",
     "@tiptap/extension-placeholder": "^3.22.3",
     "@tiptap/react": "^3.22.3",
@@ -41,12 +43,19 @@
   "devDependencies": {
     "@hey-api/openapi-ts": "^0.96.0",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/diff": "^7.0.2",
+    "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vitest/ui": "^3.2.4",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.4",
+    "jsdom": "^29.0.2",
     "tailwindcss": "^4",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "vitest": "^3.2.4"
   }
 }
