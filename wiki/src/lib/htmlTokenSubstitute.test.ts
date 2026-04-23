@@ -128,38 +128,27 @@ describe('substituteTokensInHtml', () => {
     }
   })
 
-  // NOTE: The current walker implementation only skips text inside existing
-  // <a> elements — it does NOT skip text inside <code> or <pre>. These tests
-  // capture the ACTUAL current behavior so regressions are visible. The
-  // remark/markdown path handles this correctly via mdast (code nodes have
-  // no text children), so in practice this edge case arises only when
-  // Tiptap-saved HTML contains raw tokens inside code blocks — rare enough
-  // that the team deferred the fix.
-  // TODO(#121): if/when the walker is taught to skip `code`/`pre`, flip
-  // these assertions. Until then, they document the gap.
-  it('(current behaviour) DOES substitute tokens inside <code> tags — walker has no code-skip rule', () => {
+  it('does NOT substitute tokens inside <code> tags — token text renders as literal source', () => {
     const container = makeContainer('<p>See <code>[[person:sarah-chen]]</code> token.</p>')
     const refs: RefsMap = { 'person:sarah-chen': personRef }
     try {
       substituteTokensInHtml(container, refs)
-      // One anchor IS created inside the code element (undesired from a
-      // product-correctness view; recorded here as the implementation truth).
-      expect(container.querySelectorAll('a.wchip')).toHaveLength(1)
-      expect(container.querySelector('code a.wchip')).not.toBeNull()
+      expect(container.querySelectorAll('a.wchip')).toHaveLength(0)
+      expect(container.querySelector('code')!.textContent).toBe('[[person:sarah-chen]]')
     } finally {
       cleanup(container)
     }
   })
 
-  it('(current behaviour) DOES substitute tokens inside <pre> blocks — same reason as above', () => {
+  it('does NOT substitute tokens inside <pre> blocks — preserves code samples verbatim', () => {
     const container = makeContainer(
       '<pre><code>fn example() { [[person:sarah-chen]] }</code></pre>',
     )
     const refs: RefsMap = { 'person:sarah-chen': personRef }
     try {
       substituteTokensInHtml(container, refs)
-      expect(container.querySelectorAll('a.wchip')).toHaveLength(1)
-      expect(container.querySelector('pre a.wchip')).not.toBeNull()
+      expect(container.querySelectorAll('a.wchip')).toHaveLength(0)
+      expect(container.querySelector('pre')!.textContent).toContain('[[person:sarah-chen]]')
     } finally {
       cleanup(container)
     }
