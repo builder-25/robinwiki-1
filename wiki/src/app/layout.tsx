@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { STIX_Two_Text, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
+import { STIX_Two_Text, IBM_Plex_Sans, IBM_Plex_Mono, Noto_Sans } from "next/font/google";
 
 import "./globals.css";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,13 @@ const ibmPlexSans = IBM_Plex_Sans({
   variable: "--font-ibm-plex-sans",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
+  display: "swap",
+});
+
+const notoSans = Noto_Sans({
+  variable: "--font-noto-sans",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
@@ -45,6 +52,7 @@ export default function RootLayout({
         stixTwoText.variable,
         ibmPlexSans.variable,
         ibmPlexMono.variable,
+        notoSans.variable,
         "font-sans",
       )}
       suppressHydrationWarning

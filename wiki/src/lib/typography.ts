@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 const SERIF =
   "var(--font-stix-two-text), 'STIX Two Text', Georgia, serif" as const;
 const SANS =
-  "var(--font-ibm-plex-sans), 'IBM Plex Sans', sans-serif" as const;
+  "var(--font-noto-sans), 'Noto Sans', sans-serif" as const;
 const MONO =
   "var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace" as const;
 
@@ -11,7 +11,7 @@ export const FONT = { SERIF, SANS, MONO } as const;
 
 /**
  * Shared type scale — three families: STIX Two Text (serif headings),
- * IBM Plex Sans (body/UI), IBM Plex Mono (code/indices).
+ * Noto Sans (body/UI), IBM Plex Mono (code/indices).
  * Sizes derived from designsys.html spec.
  */
 export const T = {

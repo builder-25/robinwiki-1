@@ -94,7 +94,7 @@ export default function WikiSearchBar({
               className="wiki-chat-input min-w-0 w-full bg-transparent outline-none"
               style={{
                 height: 20,
-                fontFamily: "var(--font-ibm-plex-sans), 'IBM Plex Sans', sans-serif",
+                fontFamily: "var(--font-noto-sans), 'Noto Sans', sans-serif",
                 fontSize: 14,
                 fontWeight: 400,
                 letterSpacing: 0,
@@ -143,7 +143,7 @@ export default function WikiSearchBar({
             className="wiki-chat-input min-w-0 flex-1 bg-transparent outline-none"
             style={{
               height: compact ? 18 : 20,
-              fontFamily: "var(--font-ibm-plex-sans), 'IBM Plex Sans', sans-serif",
+              fontFamily: "var(--font-noto-sans), 'Noto Sans', sans-serif",
               fontSize: 14,
               fontWeight: 400,
               letterSpacing: 0,
