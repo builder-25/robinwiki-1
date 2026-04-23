@@ -7,6 +7,8 @@ import { computeContentHash, findDuplicateFragment } from '../db/dedup.js'
 import { sessionMiddleware } from '../middleware/session.js'
 import { db } from '../db/client.js'
 import { fragments, entries, edges, wikis, people } from '../db/schema.js'
+import { producer } from '../queue/producer.js'
+import { logger } from '../lib/logger.js'
 import { validationHook } from '../lib/validation.js'
 import {
   fragmentResponseSchema,
@@ -19,6 +21,8 @@ import {
   fragmentReviewBodySchema,
 } from '../schemas/fragments.schema.js'
 import { emitAuditEvent } from '../db/audit.js'
+
+const log = logger.child({ component: 'fragments' })
 
 const fragmentsRouter = new Hono()
 fragmentsRouter.use('*', sessionMiddleware)
@@ -281,6 +285,20 @@ fragmentsRouter.post('/:id/reject', zValidator('json', fragmentReviewBodySchema,
     summary: `Fragment rejected from ${wiki.name ?? wikiId}`,
     detail: { fragmentKey: id, wikiKey: wikiId },
   })
+
+  // Queue wiki regen so the rejected fragment's content is removed from the wiki body
+  try {
+    await producer.enqueueRegen({
+      type: 'regen',
+      jobId: crypto.randomUUID(),
+      objectKey: wikiId,
+      objectType: 'wiki',
+      triggeredBy: 'manual',
+      enqueuedAt: new Date().toISOString(),
+    })
+  } catch (err) {
+    log.warn({ wikiKey: wikiId, err }, 'failed to enqueue regen after fragment rejection')
+  }
 
   return c.json({ ok: true, fragmentId: id, wikiId })
 })

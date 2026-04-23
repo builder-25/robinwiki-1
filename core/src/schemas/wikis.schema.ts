@@ -29,6 +29,7 @@ export const threadResponseSchema = z.object({
   lookupKey: lookupKeySchema,
   slug: z.string(),
   name: z.string(),
+  description: z.string().default(''),
   type: z.string(),
   prompt: z.string(),
   state: objectStateSchema,
@@ -40,6 +41,7 @@ export const threadResponseSchema = z.object({
   shortDescriptor: z.string().default(''),
   descriptor: z.string().default(''),
   progress: wikiProgressSchema.nullable().default(null),
+  bouncerMode: z.enum(['auto', 'review']).default('auto'),
 })
 
 export const threadWithWikiResponseSchema = threadResponseSchema.extend({
@@ -54,6 +56,7 @@ export const wikiDetailResponseSchema = threadResponseSchema.extend({
       slug: z.string(),
       title: z.string(),
       snippet: z.string(),
+      edgeStatus: z.enum(['active', 'pending']).default('active'),
     })
   ),
   people: z.array(
@@ -62,6 +65,9 @@ export const wikiDetailResponseSchema = threadResponseSchema.extend({
       name: z.string(),
     })
   ),
+  refs: wikiRefsMapSchema.default({}),
+  infobox: wikiInfoboxSchema.nullable().default(null),
+  sections: z.array(wikiSectionSchema).default([]),
 })
 
 export const threadListResponseSchema = z.object({
@@ -87,6 +93,7 @@ export const createThreadBodySchema = z.object({
 
 export const updateThreadBodySchema = z.object({
   name: z.string().optional(),
+  description: z.string().optional(),
   type: z.string().optional(),
   prompt: z.string().optional(),
 })

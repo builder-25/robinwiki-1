@@ -220,6 +220,7 @@ export const wikis = pgTable(
   {
     ...baseColumns(),
     name: text('name').notNull(),
+    description: text('description').notNull().default(''),
     type: text('type').notNull().default('log'),
     prompt: text('prompt').notNull().default(''),
     lastRebuiltAt: timestamp('last_rebuilt_at'),
@@ -246,7 +247,7 @@ export const wikis = pgTable(
       .default(sql`'[]'::jsonb`),
   },
   (t) => [
-    uniqueIndex('wikis_slug_uidx').on(t.slug),
+    uniqueIndex('wikis_slug_uidx').on(t.slug).where(sql`${t.deletedAt} IS NULL`),
     uniqueIndex('wikis_published_slug_uidx').on(t.publishedSlug),
   ]
 )

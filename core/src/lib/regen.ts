@@ -60,10 +60,19 @@ export const STRONG_SIGNAL_THRESHOLD = 0.7
 /** Max unfiled fragments to evaluate per regen call */
 const MAX_UNFILED_PER_REGEN = 50
 
+export interface RegenTiming {
+  classify: number
+  gatherFragments: number
+  llmCall: number
+  embed: number
+  total: number
+}
+
 export interface RegenResult {
   content: string
   fragmentCount: number
   hasEmbedding: boolean
+  timing?: RegenTiming
 }
 
 /**
@@ -293,16 +302,19 @@ export async function regenerateWiki(
   wikiKey: string,
   opts?: { skipEmbedding?: boolean }
 ): Promise<RegenResult> {
+  const t0 = performance.now()
   const [wiki] = await database.select().from(wikis).where(eq(wikis.lookupKey, wikiKey))
   if (!wiki) throw new Error(`Wiki not found: ${wikiKey}`)
 
   // Classify unfiled fragments into this wiki before gathering (mechanism 1)
+  const tClassify0 = performance.now()
   try {
     const classifyResult = await classifyUnfiledFragments(database, wikiKey)
     log.info({ wikiKey, linked: classifyResult.linked }, 'unfiled fragment classification completed')
   } catch (err) {
     log.warn({ wikiKey, err }, 'unfiled fragment classification failed — continuing with existing fragments')
   }
+  const classifyMs = performance.now() - tClassify0
 
   const previousContent = wiki.content
 
@@ -317,6 +329,7 @@ export async function regenerateWiki(
   )
 
   // Gather linked fragments via FRAGMENT_IN_WIKI edges, with signal strength
+  const tGather0 = performance.now()
   const fragmentEdgeRows = await database
     .select({ srcId: edges.srcId, attrs: edges.attrs })
     .from(edges)
@@ -485,6 +498,8 @@ export async function regenerateWiki(
     }
   }
 
+  const gatherMs = performance.now() - tGather0
+
   const vars = {
     fragments: fragmentsText,
     title: wiki.name,
@@ -511,7 +526,9 @@ export async function regenerateWiki(
     spec = loadWikiGenerationSpec(wiki.type as WikiType, vars)
   }
 
+  const tLlm0 = performance.now()
   const llmOutput = await callLlm(spec.system, spec.user)
+  const llmMs = performance.now() - tLlm0
   const markdown = llmOutput.markdown
   const llmInfobox: WikiInfobox | null = llmOutput.infobox ?? null
   const llmCitations: WikiCitationDeclaration[] = llmOutput.citations ?? []
@@ -538,6 +555,7 @@ export async function regenerateWiki(
     .where(eq(wikis.lookupKey, wikiKey))
 
   // Compute and store embedding for the new content
+  const tEmbed0 = performance.now()
   let hasEmbedding = false
   if (!opts?.skipEmbedding) {
     const vec = await embedText(markdown, {
@@ -548,6 +566,16 @@ export async function regenerateWiki(
       await database.update(wikis).set({ embedding: vec }).where(eq(wikis.lookupKey, wikiKey))
       hasEmbedding = true
     }
+  }
+  const embedMs = performance.now() - tEmbed0
+  const totalMs = performance.now() - t0
+
+  const timing: RegenTiming = {
+    classify: Math.round(classifyMs),
+    gatherFragments: Math.round(gatherMs),
+    llmCall: Math.round(llmMs),
+    embed: Math.round(embedMs),
+    total: Math.round(totalMs),
   }
 
   // Log edit with source: 'regen'
@@ -567,10 +595,10 @@ export async function regenerateWiki(
     eventType: 'composed',
     source: 'system',
     summary: `Wiki regenerated from ${fragmentCount} fragments`,
-    detail: { wikiKey, fragmentCount, hasEmbedding },
+    detail: { wikiKey, fragmentCount, hasEmbedding, timing },
   })
 
-  log.info({ wikiKey, fragmentCount, hasEmbedding }, 'wiki regenerated')
+  log.info({ wikiKey, fragmentCount, hasEmbedding, timing }, 'wiki regenerated')
 
-  return { content: markdown, fragmentCount, hasEmbedding }
+  return { content: markdown, fragmentCount, hasEmbedding, timing }
 }

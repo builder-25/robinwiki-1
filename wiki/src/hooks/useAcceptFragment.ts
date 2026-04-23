@@ -10,9 +10,10 @@ export function useAcceptFragment() {
       const { data } = await acceptFragment({ path: { id }, body: { wikiId } })
       return data
     },
-    onSuccess: (_data, { id }) => {
+    onSuccess: (_data, { id, wikiId }) => {
       queryClient.invalidateQueries({ queryKey: ['fragment', id] })
       queryClient.invalidateQueries({ queryKey: ['fragments'] })
+      queryClient.invalidateQueries({ queryKey: ['wiki', wikiId] })
     },
   })
 }

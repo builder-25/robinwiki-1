@@ -18,7 +18,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { MarkdownContent } from "@/components/wiki/MarkdownContent";
 import type { FragmentWithContentResponseSchema } from "@/lib/generated/types.gen";
 
-type FragmentData = FragmentWithContentResponseSchema & {
+type FragmentData = Omit<FragmentWithContentResponseSchema, "entryId"> & {
+  entryId: string | null;
   backlinks?: Array<{ id: string; name: string; type: string }>;
 };
 
@@ -94,12 +95,36 @@ function EmptyState({ text }: { text: string }) {
   );
 }
 
-function EntryOriginSection({ entryId }: { entryId: string }) {
+function EntryOriginSection({ entryId }: { entryId: string | null }) {
   const bodyStyle = {
     ...T.bodySmall,
     color: "var(--wiki-article-text)",
     lineHeight: 1.6,
   };
+
+  if (!entryId) {
+    return (
+      <section style={{ width: "100%" }}>
+        <WikiSectionH2 title="Source" count={1} />
+        <div style={{ margin: "12px 0 0 0" }}>
+          <Badge
+            variant="outline"
+            className="rounded-full"
+            style={{
+              backgroundColor: "#f5f5f5",
+              color: "#545353",
+              borderColor: "#d1d5db",
+              padding: "2px 10px",
+              ...T.micro,
+            }}
+          >
+            Created via MCP
+          </Badge>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section style={{ width: "100%" }}>
       <WikiSectionH2 title="Entry origin" count={1} />

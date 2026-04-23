@@ -3,12 +3,14 @@
 import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { RefreshCw, Trash2 } from "lucide-react";
+import { Check, RefreshCw, Trash2, X } from "lucide-react";
 import { T } from "@/lib/typography";
 import { Spinner } from "@/components/ui/spinner";
 import { useWiki } from "@/hooks/useWiki";
 import { useRegenerateWiki } from "@/hooks/useRegenerateWiki";
 import { useDeleteWiki } from "@/hooks/useDeleteWiki";
+import { useAcceptFragment } from "@/hooks/useAcceptFragment";
+import { useRejectFragment } from "@/hooks/useRejectFragment";
 import { useQueryClient } from "@tanstack/react-query";
 import ConfirmDialog from "@/components/prompts/ConfirmDialog";
 import SectionEditor from "@/components/editor/SectionEditor";
@@ -318,6 +320,8 @@ export default function WikiDetailPage() {
   const { data: wiki, isLoading, error } = useWiki(id);
   const regenerate = useRegenerateWiki();
   const deleteWiki = useDeleteWiki();
+  const acceptFragment = useAcceptFragment();
+  const rejectFragment = useRejectFragment();
   const queryClient = useQueryClient();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -486,6 +490,8 @@ export default function WikiDetailPage() {
       chipIcon={getWikiTypeIcon(typeLabel)}
       chipLabel={typeLabel}
       title={wiki.name}
+      promptOverride={wiki.prompt}
+      description={wiki.shortDescriptor}
       infobox={{ kind: "simple", typeLabel, lastUpdated: wiki.updatedAt, showSettings: true }}
       renderCustomInfobox={
         sidecarInfobox
@@ -691,7 +697,7 @@ export default function WikiDetailPage() {
             }}
           >
             {wiki.fragments.map((frag) => (
-              <li key={frag.id}>
+              <li key={frag.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Link
                   href={`/wiki/fragments/${frag.id}`}
                   style={{
@@ -702,6 +708,45 @@ export default function WikiDetailPage() {
                 >
                   {frag.title}
                 </Link>
+                {wiki.bouncerMode === "review" && frag.edgeStatus === "pending" && (
+                  <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                    <button
+                      type="button"
+                      title="Accept fragment"
+                      onClick={() => acceptFragment.mutate({ id: frag.id, wikiId: wiki.id })}
+                      disabled={acceptFragment.isPending}
+                      style={{
+                        background: "none",
+                        border: "1px solid var(--wiki-card-border)",
+                        cursor: "pointer",
+                        padding: "2px 4px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        color: "green",
+                      }}
+                    >
+                      <Check size={12} strokeWidth={2} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Reject fragment"
+                      onClick={() => rejectFragment.mutate({ id: frag.id, wikiId: wiki.id })}
+                      disabled={rejectFragment.isPending}
+                      style={{
+                        background: "none",
+                        border: "1px solid var(--wiki-card-border)",
+                        cursor: "pointer",
+                        padding: "2px 4px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        color: "red",
+                      }}
+                    >
+                      <X size={12} strokeWidth={2} />
+                    </button>
+                    <span style={{ fontSize: 10, color: "var(--wiki-count)", fontStyle: "italic" }}>pending</span>
+                  </span>
+                )}
               </li>
             ))}
           </ul>

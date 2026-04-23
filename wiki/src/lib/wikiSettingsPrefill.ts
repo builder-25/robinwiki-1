@@ -41,13 +41,14 @@ function wikiTypeSelectValueForChip(chipLabel: string): string {
 export function wikiEntitySettingsPrefill(input: {
   title: string;
   chipLabel: string;
+  description?: string;
   promptOverride?: string;
 }): WikiSettingsPrefill {
   return {
     name: input.title,
     wikiType: wikiTypeSelectValueForChip(input.chipLabel),
     folder: "default",
-    description: WIKI_INTRO_LEAD_PLAINTEXT,
+    description: input.description ?? WIKI_INTRO_LEAD_PLAINTEXT,
     subtitle: `${input.chipLabel} wiki — update name, type, and visibility`,
     promptOverride: input.promptOverride,
   };

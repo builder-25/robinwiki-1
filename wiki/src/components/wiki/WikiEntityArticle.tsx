@@ -322,6 +322,10 @@ export type WikiEntityArticleProps = {
    * Optional sections rendered after divider and before modal.
    */
   customBottomSections?: ReactNode;
+  /** Per-wiki prompt override to prefill in settings modal */
+  promptOverride?: string;
+  /** Wiki description / shortDescriptor to prefill in settings modal */
+  description?: string;
   /** Real wiki id for settings-mode PUT. Prototype pages omit → 'preview' sentinel. */
   wikiId?: string;
   /** Called after local save completes — persist to backend here. */
@@ -366,6 +370,8 @@ export function WikiEntityArticle({
   infobox,
   renderCustomInfobox,
   customBottomSections,
+  promptOverride,
+  description,
   wikiId,
   onSave,
   children,
@@ -403,8 +409,8 @@ export function WikiEntityArticle({
   const wikiTypeLocked = isPeopleWikiType(displayChipLabel);
 
   const wikiSettingsPrefill = useMemo(
-    () => wikiEntitySettingsPrefill({ title: displayTitle, chipLabel: displayChipLabel }),
-    [displayTitle, displayChipLabel],
+    () => wikiEntitySettingsPrefill({ title: displayTitle, chipLabel: displayChipLabel, description, promptOverride }),
+    [displayTitle, displayChipLabel, description, promptOverride],
   );
 
   const tabs = ["Read", "Edit", "View history"] as const;

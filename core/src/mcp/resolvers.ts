@@ -32,6 +32,7 @@ import { eq, and, isNull, sql, inArray, ne } from 'drizzle-orm'
 import type { DB } from '../db/client.js'
 import { wikis, fragments, people, edges, wikiTypes } from '../db/schema.js'
 import { buildSidecar } from '../lib/wikiSidecar.js'
+import { stripWikiContent } from '../lib/strip-wiki-content.js'
 import { makeSidecarDeps } from '../lib/wikiSidecarDeps.js'
 import type {
   WikiInfobox,
@@ -593,6 +594,9 @@ export async function getWiki(
     deps: makeSidecarDeps(deps.db),
   })
 
+  // MCP consumers are always LLMs — strip tokens for efficiency
+  const strippedBody = stripWikiContent(wikiBody, sidecar.refs)
+
   return {
     thread: {
       lookupKey: thread.lookupKey,
@@ -602,7 +606,7 @@ export async function getWiki(
       state: thread.state,
       lastRebuiltAt: thread.lastRebuiltAt?.toISOString() ?? null,
     },
-    wikiBody,
+    wikiBody: strippedBody,
     fragments: fragmentSnippets,
     refs: sidecar.refs,
     infobox: sidecar.infobox,
