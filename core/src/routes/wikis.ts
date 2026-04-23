@@ -15,6 +15,7 @@ import { nanoid24 } from '../lib/id.js'
 import { regenerateWiki } from '../lib/regen.js'
 import { buildSidecar } from '../lib/wikiSidecar.js'
 import { makeSidecarDeps } from '../lib/wikiSidecarDeps.js'
+import { stripWikiContent } from '../lib/strip-wiki-content.js'
 import { producer } from '../queue/producer.js'
 import {
   threadResponseSchema,
@@ -266,6 +267,25 @@ wikisRouter.get('/:id', async (c) => {
     citationDeclarations: thread.citationDeclarations ?? [],
     deps: makeSidecarDeps(db),
   })
+
+  // ?raw — token-efficient response for LLM consumption
+  if (c.req.query('raw') !== undefined) {
+    const stripped = stripWikiContent(thread.content ?? '', sidecar.refs)
+    return c.json({
+      ...prepareThread(thread),
+      wikiContent: stripped,
+      fragments: frags.map((f) => ({
+        id: f.lookupKey,
+        slug: f.slug,
+        title: f.title,
+        snippet: (f.content ?? '').slice(0, 200),
+      })),
+      people: peopleRows.map((p) => ({
+        id: p.lookupKey,
+        name: p.name,
+      })),
+    })
+  }
 
   return c.json(
     wikiDetailResponseSchema.parse({
