@@ -1,7 +1,7 @@
 # 21 — Wiki Sidecar Rendering (Frontend)
 
 ## What it proves
-Token chips render for all four kinds (person / fragment / wiki / entry); unresolved tokens fall back to literal text; the structured infobox replaces the legacy flex-column layout with a typed table; per-section citation superscripts render, link, and describe their source fragment; the per-heading `[edit]` affordance scopes edits to a single section without disturbing siblings or the heading itself; H1 is excluded from the affordance; duplicate headings are disambiguated via `notes` / `notes-1` anchors; a stale-section save surfaces a recoverable message instead of crashing; the HTML-body path hides `[edit]` while still rendering chips; the public preview fixture route renders read-only; entry and person detail pages resolve tokens and render the server-derived person infobox.
+Token chips render for all four kinds (person / fragment / wiki / entry); unresolved tokens fall back to literal text; the structured infobox replaces the legacy flex-column layout with a typed table; per-section citation superscripts render, link, and describe their source fragment; the per-heading `[edit]` affordance scopes edits to a single section without disturbing siblings or the heading itself; H1 is excluded from the affordance; duplicate headings are disambiguated via `notes` / `notes-1` anchors; a stale-section save surfaces a recoverable message instead of crashing; the HTML-body path hides `[edit]` while still rendering chips; tokens inside `<code>` / `<pre>` render as literal source while prose tokens still resolve; entry and person detail pages resolve tokens and render the server-derived person infobox.
 
 ## Prerequisites
 - `pnpm -C core seed-fixture` has been run (seeds the Transformer demo wiki — see plan 22 for the seed lifecycle).
@@ -444,46 +444,58 @@ fi
 # Restore the markdown body for downstream steps + plan 22.
 pnpm -C core seed-fixture >/dev/null 2>&1 || true
 
-# ── 11. Preview fixture page — unauthenticated, read-only ────
-# `/wiki/preview/fixture` should load without a session and render the
-# exhaustive fixture through the same renderer. No save/regen/delete
-# affordances should appear.
+# ── 11. Code-fence token isolation (HTML body path) ──────────
+# Tokens inside <code> or <pre> must render as literal source text,
+# not as WikiChips. Regression guard for the htmlTokenSubstitute
+# walker fix (PR #132 / issue #131).
 
-npx agent-browser close 2>/dev/null || true
-npx agent-browser open "$WIKI_URL/wiki/preview/fixture" 2>/dev/null
+# Drive the HTML branch with a body that mixes in-prose tokens (should
+# resolve to chips) and in-code tokens (should render as literal source).
+CODE_BODY='<p>Prose ref [[person:ashish-vaswani]] and [[wiki:attention-is-all-you-need]] resolve to chips.</p><p>Inline <code>const a = "[[person:ashish-vaswani]]"</code> renders as source.</p><pre><code>fn cite() {\n  let x = "[[fragment:self-attention-replaces-recurrence]]";\n}</code></pre>'
+curl -s -o /dev/null -b "$COOKIE_JAR" -X PUT \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://localhost:3000" \
+  -d "$(jq -n --arg body "$CODE_BODY" --arg name "Transformer Architecture" '{frontmatter:{name:$name,type:"project",prompt:""},body:$body}')" \
+  "$SERVER_URL/api/content/wiki/$TRANSFORMER_KEY"
+
+npx agent-browser open "$WIKI_URL/wiki/$TRANSFORMER_KEY" 2>/dev/null
 npx agent-browser wait --load networkidle
-PREVIEW_SNAP=$(npx agent-browser snapshot 2>/dev/null)
-npx agent-browser eval "document.documentElement.outerHTML" > /tmp/uat-21-preview-dom.html 2>/dev/null
-npx agent-browser screenshot /tmp/uat-21-11-preview.png 2>/dev/null
+sleep 1
+npx agent-browser eval "document.documentElement.outerHTML" > /tmp/uat-21-codefence.html 2>/dev/null
+npx agent-browser screenshot /tmp/uat-21-11-codefence.png 2>/dev/null
 
-# 11a. Page loads (no redirect to /login).
-PREVIEW_URL=$(npx agent-browser get url 2>/dev/null || echo "")
-if echo "$PREVIEW_URL" | grep -q "/wiki/preview/fixture" && ! echo "$PREVIEW_URL" | grep -q "/login"; then
-  pass "11a. /wiki/preview/fixture loads unauthenticated"
+# 11a. No wchip anchor appears inside <code> elements.
+if grep -oE '<code[^>]*>[^<]*(<[^/][^>]*>[^<]*)*</code>' /tmp/uat-21-codefence.html | grep -q 'class="wchip"\|data-slot="wiki-chip"'; then
+  fail "11a. Token inside <code> was substituted — walker failed to skip code elements"
 else
-  fail "11a. Preview fixture page redirected or did not load (URL: $PREVIEW_URL)"
+  pass "11a. Tokens inside <code> render as literal source"
 fi
 
-# 11b. Renders the Transformer fixture.
-if echo "$PREVIEW_SNAP" | grep -qi "Transformer Architecture"; then
-  pass "11b. Preview page renders 'Transformer Architecture' title"
+# 11b. No wchip anchor appears inside <pre> elements.
+if grep -oE '<pre[^>]*>[^<]*(<[^/][^>]*>[^<]*)*</pre>' /tmp/uat-21-codefence.html | grep -q 'class="wchip"\|data-slot="wiki-chip"'; then
+  fail "11b. Token inside <pre> was substituted — walker failed to skip pre elements"
 else
-  fail "11b. Preview page did not render fixture title"
+  pass "11b. Tokens inside <pre> render as literal source"
 fi
 
-# 11c. Chips render on the preview page too.
-if grep -q 'data-slot="wiki-chip"' /tmp/uat-21-preview-dom.html; then
-  pass "11c. Preview page renders token chips"
+# 11c. The literal token text is preserved inside the code block.
+if grep -q '\[\[person:ashish-vaswani\]\]' /tmp/uat-21-codefence.html; then
+  pass "11c. Literal token text preserved inside code block"
 else
-  fail "11c. Preview page has no WikiChips"
+  fail "11c. Literal token text missing from DOM (code block not retained?)"
 fi
 
-# 11d. Read-only: no Save / Regenerate / Delete buttons should be visible.
-if echo "$PREVIEW_SNAP" | grep -qiE "^Regenerate$|^Delete$|^Save changes$"; then
-  fail "11d. Preview page surfaces mutation affordances (should be read-only)"
+# 11d. Tokens OUTSIDE code blocks still substitute into chips — at least
+# one wchip anchor exists in the prose section of the rendered body.
+PROSE_CHIPS=$(grep -cE '<a[^>]*data-slot="wiki-chip"' /tmp/uat-21-codefence.html)
+if [ "$PROSE_CHIPS" -ge 1 ]; then
+  pass "11d. Prose tokens still resolve to chips ($PROSE_CHIPS chip anchor(s) in DOM)"
 else
-  pass "11d. Preview page has no Save/Regen/Delete affordances"
+  fail "11d. No chip anchors in DOM — walker regressed on the non-code path too"
 fi
+
+# Restore the canonical markdown body for plan 22 + downstream runs.
+pnpm -C core seed-fixture >/dev/null 2>&1 || true
 
 # ── 12. Entry detail page — refs resolve inline ──────────────
 # Sign back in and open the seeded entry.
@@ -593,7 +605,7 @@ echo "$PASS passed, $FAIL failed, $SKIP skipped"
 | 8 | `notes` and `notes-1` are independent: editing the second doesn't change the first | duplicate-heading anchor algorithm |
 | 9 | Stale-section save surfaces a recoverable message instead of crashing | handleSectionSave guard |
 | 10 | HTML-body path: no [edit] brackets, chips still render | MarkdownContent vs HtmlWikiBody branch |
-| 11 | /wiki/preview/fixture loads unauthenticated, renders fixture, is read-only | preview/fixture page |
+| 11 | Code-fence isolation: tokens inside `<code>`/`<pre>` render as literal source, prose tokens still resolve | HTML-body walker |
 | 12 | Entry detail page resolves tokens and has no infobox | useEntry + EntryArticle |
 | 13 | Person detail page renders server-derived .winfo infobox with Relationship row | usePerson + derivePersonInfobox |
 
