@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev --parallel",
+    "dev": "turbo run build --filter='./packages/*' && turbo run dev --filter=@robin/core --filter=@robin/wiki --parallel",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "lint": "turbo run lint",
@@ -12,7 +12,7 @@
     "clean": "find core wiki packages -type d \\( -name dist -o -name node_modules -o -name .turbo -o -name .next \\) -prune -exec rm -rf {} + && rm -rf node_modules .turbo",
     "seed-openrouter-key": "tsx core/scripts/seed-openrouter-key.ts",
     "port": "sh -c 'ss -tlnp \"sport = :$0\"'",
-    "serve": "npx concurrently -n core,wiki -c blue,magenta \"pnpm --filter @robin/core dev\" \"pnpm --filter @robin/wiki dev\"",
+    "serve": "pnpm dev",
     "manifest": "pnpm --filter @robin/core openapi:manifest && pnpm --filter @robin/wiki manifest"
   },
   "devDependencies": {
