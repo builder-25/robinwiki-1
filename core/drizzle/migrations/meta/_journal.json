@@ -36,6 +36,13 @@
       "when": 1777248000000,
       "tag": "0004_wikis_citation_declarations",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777680000000,
+      "tag": "0005_wikis_slug_partial_uidx",
+      "breakpoints": true
     }
   ]
 }

@@ -246,7 +246,7 @@ export const wikis = pgTable(
       .default(sql`'[]'::jsonb`),
   },
   (t) => [
-    uniqueIndex('wikis_slug_uidx').on(t.slug),
+    uniqueIndex('wikis_slug_uidx').on(t.slug).where(sql`${t.deletedAt} IS NULL`),
     uniqueIndex('wikis_published_slug_uidx').on(t.publishedSlug),
   ]
 )
