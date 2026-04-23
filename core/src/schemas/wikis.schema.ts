@@ -62,6 +62,9 @@ export const wikiDetailResponseSchema = threadResponseSchema.extend({
       name: z.string(),
     })
   ),
+  refs: wikiRefsMapSchema.default({}),
+  infobox: wikiInfoboxSchema.nullable().default(null),
+  sections: z.array(wikiSectionSchema).default([]),
 })
 
 export const threadListResponseSchema = z.object({
