@@ -5,6 +5,7 @@ import { wikis } from '../db/schema.js'
 import { publicWikiResponseSchema } from '../schemas/wikis.schema.js'
 import { buildSidecar } from '../lib/wikiSidecar.js'
 import { makeSidecarDeps } from '../lib/wikiSidecarDeps.js'
+import { stripWikiContent } from '../lib/strip-wiki-content.js'
 
 const publishedRoutes = new Hono()
 
@@ -31,16 +32,16 @@ publishedRoutes.get('/wiki/:nanoid', async (c) => {
 
   c.header('Cache-Control', 'no-store')
 
-  if (c.req.query('raw') !== undefined) {
-    return c.text(wiki.content)
-  }
-
   const sidecar = await buildSidecar({
     content: wiki.content,
     metadata: wiki.metadata ?? null,
     citationDeclarations: wiki.citationDeclarations ?? [],
     deps: makeSidecarDeps(db),
   })
+
+  if (c.req.query('raw') !== undefined) {
+    return c.text(stripWikiContent(wiki.content, sidecar.refs))
+  }
 
   return c.json(
     publicWikiResponseSchema.parse({
