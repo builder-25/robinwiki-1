@@ -507,6 +507,10 @@ wikisRouter.post('/:id/regenerate', async (c) => {
   try {
     const result = await regenerateWiki(db, id)
     log.info({ wikiKey: id, ...result }, 'wiki regenerated via on-demand endpoint')
+    if (result.timing) {
+      const t = result.timing
+      c.header('Server-Timing', `classify;dur=${t.classify}, gather;dur=${t.gatherFragments}, llm;dur=${t.llmCall}, embed;dur=${t.embed}, total;dur=${t.total}`)
+    }
     return c.json({ ok: true, lookupKey: id, fragmentCount: result.fragmentCount })
   } catch (err) {
     if (err instanceof NoOpenRouterKeyError) {

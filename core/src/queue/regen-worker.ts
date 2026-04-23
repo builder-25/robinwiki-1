@@ -15,11 +15,13 @@ const BATCH_LIMIT = 5
 
 export async function processRegenJob(job: RegenJob): Promise<JobResult> {
   log.info({ jobId: job.jobId, wikiKey: job.objectKey }, 'processing regen job')
+  const t0 = performance.now()
 
   try {
     const result = await regenerateWiki(db, job.objectKey)
+    const elapsed = Math.round(performance.now() - t0)
     log.info(
-      { jobId: job.jobId, wikiKey: job.objectKey, fragmentCount: result.fragmentCount },
+      { jobId: job.jobId, wikiKey: job.objectKey, fragmentCount: result.fragmentCount, ms: elapsed, timing: result.timing },
       'regen job completed'
     )
     return {
@@ -28,8 +30,9 @@ export async function processRegenJob(job: RegenJob): Promise<JobResult> {
       processedAt: new Date().toISOString(),
     }
   } catch (err) {
+    const elapsed = Math.round(performance.now() - t0)
     const message = err instanceof Error ? err.message : String(err)
-    log.error({ jobId: job.jobId, wikiKey: job.objectKey, error: message }, 'regen job failed')
+    log.error({ jobId: job.jobId, wikiKey: job.objectKey, error: message, ms: elapsed }, 'regen job failed')
     return {
       jobId: job.jobId,
       success: false,
