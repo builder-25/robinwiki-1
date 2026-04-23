@@ -84,7 +84,7 @@ describe('resolveSlug', () => {
 
 import type postgres from 'postgres'
 import type { McpResolverDeps } from '../mcp/resolvers.js'
-import { listWikis, getThread, getFragment, findPersonById, findPersonByQuery } from '../mcp/resolvers.js'
+import { listWikis, getWiki, getFragment, findPersonById, findPersonByQuery } from '../mcp/resolvers.js'
 import { makeLookupKey, ObjectType } from '@robin/shared'
 import { entries, fragments, wikis, people, edges } from '../db/schema.js'
 import {
@@ -320,11 +320,11 @@ describe('MCP resolvers (real DB)', () => {
     })
   })
 
-  // ─── getThread ───
+  // ─── getWiki ───
 
-  describe('getThread', () => {
+  describe('getWiki', () => {
     it('resolves exact slug and returns wiki body + linked fragments', async () => {
-      const result = await getThread({ db }, 'ai-infrastructure')
+      const result = await getWiki({ db }, 'ai-infrastructure')
 
       expect('thread' in result).toBe(true)
       if ('thread' in result) {
@@ -339,7 +339,7 @@ describe('MCP resolvers (real DB)', () => {
     })
 
     it('resolves fuzzy slug match', async () => {
-      const result = await getThread({ db }, 'ai-infra')
+      const result = await getWiki({ db }, 'ai-infra')
       expect('thread' in result).toBe(true)
       if ('thread' in result) {
         expect(result.thread.slug).toBe('ai-infrastructure')
@@ -347,7 +347,7 @@ describe('MCP resolvers (real DB)', () => {
     })
 
     it('returns error for no match', async () => {
-      const result = await getThread({ db }, 'zzz-nonexistent')
+      const result = await getWiki({ db }, 'zzz-nonexistent')
       expect('error' in result).toBe(true)
       if ('error' in result) {
         expect(result.suggestions).toContain('ai-infrastructure')
@@ -357,7 +357,7 @@ describe('MCP resolvers (real DB)', () => {
     it('excludes soft-deleted fragment edges', async () => {
       await db.update(edges).set({ deletedAt: new Date() }).where(eq(edges.srcId, fragKey2))
 
-      const result = await getThread({ db }, 'ai-infrastructure')
+      const result = await getWiki({ db }, 'ai-infrastructure')
       expect('thread' in result).toBe(true)
       if ('thread' in result) {
         expect(result.fragments).toHaveLength(1)
@@ -368,7 +368,7 @@ describe('MCP resolvers (real DB)', () => {
     // ─── sidecar shape (full detail) ───
 
     it('emits sidecar refs/sections/infobox on thread detail', async () => {
-      const result = await getThread({ db }, 'ai-infrastructure')
+      const result = await getWiki({ db }, 'ai-infrastructure')
       expect('thread' in result).toBe(true)
       if (!('thread' in result)) return
 
@@ -400,7 +400,7 @@ describe('MCP resolvers (real DB)', () => {
 
     it('emits infobox=null when wikis.metadata is unset', async () => {
       await db.update(wikis).set({ metadata: null }).where(eq(wikis.lookupKey, wikiKey))
-      const result = await getThread({ db }, 'ai-infrastructure')
+      const result = await getWiki({ db }, 'ai-infrastructure')
       expect('thread' in result).toBe(true)
       if ('thread' in result) {
         expect(result.infobox).toBeNull()

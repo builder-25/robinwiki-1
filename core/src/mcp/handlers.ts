@@ -13,8 +13,8 @@
  * - {@link handleLogEntry} feeds the full 6-stage AI pipeline via BullMQ.
  *   The entry row must exist before enqueue because the worker reads it.
  * - {@link handleLogFragment} is the fast path — bypasses the pipeline and
- *   writes a fragment directly to a known thread. Useful when the caller
- *   already knows the destination (e.g. after `list_threads`).
+ *   writes a fragment directly to a known wiki. Useful when the caller
+ *   already knows the destination (e.g. after `list_wikis`).
  *
  * **Fail-open semantics:**
  * - Entity extraction errors → fragment persisted without people edges.

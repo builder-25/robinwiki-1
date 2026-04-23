@@ -68,7 +68,7 @@ Robin exposes an MCP server for Claude, ChatGPT, and other AI clients.
 | `create_wiki` | Create a new wiki with auto-inferred type |
 | `edit_wiki` | Update wiki content with edit history preservation |
 | `list_wikis` | List all wikis with fragment counts and type info |
-| `get_thread` | Get wiki details with full body and fragment snippets |
+| `get_wiki` | Get wiki details with full body and fragment snippets |
 | `get_fragment` | Get full fragment content by slug |
 | `find_person` | Find a person by ID or fuzzy name search |
 | `brief_person` | Get a formatted person briefing (no LLM call) |
