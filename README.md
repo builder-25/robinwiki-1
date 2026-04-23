@@ -22,13 +22,23 @@ packages/caslock @robin/caslock — CAS-based distributed locking
 | API | Hono, Zod, better-auth |
 | Database | PostgreSQL + pgvector, Drizzle ORM |
 | Queue | Redis + BullMQ |
-| AI | OpenRouter (Claude, embeddings) |
+| AI | OpenRouter (Claude, embeddings), Mastra |
 | Frontend | Next.js 16, React 19, Tailwind CSS, shadcn/ui |
 | Tooling | TypeScript, Biome, Vitest, Turborepo, pnpm |
+
+## Prerequisites
+
+- **Node.js** >= 20 (enable corepack: `corepack enable`)
+- **pnpm** >= 9 (installed automatically via corepack from `packageManager` field)
+- **PostgreSQL** with the [pgvector](https://github.com/pgvector/pgvector) extension
+- **Redis** (used by BullMQ for job queues)
 
 ## Quick Start
 
 ```bash
+# Enable corepack (provides the correct pnpm version)
+corepack enable
+
 # Clone and install
 git clone https://github.com/withrobinhq/robin.git
 cd robin
@@ -48,6 +58,9 @@ openssl rand -hex 32
 # - BETTER_AUTH_SECRET (32+ chars)
 # - INITIAL_USERNAME / INITIAL_PASSWORD
 
+# Ensure pgvector is enabled on your database
+psql $DATABASE_URL -c 'CREATE EXTENSION IF NOT EXISTS vector;'
+
 # Push database schema
 pnpm --filter @robin/core db:push
 
@@ -56,6 +69,62 @@ pnpm dev
 ```
 
 Core runs on `http://localhost:3000`, wiki on `http://localhost:8080`.
+
+## Environment Variables
+
+All variables are configured in `core/.env`. See `core/.env.example` for the full template.
+
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `DATABASE_URL` | Yes | `postgresql://postgres@127.0.0.1:5432/robinwiki` | PostgreSQL connection string (must have pgvector) |
+| `REDIS_URL` | Yes | `redis://localhost:6379` | Redis connection string for BullMQ job queues |
+| `BETTER_AUTH_SECRET` | Yes | - | Session cookie signing secret (32+ chars) |
+| `MASTER_KEY` | Yes | - | Root encryption key, 64 hex chars (`openssl rand -hex 32`) |
+| `KEY_ENCRYPTION_SECRET` | Yes | - | AES-256-GCM key encryption secret (32+ chars) |
+| `OPENROUTER_API_KEY` | Yes | - | OpenRouter API key for LLM calls and embeddings |
+| `INITIAL_USERNAME` | Yes | - | Admin email address (created on first login via JIT) |
+| `INITIAL_PASSWORD` | Yes | - | Admin password |
+| `SERVER_PUBLIC_URL` | Yes | `http://localhost:3000` | Public URL for MCP endpoints, auth cookies |
+| `WIKI_ORIGIN` | Yes | `http://localhost:8080` | Wiki frontend URL(s) for CORS (comma-separated) |
+| `PORT` | No | `3000` | HTTP listen port |
+| `NODE_ENV` | No | `development` | Node environment (`production` enables secure cookies) |
+| `LOG_LEVEL` | No | `info` | Pino log level (trace/debug/info/warn/error/fatal) |
+| `WIKI_CLASSIFY_THRESHOLD` | No | `0.65` | LLM confidence threshold for filing fragments (0.0-1.0) |
+| `ENABLE_BATCH_REGEN` | No | `true` | Enable midnight batch wiki regeneration cron |
+
+## Scripts
+
+### Root
+
+| Script | Description |
+|--------|-------------|
+| `pnpm dev` | Start all dev servers in parallel (Turborepo) |
+| `pnpm build` | Build all workspaces |
+| `pnpm typecheck` | Type-check all workspaces |
+| `pnpm test` | Run tests across all workspaces |
+| `pnpm lint` | Lint all workspaces |
+| `pnpm format` | Format with Biome |
+| `pnpm serve` | Start core + wiki with concurrently (alternative to `dev`) |
+| `pnpm manifest` | Generate OpenAPI manifest and wiki client |
+
+### Core (`@robin/core`)
+
+| Script | Description |
+|--------|-------------|
+| `pnpm --filter @robin/core dev` | Start dev server with tsx watch |
+| `pnpm --filter @robin/core build` | Compile TypeScript |
+| `pnpm --filter @robin/core test` | Run Vitest tests |
+| `pnpm --filter @robin/core db:generate` | Generate Drizzle migrations |
+| `pnpm --filter @robin/core db:push` | Push schema to database |
+| `pnpm --filter @robin/core mcp:inspect` | Launch MCP inspector |
+
+### Wiki (`@robin/wiki`)
+
+| Script | Description |
+|--------|-------------|
+| `pnpm --filter @robin/wiki dev` | Start Next.js dev server |
+| `pnpm --filter @robin/wiki build` | Production build |
+| `pnpm --filter @robin/wiki manifest` | Regenerate TypeScript client from OpenAPI spec |
 
 ## MCP Tools
 
@@ -92,6 +161,29 @@ Generate the TypeScript client for the wiki frontend:
 ```bash
 pnpm --filter @robin/wiki openapi:generate
 ```
+
+## Deployment
+
+Robin is deployed on [Railway](https://railway.app). Staging is available at `*.tensorkit.net`.
+
+The production topology runs four services: `core` (Hono API + workers), `wiki` (Next.js frontend), `postgres` (with pgvector), and `redis` (BullMQ). Wiki proxies all `/api/*` requests to core over Railway's private network.
+
+For full deployment instructions, environment variable reference, and troubleshooting, see [`docs/DEPLOY.md`](docs/DEPLOY.md).
+
+## Contributing
+
+### Linting and formatting
+
+- **core/ and packages/**: [Biome](https://biomejs.dev/) for linting and formatting (`pnpm format`, `pnpm lint`)
+- **wiki/**: [ESLint](https://eslint.org/) with `eslint-config-next` (wiki has its own config and does not use Biome)
+
+### Workspace boundaries
+
+The workspace packages (`@robin/agent`, `@robin/queue`, `@robin/shared`, `@robin/caslock`) have strict boundaries. Do not flatten them into core or merge packages together. Each package builds independently and exposes its own entry points.
+
+### Branch workflow
+
+Work on feature branches. Create a GitHub issue before starting work, then open a PR that references the issue.
 
 ## Milestones
 
