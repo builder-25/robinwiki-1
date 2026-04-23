@@ -21,8 +21,7 @@
  *
  * Scope note: this component only renders the superscripts. Wiring it into
  * the real wiki detail page (`wiki/src/app/wiki/[id]/page.tsx`) is the
- * `wiki-detail-page` phase's job — this ships the component plus a demo
- * block on `/wiki/preview/fixture` so designers can validate the visual.
+ * `wiki-detail-page` phase's job.
  */
 
 import Link from "next/link";

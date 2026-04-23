@@ -23,7 +23,6 @@ import { auditRoutes } from './routes/audit.js'
 import { aiPreferencesRoutes } from './routes/ai-preferences.js'
 import { aiModelsRoutes } from './routes/ai-models.js'
 import { publishedRoutes } from './routes/published.js'
-import { previewRouter } from './routes/preview.js'
 import { startWorkers } from './queue/worker.js'
 import { setupRegenScheduler } from './queue/scheduler.js'
 import { producer } from './queue/producer.js'
@@ -104,7 +103,6 @@ app.get('/openapi.json', (c) => c.json(openapiSpec))
 app.route('/admin', adminRoutes)
 app.route('/auth', authRecoverRoutes)
 app.route('/published', publishedRoutes)
-app.route('/preview', previewRouter)
 app.use('/api/auth/*', (c) => auth.handler(c.req.raw))
 
 // BullBoard exposes queue payloads (raw user fragments), retry controls, and
