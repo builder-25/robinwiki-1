@@ -315,6 +315,7 @@ export type WikiDetailResponseSchema = {
     lookupKey: string;
     slug: string;
     name: string;
+    description?: string;
     type: string;
     prompt: string;
     state: 'PENDING' | 'RESOLVED' | 'LINKING' | 'DIRTY';
@@ -332,12 +333,14 @@ export type WikiDetailResponseSchema = {
         }>;
         percentage: number;
     };
+    bouncerMode?: 'auto' | 'review';
     wikiContent: string;
     fragments: Array<{
         id: string;
         slug: string;
         title: string;
         snippet: string;
+        edgeStatus?: 'active' | 'pending';
     }>;
     people: Array<{
         id: string;
