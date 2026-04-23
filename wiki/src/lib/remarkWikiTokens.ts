@@ -18,7 +18,8 @@
  * never reimplement the regex locally.
  */
 
-import { WIKI_LINK_RE } from '@robin/shared'
+/** Matches `[[kind:slug]]` or `[[slug]]` wiki-link tokens. Kept in sync with @robin/shared/wiki-links. */
+const WIKI_LINK_RE = /\[\[(?:([a-z]+):)?([a-z0-9-]+)\]\]/g
 
 /**
  * Marker value carried on the synthetic span's `data-wiki-chip-key`
