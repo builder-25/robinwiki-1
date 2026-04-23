@@ -22,7 +22,7 @@
  * @see {@link resolveSlug} — generic fuzzy slug matching (auto-resolve at 70+)
  * @see {@link resolveThreadBySlug} — strict exact-match for write paths
  * @see {@link listWikis} — wiki listing with fragment counts
- * @see {@link getThread} — full thread detail with wiki body
+ * @see {@link getWiki} — full wiki detail with wiki body
  * @see {@link getFragment} — full fragment with content + frontmatter
  * @see {@link findPersonById} — exact PK lookup
  * @see {@link findPersonByQuery} — fuzzy name/slug/alias search
@@ -84,7 +84,7 @@ interface WikiSummary {
  * Sidecar: detail tool emits `refs`, `infobox`, and `sections[].citations`
  * per CONTRACT §9. `infobox` is sourced from `wikis.metadata.infobox`.
  */
-interface ThreadDetail {
+interface WikiDetail {
   thread: {
     lookupKey: string
     slug: string
@@ -513,20 +513,20 @@ export async function listWikis(
 }
 
 /**
- * Get full thread detail by slug with fuzzy matching.
+ * Get full wiki detail by slug with fuzzy matching.
  *
  * @remarks
- * Reads the thread's wiki body from the `content` column and fetches
+ * Reads the wiki body from the `content` column and fetches
  * all member fragments via `FRAGMENT_IN_WIKI` edges with 300-char snippets.
  *
  * @param deps      - Database client
- * @param slugInput - Thread slug (exact or fuzzy)
- * @returns {@link ThreadDetail} with wiki body and fragments, or {@link ErrorResult}
+ * @param slugInput - Wiki slug (exact or fuzzy)
+ * @returns {@link WikiDetail} with wiki body and fragments, or {@link ErrorResult}
  */
-export async function getThread(
+export async function getWiki(
   deps: McpResolverDeps,
   slugInput: string
-): Promise<ThreadDetail | ErrorResult> {
+): Promise<WikiDetail | ErrorResult> {
   const allThreads = await deps.db
     .select({
       lookupKey: wikis.lookupKey,

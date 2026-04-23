@@ -20,7 +20,7 @@
 import { z } from 'zod/v4'
 import { eq, and, isNull, inArray, sql } from 'drizzle-orm'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { listWikis, getThread, getFragment, findPersonById, findPersonByQuery, listWikiTypes, briefPerson, resolveThreadBySlug } from './resolvers.js'
+import { listWikis, getWiki, getFragment, findPersonById, findPersonByQuery, listWikiTypes, briefPerson, resolveThreadBySlug } from './resolvers.js'
 import type { McpResolverDeps } from './resolvers.js'
 import { handleLogEntry, handleLogFragment, handleCreateWikiType, handleCreateWiki, handleEditWiki, handleDeleteWiki, handleDeletePerson } from './handlers.js'
 import type { McpServerDeps } from './handlers.js'
@@ -74,14 +74,14 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     'log_fragment',
     {
       description:
-        'Persist a fragment directly to a known thread, bypassing the AI ingestion pipeline. ' +
-        'Use when you already know which thread the content belongs to. ' +
-        'Get thread slugs from list_threads or get_thread first.',
+        'Persist a fragment directly to a known wiki, bypassing the AI ingestion pipeline. ' +
+        'Use when you already know which wiki the content belongs to. ' +
+        'Get wiki slugs from list_wikis or get_wiki first.',
       inputSchema: {
         content: z.string().describe('Fragment body content'),
         threadSlug: z
           .string()
-          .describe('Exact thread slug to attach to (from list_threads or get_thread)'),
+          .describe('Exact wiki slug to attach to (from list_wikis or get_wiki)'),
         title: z.string().optional().describe('Fragment title (derived from content if omitted)'),
         tags: z.array(z.string()).optional().describe('Optional tags'),
       },
@@ -174,7 +174,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         'resolves any [[kind:slug]] tokens present in the wiki content — use it ' +
         'to render or follow references without re-fetching each target. ' +
         'Per-section citations and infoboxes are omitted from list results; ' +
-        'call get_thread for full detail.',
+        'call get_wiki for full detail.',
       inputSchema: {
         includeDescriptors: z.boolean().optional().describe(
           'Include type descriptors in the response (default: true). Set false for compact output.'
@@ -202,10 +202,10 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
    ***********************************************************************/
 
   server.registerTool(
-    'get_thread',
+    'get_wiki',
     {
       description:
-        'Get full detail for a wiki (thread) by slug. Response includes:\n' +
+        'Get full detail for a wiki by slug. Response includes:\n' +
         '- `wikiBody`: markdown content with [[kind:slug]] tokens for internal references\n' +
         '- `refs`: resolver map from `${kind}:${slug}` → entity metadata. Use to render or ' +
         'follow tokens without re-fetching each target\n' +
@@ -216,12 +216,12 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         'wiki type supports one — null otherwise\n' +
         '- `fragments`: member fragment snippets (unchanged)',
       inputSchema: {
-        slug: z.string().describe('Thread slug or partial slug for fuzzy matching'),
+        slug: z.string().describe('Wiki slug or partial slug for fuzzy matching'),
       },
     },
     async ({ slug }) => {
       try {
-        const result = await getThread(resolverDeps, slug)
+        const result = await getWiki(resolverDeps, slug)
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
         }
