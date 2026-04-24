@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import { cors } from 'hono/cors'
+import { sessionMiddleware } from './middleware/session.js'
 import { httpLogger } from './middleware/http-logger.js'
 import { logger } from './lib/logger.js'
 import { auth } from './auth.js'
@@ -75,10 +76,17 @@ process.once('SIGTERM', () => process.exit(0))
 const app = new Hono()
 
 app.use('*', httpLogger())
+const allowedOrigins = new Set(
+  (process.env.WIKI_ORIGIN ?? 'http://localhost:8080,http://localhost:3001')
+    .split(',')
+    .map((s) => s.trim())
+)
+allowedOrigins.add(process.env.SERVER_PUBLIC_URL ?? 'http://localhost:3000')
+
 app.use(
   '*',
   cors({
-    origin: (origin) => origin,
+    origin: (origin) => (allowedOrigins.has(origin) ? origin : ''),
     credentials: true,
   })
 )
@@ -100,8 +108,9 @@ const openapiSpec = JSON.parse(readFileSync(new URL('../openapi.json', import.me
 const faviconBuf = readFileSync(new URL('../assets/favicon.ico', import.meta.url))
 
 /***********************************************************************
- * ## Pre-auth routes
- * Health, OpenAPI, internal HMAC, admin — no session middleware.
+ * ## Pre-auth routes (+ session-gated admin)
+ * Health, OpenAPI, auth recovery, published, system — no session middleware.
+ * Admin and BullBoard routes apply their own session middleware.
  ***********************************************************************/
 
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }))
@@ -124,11 +133,9 @@ app.route('/system', systemRoutes)
 app.use('/api/auth/*', (c) => auth.handler(c.req.raw))
 
 // BullBoard exposes queue payloads (raw user fragments), retry controls, and
-// drain actions. It has no auth in front. Only mount outside production until
-// issue #73 ships a proper session gate.
-if (process.env.NODE_ENV !== 'production') {
-  app.route('/admin/queues', bullBoardApp)
-}
+// drain actions. Gated behind session auth (issue #73).
+app.use('/admin/queues/*', sessionMiddleware)
+app.route('/admin/queues', bullBoardApp)
 
 /***********************************************************************
  * ## Authenticated API
