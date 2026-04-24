@@ -1,0 +1,180 @@
+import type { CSSProperties, ReactNode } from "react";
+import { T } from "@/lib/typography";
+import { MarkdownContent } from "@/components/wiki/MarkdownContent";
+import { WikiCitations } from "@/components/wiki/WikiCitations";
+import { WikiEditLink } from "@/components/wiki/WikiFurniture";
+import {
+  parseSectionsFromMarkdown,
+  type SectionInfo,
+} from "@/lib/sectionEdit";
+import type { WikiRef, WikiSection } from "@/lib/sidecarTypes";
+
+/**
+ * Match server-computed `sections[]` entries to the anchors produced by
+ * `parseSectionsFromMarkdown` against the displayed markdown.
+ */
+function buildCitationsByAnchor(
+  sections: WikiSection[] | undefined,
+): Map<string, WikiSection> {
+  const map = new Map<string, WikiSection>();
+  if (!sections) return map;
+  for (const s of sections) {
+    map.set(s.anchor, s);
+  }
+  return map;
+}
+
+/**
+ * Heading styles mirroring `MarkdownContent`'s internal `buildComponents`
+ * heading mapping so section-scoped headings look identical to headings
+ * rendered inside `<MarkdownContent>` body blocks.
+ */
+const sectionHeadingStyle: Record<2 | 3 | 4, CSSProperties> = {
+  2: {
+    ...T.h2,
+    color: "var(--wiki-article-h2)",
+    margin: "24px 0 8px",
+    borderBottom: "1px solid var(--wiki-card-border)",
+    paddingBottom: 4,
+  },
+  3: {
+    ...T.h3,
+    color: "var(--wiki-article-h2)",
+    margin: "20px 0 6px",
+  },
+  4: {
+    ...T.h4,
+    color: "var(--wiki-article-h2)",
+    margin: "16px 0 4px",
+  },
+};
+
+function SectionHeadingWithEdit({
+  section,
+  onEdit,
+  showEditLink,
+}: {
+  section: SectionInfo;
+  onEdit: (sectionId: string) => void;
+  showEditLink: boolean;
+}) {
+  const style = sectionHeadingStyle[section.level as 2 | 3 | 4];
+  if (!style) return null;
+
+  const HeadingTag = (section.level === 3
+    ? "h3"
+    : section.level === 4
+      ? "h4"
+      : "h2") as "h2" | "h3" | "h4";
+
+  const editLink = showEditLink ? (
+    <>
+      {" "}
+      <WikiEditLink onClick={() => onEdit(section.id)} />
+    </>
+  ) : null;
+
+  return (
+    <HeadingTag style={style}>
+      {section.heading}
+      {editLink}
+    </HeadingTag>
+  );
+}
+
+/**
+ * Render the markdown body as a sequence of section-scoped
+ * `<MarkdownContent>` blocks, each followed by its `<WikiCitations>`
+ * superscripts. Preamble before the first heading (if any) renders as
+ * an unattributed leading block.
+ *
+ * If the body has no headings, falls back to a single whole-body render.
+ *
+ * H1 is skipped entirely: the parser gives H1 an endLine running to EOF
+ * (the standard "next same-or-higher heading" rule, with no next H1), so
+ * rendering its span would duplicate every H2+ that follows. The wiki
+ * title is already rendered as page chrome by `<WikiEntityArticle>`, so
+ * the markdown-level H1 is redundant. Without the skip, every wiki
+ * double-rendered from the first H2 onward (issue #152).
+ *
+ * When `onEditSection` is provided, H2/H3/H4 gain a trailing `[edit]`
+ * bracket affordance.
+ */
+export function SectionedMarkdownBody({
+  content,
+  refs,
+  sections,
+  style,
+  onEditSection,
+}: {
+  content: string;
+  refs: Record<string, WikiRef>;
+  sections: WikiSection[] | undefined;
+  style: CSSProperties;
+  onEditSection?: (sectionId: string) => void;
+}) {
+  const parsed: SectionInfo[] = parseSectionsFromMarkdown(content);
+  if (parsed.length === 0) {
+    return <MarkdownContent content={content} refs={refs} style={style} />;
+  }
+
+  const lines = content.split("\n");
+  const citationsByAnchor = buildCitationsByAnchor(sections);
+
+  const preamble = lines.slice(0, parsed[0].startLine).join("\n");
+  const blocks: ReactNode[] = [];
+  if (preamble.trim().length > 0) {
+    blocks.push(
+      <MarkdownContent
+        key="__preamble"
+        content={preamble}
+        refs={refs}
+        style={style}
+      />,
+    );
+  }
+
+  for (const section of parsed) {
+    // H1 would span EOF and swallow every subsequent section's body,
+    // double-rendering all H2+ content. See module docstring above.
+    if (section.level === 1) continue;
+
+    const matched = citationsByAnchor.get(section.anchor);
+    const citations = matched?.citations ?? [];
+
+    const canExtractHeading =
+      section.level >= 2 && section.level <= 4 && onEditSection !== undefined;
+
+    if (canExtractHeading) {
+      const bodyOnly = lines
+        .slice(section.startLine + 1, section.endLine + 1)
+        .join("\n");
+      blocks.push(
+        <div key={section.anchor} id={section.anchor}>
+          <SectionHeadingWithEdit
+            section={section}
+            onEdit={onEditSection}
+            showEditLink={true}
+          />
+          {bodyOnly.trim().length > 0 && (
+            <MarkdownContent content={bodyOnly} refs={refs} style={style} />
+          )}
+          {citations.length > 0 && <WikiCitations citations={citations} />}
+        </div>,
+      );
+      continue;
+    }
+
+    const body = lines
+      .slice(section.startLine, section.endLine + 1)
+      .join("\n");
+    blocks.push(
+      <div key={section.anchor} id={section.anchor}>
+        <MarkdownContent content={body} refs={refs} style={style} />
+        {citations.length > 0 && <WikiCitations citations={citations} />}
+      </div>,
+    );
+  }
+
+  return <>{blocks}</>;
+}
