@@ -11,7 +11,6 @@ import {
   KeyRound,
   LogOut,
   Pencil,
-  RefreshCw,
 } from "lucide-react";
 import { T, FONT } from "@/lib/typography";
 import { ModelSelector } from "@/components/ModelSelector";
@@ -35,13 +34,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
-import { cn } from "@/lib/utils";
 import { useSession } from "@/hooks/useSession";
 import { AuthGuard } from "@/components/AuthGuard";
 import { useProfile } from "@/hooks/useProfile";
 import { useStats } from "@/hooks/useStats";
-import { useWikis } from "@/hooks/useWikis";
-import { useRegenerateWiki } from "@/hooks/useRegenerateWiki";
 import { useLogout } from "@/hooks/useLogout";
 import { exportUserData, getUserKeypair } from "@/lib/api";
 
@@ -84,13 +80,10 @@ export default function ProfilePage() {
   const profileQuery = useProfile();
   const statsQuery = useStats();
   const modelPrefs = useModelPreferences();
-  const wikisQuery = useWikis();
-  const regenerateWiki = useRegenerateWiki();
   const logout = useLogout();
   const [copied, setCopied] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
-  const [regenStatus, setRegenStatus] = useState<"idle" | "running" | "done" | "error">("idle");
 
   const username = session?.user?.name ?? session?.user?.email ?? "";
   const canDelete = username.length > 0 && deleteConfirm === username;
@@ -128,20 +121,6 @@ export default function ProfilePage() {
       if (data) triggerJsonDownload(data, "robin-keypair.json");
     } catch {
       // silently fail — user sees no download
-    }
-  };
-
-  const handleRegenerate = async () => {
-    const wikis = wikisQuery.data?.wikis;
-    if (!wikis?.length) return;
-    setRegenStatus("running");
-    try {
-      await Promise.all(wikis.map((w) => regenerateWiki.mutateAsync(w.id)));
-      setRegenStatus("done");
-      setTimeout(() => setRegenStatus("idle"), 3000);
-    } catch {
-      setRegenStatus("error");
-      setTimeout(() => setRegenStatus("idle"), 3000);
     }
   };
 
@@ -383,26 +362,6 @@ export default function ProfilePage() {
                 >
                   <Pencil className="size-4" strokeWidth={1.5} />
                 </button>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  disabled={regenStatus === "running" || !wikisQuery.data?.wikis?.length}
-                  onClick={handleRegenerate}
-                >
-                  <RefreshCw className={cn("size-3.5", regenStatus === "running" && "animate-spin")} strokeWidth={1.5} />
-                  <span style={T.buttonSmall}>{regenStatus === "running" ? "Regenerating..." : "Re-profile"}</span>
-                </Button>
-                {regenStatus === "done" && (
-                  <span style={{ ...T.micro, color: "var(--emerald-600, #059669)" }}>All wikis regenerated</span>
-                )}
-                {regenStatus === "error" && (
-                  <span style={{ ...T.micro, color: "var(--destructive)" }}>Regeneration failed</span>
-                )}
               </div>
             </CardContent>
           </Card>

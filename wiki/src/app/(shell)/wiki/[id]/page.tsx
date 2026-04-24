@@ -12,7 +12,7 @@ import { useDeleteWiki } from "@/hooks/useDeleteWiki";
 import { useAcceptFragment } from "@/hooks/useAcceptFragment";
 import { useRejectFragment } from "@/hooks/useRejectFragment";
 import { useQueryClient } from "@tanstack/react-query";
-import ConfirmDialog from "@/components/prompts/ConfirmDialog";
+import DestructiveConfirmDialog from "@/components/prompts/DestructiveConfirmDialog";
 import SectionEditor from "@/components/editor/SectionEditor";
 import {
   WikiEntityArticle,
@@ -297,6 +297,7 @@ export default function WikiDetailPage() {
       title={wiki.name}
       promptOverride={wiki.prompt}
       description={wiki.description ?? wiki.shortDescriptor ?? ''}
+      bouncerMode={wiki.bouncerMode as 'auto' | 'review' | undefined}
       infobox={{ kind: "simple", typeLabel, lastUpdated: wiki.updatedAt, showSettings: true }}
       renderCustomInfobox={
         sidecarInfobox
@@ -384,13 +385,13 @@ export default function WikiDetailPage() {
               </span>
             )}
           </div>
-          <ConfirmDialog
+          <DestructiveConfirmDialog
             open={showDeleteConfirm}
             onOpenChange={setShowDeleteConfirm}
             title="Delete Wiki"
             description="Are you sure? This permanently deletes this wiki."
+            confirmText={wiki.name}
             confirmLabel="Delete"
-            destructive
             onConfirm={() => {
               deleteWiki.mutate(wiki.id, {
                 onSuccess: () => router.push("/wiki"),
