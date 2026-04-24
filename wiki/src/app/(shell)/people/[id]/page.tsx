@@ -311,7 +311,7 @@ export default function WikiPeoplePage() {
       chipLabel="People"
       title={person.name}
       infobox={{ kind: "simple", typeLabel: "People", showSettings: true }}
-      renderCustomInfobox={({ onSettingsClick }) =>
+      renderCustomInfobox={() =>
         sidecarInfobox ? (
           <WikiInfobox
             title={person.name}
@@ -327,7 +327,7 @@ export default function WikiPeoplePage() {
             ]}
           />
         ) : (
-          <PeopleInfobox person={person} onSettingsClick={onSettingsClick} />
+          <PeopleInfobox person={person} />
         )
       }
       onSave={handleSaveToApi}

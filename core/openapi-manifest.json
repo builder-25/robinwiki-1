@@ -1,9 +1,9 @@
 {
   "_meta": {
-    "generatedAt": "2026-04-24T13:38:45.509Z",
+    "generatedAt": "2026-04-24T15:53:23.019Z",
     "description": "Route + JSON Schema manifest for OpenAPI generation. Feed to /apidoc.",
-    "schemaCount": 59,
-    "routeCount": 55
+    "schemaCount": 61,
+    "routeCount": 56
   },
   "info": {
     "title": "Robin API",
@@ -432,6 +432,31 @@
         "200": {
           "description": "Timeline events",
           "schemaName": "auditLogResponseSchema"
+        },
+        "404": {
+          "description": "Not found",
+          "schemaName": "errorResponseSchema"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/wikis/{id}/history",
+      "operationId": "getWikiEditHistory",
+      "summary": "Get edit history for a wiki",
+      "tags": [
+        "Wikis"
+      ],
+      "auth": "session",
+      "request": {
+        "params": {
+          "id": "lookupKey"
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Edit history records",
+          "schemaName": "editHistoryResponseSchema"
         },
         "404": {
           "description": "Not found",
@@ -4731,6 +4756,88 @@
               "default": 0
             }
           },
+          "additionalProperties": false
+        }
+      }
+    },
+    "editRecordSchema": {
+      "$ref": "#/definitions/editRecordSchema",
+      "definitions": {
+        "editRecordSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "timestamp": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "contentSnippet": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "timestamp",
+            "type",
+            "source",
+            "contentSnippet"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "editHistoryResponseSchema": {
+      "$ref": "#/definitions/editHistoryResponseSchema",
+      "definitions": {
+        "editHistoryResponseSchema": {
+          "type": "object",
+          "properties": {
+            "edits": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "string"
+                  },
+                  "contentSnippet": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "timestamp",
+                  "type",
+                  "source",
+                  "contentSnippet"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "total": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "edits",
+            "total"
+          ],
           "additionalProperties": false
         }
       }

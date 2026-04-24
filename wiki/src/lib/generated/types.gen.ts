@@ -688,6 +688,19 @@ export type TimelineQuerySchema = {
     offset?: number;
 };
 
+export type EditRecordSchema = {
+    id: string;
+    timestamp: string;
+    type: string;
+    source: string;
+    contentSnippet: string;
+};
+
+export type EditHistoryResponseSchema = {
+    edits: Array<EditRecordSchema>;
+    total: number;
+};
+
 export type GetHealthData = {
     body?: never;
     path?: never;
@@ -1963,3 +1976,30 @@ export type McpTransportResponses = {
      */
     200: unknown;
 };
+
+export type GetWikiEditHistoryData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/wikis/{id}/history';
+};
+
+export type GetWikiEditHistoryErrors = {
+    /**
+     * Not found
+     */
+    404: ErrorResponseSchema;
+};
+
+export type GetWikiEditHistoryError = GetWikiEditHistoryErrors[keyof GetWikiEditHistoryErrors];
+
+export type GetWikiEditHistoryResponses = {
+    /**
+     * Edit history records
+     */
+    200: EditHistoryResponseSchema;
+};
+
+export type GetWikiEditHistoryResponse = GetWikiEditHistoryResponses[keyof GetWikiEditHistoryResponses];

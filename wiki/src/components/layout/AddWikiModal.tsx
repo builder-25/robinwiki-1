@@ -218,7 +218,7 @@ export default function AddWikiModal({
       try {
         // Empty string clears the override; non-empty sets it.
         // Never send null — Zod rejects.
-        const payload: { name?: string; type?: string; prompt: string } = {
+        const payload: { name?: string; type?: string; description?: string; prompt: string } = {
           prompt: wikiPrompt,
         };
         if (prefill && trimmedName !== prefill.name) {
@@ -226,6 +226,9 @@ export default function AddWikiModal({
         }
         if (prefill && wikiType !== prefill.wikiType) {
           payload.type = wikiType;
+        }
+        if (prefill && description !== prefill.description) {
+          payload.description = description;
         }
         const { error } = await updateWiki({
           path: { id: wikiId },

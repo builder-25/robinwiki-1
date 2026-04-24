@@ -3,7 +3,7 @@
   "info": {
     "title": "Robin API",
     "version": "0.3.0",
-    "description": "REST API for Robin.OS \u2014 a personal knowledge management system."
+    "description": "REST API for Robin.OS — a personal knowledge management system."
   },
   "servers": [
     {
@@ -2200,6 +2200,52 @@
           }
         }
       }
+    },
+    "/wikis/{id}/history": {
+      "get": {
+        "operationId": "getWikiEditHistory",
+        "summary": "Get edit history for a wiki",
+        "tags": [
+          "Wikis"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Edit history records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/editHistoryResponseSchema"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponseSchema"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2209,52 +2255,128 @@
           {
             "type": "object",
             "properties": {
-              "id": { "type": "string" },
-              "slug": { "type": "string" },
-              "label": { "type": "string" },
-              "kind": { "type": "string", "enum": ["person"] },
-              "relationship": { "type": "string" }
+              "id": {
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "person"
+                ]
+              },
+              "relationship": {
+                "type": "string"
+              }
             },
-            "required": ["id", "slug", "label", "kind"]
+            "required": [
+              "id",
+              "slug",
+              "label",
+              "kind"
+            ]
           },
           {
             "type": "object",
             "properties": {
-              "id": { "type": "string" },
-              "slug": { "type": "string" },
-              "label": { "type": "string" },
-              "kind": { "type": "string", "enum": ["fragment"] },
-              "snippet": { "type": "string" }
+              "id": {
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "fragment"
+                ]
+              },
+              "snippet": {
+                "type": "string"
+              }
             },
-            "required": ["id", "slug", "label", "kind"]
+            "required": [
+              "id",
+              "slug",
+              "label",
+              "kind"
+            ]
           },
           {
             "type": "object",
             "properties": {
-              "id": { "type": "string" },
-              "slug": { "type": "string" },
-              "label": { "type": "string" },
-              "kind": { "type": "string", "enum": ["wiki"] },
-              "wikiType": { "type": "string" }
+              "id": {
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "wiki"
+                ]
+              },
+              "wikiType": {
+                "type": "string"
+              }
             },
-            "required": ["id", "slug", "label", "kind", "wikiType"]
+            "required": [
+              "id",
+              "slug",
+              "label",
+              "kind",
+              "wikiType"
+            ]
           },
           {
             "type": "object",
             "properties": {
-              "id": { "type": "string" },
-              "slug": { "type": "string" },
-              "label": { "type": "string" },
-              "kind": { "type": "string", "enum": ["entry"] },
-              "createdAt": { "type": "string" }
+              "id": {
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "entry"
+                ]
+              },
+              "createdAt": {
+                "type": "string"
+              }
             },
-            "required": ["id", "slug", "label", "kind", "createdAt"]
+            "required": [
+              "id",
+              "slug",
+              "label",
+              "kind",
+              "createdAt"
+            ]
           }
         ]
       },
       "wikiRefsMapSchema": {
         "type": "object",
-        "additionalProperties": { "$ref": "#/components/schemas/wikiRefSchema" },
+        "additionalProperties": {
+          "$ref": "#/components/schemas/wikiRefSchema"
+        },
         "default": {}
       },
       "wikiInfoboxSchema": {
@@ -2263,56 +2385,108 @@
           "image": {
             "type": "object",
             "properties": {
-              "url": { "type": "string" },
-              "alt": { "type": "string" }
+              "url": {
+                "type": "string"
+              },
+              "alt": {
+                "type": "string"
+              }
             },
-            "required": ["url", "alt"]
+            "required": [
+              "url",
+              "alt"
+            ]
           },
-          "caption": { "type": "string" },
+          "caption": {
+            "type": "string"
+          },
           "rows": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
-                "label": { "type": "string" },
-                "value": { "type": "string" },
+                "label": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
                 "valueKind": {
                   "type": "string",
-                  "enum": ["text", "ref", "date", "status"],
+                  "enum": [
+                    "text",
+                    "ref",
+                    "date",
+                    "status"
+                  ],
                   "default": "text"
                 }
               },
-              "required": ["label", "value"]
+              "required": [
+                "label",
+                "value"
+              ]
             }
           }
         },
-        "required": ["rows"],
+        "required": [
+          "rows"
+        ],
         "nullable": true
       },
       "wikiCitationSchema": {
         "type": "object",
         "properties": {
-          "fragmentId": { "type": "string" },
-          "fragmentSlug": { "type": "string" },
-          "quote": { "type": "string" },
-          "capturedAt": { "type": "string" }
+          "fragmentId": {
+            "type": "string"
+          },
+          "fragmentSlug": {
+            "type": "string"
+          },
+          "quote": {
+            "type": "string"
+          },
+          "capturedAt": {
+            "type": "string"
+          }
         },
-        "required": ["fragmentId", "fragmentSlug", "capturedAt"]
+        "required": [
+          "fragmentId",
+          "fragmentSlug",
+          "capturedAt"
+        ]
       },
       "wikiSectionSchema": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "anchor": { "type": "string" },
-          "heading": { "type": "string" },
-          "level": { "type": "integer", "minimum": 1, "maximum": 6 },
+          "id": {
+            "type": "string"
+          },
+          "anchor": {
+            "type": "string"
+          },
+          "heading": {
+            "type": "string"
+          },
+          "level": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6
+          },
           "citations": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/wikiCitationSchema" },
+            "items": {
+              "$ref": "#/components/schemas/wikiCitationSchema"
+            },
             "default": []
           }
         },
-        "required": ["id", "anchor", "heading", "level"]
+        "required": [
+          "id",
+          "anchor",
+          "heading",
+          "level"
+        ]
       },
       "errorResponseSchema": {
         "type": "object",
@@ -2404,7 +2578,10 @@
             "type": "string",
             "minLength": 1
           },
-          "lookupKey": {"type": "string", "minLength": 1},
+          "lookupKey": {
+            "type": "string",
+            "minLength": 1
+          },
           "slug": {
             "type": "string"
           },
@@ -2440,10 +2617,14 @@
             "type": "string",
             "format": "date-time"
           },
-          "refs": { "$ref": "#/components/schemas/wikiRefsMapSchema" },
+          "refs": {
+            "$ref": "#/components/schemas/wikiRefsMapSchema"
+          },
           "sections": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/wikiSectionSchema" },
+            "items": {
+              "$ref": "#/components/schemas/wikiSectionSchema"
+            },
             "default": []
           }
         },
@@ -2469,7 +2650,10 @@
             "type": "string",
             "minLength": 1
           },
-          "lookupKey": {"type": "string", "minLength": 1},
+          "lookupKey": {
+            "type": "string",
+            "minLength": 1
+          },
           "slug": {
             "type": "string"
           },
@@ -2545,7 +2729,10 @@
                   "type": "string",
                   "minLength": 1
                 },
-                "lookupKey": {"type": "string", "minLength": 1},
+                "lookupKey": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "slug": {
                   "type": "string"
                 },
@@ -2674,7 +2861,10 @@
             "type": "string",
             "minLength": 1
           },
-          "lookupKey": {"type": "string", "minLength": 1},
+          "lookupKey": {
+            "type": "string",
+            "minLength": 1
+          },
           "slug": {
             "type": "string"
           },
@@ -2738,7 +2928,10 @@
             "type": "string",
             "minLength": 1
           },
-          "lookupKey": {"type": "string", "minLength": 1},
+          "lookupKey": {
+            "type": "string",
+            "minLength": 1
+          },
           "slug": {
             "type": "string"
           },
@@ -2806,7 +2999,10 @@
             "type": "string",
             "minLength": 1
           },
-          "lookupKey": {"type": "string", "minLength": 1},
+          "lookupKey": {
+            "type": "string",
+            "minLength": 1
+          },
           "slug": {
             "type": "string"
           },
@@ -2903,7 +3099,10 @@
                   "type": "string",
                   "minLength": 1
                 },
-                "lookupKey": {"type": "string", "minLength": 1},
+                "lookupKey": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "slug": {
                   "type": "string"
                 },
@@ -3024,7 +3223,10 @@
             "type": "string",
             "minLength": 1
           },
-          "lookupKey": {"type": "string", "minLength": 1},
+          "lookupKey": {
+            "type": "string",
+            "minLength": 1
+          },
           "slug": {
             "type": "string"
           },
@@ -3136,7 +3338,10 @@
             "type": "string",
             "minLength": 1
           },
-          "lookupKey": {"type": "string", "minLength": 1},
+          "lookupKey": {
+            "type": "string",
+            "minLength": 1
+          },
           "slug": {
             "type": "string"
           },
@@ -3257,7 +3462,10 @@
                   "type": "string",
                   "minLength": 1
                 },
-                "lookupKey": {"type": "string", "minLength": 1},
+                "lookupKey": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "slug": {
                   "type": "string"
                 },
@@ -3376,7 +3584,10 @@
             "type": "string",
             "minLength": 1
           },
-          "lookupKey": {"type": "string", "minLength": 1},
+          "lookupKey": {
+            "type": "string",
+            "minLength": 1
+          },
           "slug": {
             "type": "string"
           },
@@ -3473,7 +3684,10 @@
             "items": {
               "type": "object",
               "properties": {
-                "id": {"type": "string", "minLength": 1},
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "slug": {
                   "type": "string"
                 },
@@ -3498,7 +3712,10 @@
             "items": {
               "type": "object",
               "properties": {
-                "id": {"type": "string", "minLength": 1},
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "name": {
                   "type": "string"
                 }
@@ -3510,11 +3727,17 @@
               "additionalProperties": false
             }
           },
-          "refs": { "$ref": "#/components/schemas/wikiRefsMapSchema" },
-          "infobox": { "$ref": "#/components/schemas/wikiInfoboxSchema" },
+          "refs": {
+            "$ref": "#/components/schemas/wikiRefsMapSchema"
+          },
+          "infobox": {
+            "$ref": "#/components/schemas/wikiInfoboxSchema"
+          },
           "sections": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/wikiSectionSchema" },
+            "items": {
+              "$ref": "#/components/schemas/wikiSectionSchema"
+            },
             "default": []
           }
         },
@@ -3616,11 +3839,17 @@
           "content": {
             "type": "string"
           },
-          "refs": { "$ref": "#/components/schemas/wikiRefsMapSchema" },
-          "infobox": { "$ref": "#/components/schemas/wikiInfoboxSchema" },
+          "refs": {
+            "$ref": "#/components/schemas/wikiRefsMapSchema"
+          },
+          "infobox": {
+            "$ref": "#/components/schemas/wikiInfoboxSchema"
+          },
           "sections": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/wikiSectionSchema" },
+            "items": {
+              "$ref": "#/components/schemas/wikiSectionSchema"
+            },
             "default": []
           }
         },
@@ -3907,7 +4136,10 @@
             "type": "string",
             "minLength": 1
           },
-          "lookupKey": {"type": "string", "minLength": 1},
+          "lookupKey": {
+            "type": "string",
+            "minLength": 1
+          },
           "slug": {
             "type": "string"
           },
@@ -3975,7 +4207,10 @@
             "type": "string",
             "minLength": 1
           },
-          "lookupKey": {"type": "string", "minLength": 1},
+          "lookupKey": {
+            "type": "string",
+            "minLength": 1
+          },
           "slug": {
             "type": "string"
           },
@@ -4073,11 +4308,17 @@
             },
             "default": []
           },
-          "refs": { "$ref": "#/components/schemas/wikiRefsMapSchema" },
-          "infobox": { "$ref": "#/components/schemas/wikiInfoboxSchema" },
+          "refs": {
+            "$ref": "#/components/schemas/wikiRefsMapSchema"
+          },
+          "infobox": {
+            "$ref": "#/components/schemas/wikiInfoboxSchema"
+          },
           "sections": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/wikiSectionSchema" },
+            "items": {
+              "$ref": "#/components/schemas/wikiSectionSchema"
+            },
             "default": []
           }
         },
@@ -4106,7 +4347,10 @@
             "type": "string",
             "minLength": 1
           },
-          "lookupKey": {"type": "string", "minLength": 1},
+          "lookupKey": {
+            "type": "string",
+            "minLength": 1
+          },
           "slug": {
             "type": "string"
           },
@@ -4193,7 +4437,10 @@
                   "type": "string",
                   "minLength": 1
                 },
-                "lookupKey": {"type": "string", "minLength": 1},
+                "lookupKey": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "slug": {
                   "type": "string"
                 },
@@ -4909,6 +5156,53 @@
             "default": 0
           }
         },
+        "additionalProperties": false
+      },
+      "editRecordSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "contentSnippet": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "timestamp",
+          "type",
+          "source",
+          "contentSnippet"
+        ],
+        "additionalProperties": false
+      },
+      "editHistoryResponseSchema": {
+        "type": "object",
+        "properties": {
+          "edits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/editRecordSchema"
+            }
+          },
+          "total": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "edits",
+          "total"
+        ],
         "additionalProperties": false
       }
     },

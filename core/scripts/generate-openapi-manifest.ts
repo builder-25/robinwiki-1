@@ -87,6 +87,9 @@ import {
   auditLogQuerySchema,
   auditEventSchema,
   timelineQuerySchema,
+  // wiki edit history
+  editRecordSchema,
+  editHistoryResponseSchema,
   // system
   systemStatusResponseSchema,
 } from '../src/schemas/index.js'
@@ -165,6 +168,9 @@ const schemaRegistry: Record<string, ZodType> = {
   auditLogQuerySchema,
   auditEventSchema,
   timelineQuerySchema,
+  // wiki edit history
+  editRecordSchema,
+  editHistoryResponseSchema,
   // system
   systemStatusResponseSchema,
 }
@@ -211,6 +217,7 @@ const routes: RouteSpec[] = [
   { method: 'GET', path: '/wikis/{id}', operationId: 'getWiki', summary: 'Get wiki detail with fragments and people', tags: ['Wikis'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '200': { description: 'Wiki detail with fragments and people', schemaName: 'wikiDetailResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
   { method: 'PUT', path: '/wikis/{id}', operationId: 'updateWiki', summary: 'Update a wiki', tags: ['Wikis'], auth: 'session', request: { params: { id: 'lookupKey' }, body: { schemaName: 'updateWikiBodySchema' } }, responses: { '200': { description: 'Updated wiki', schemaName: 'wikiResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
   { method: 'GET', path: '/wikis/{id}/timeline', operationId: 'getWikiTimeline', summary: 'Audit timeline for a wiki and its fragments', tags: ['Wikis'], auth: 'session', request: { params: { id: 'lookupKey' }, query: { schemaName: 'timelineQuerySchema' } }, responses: { '200': { description: 'Timeline events', schemaName: 'auditLogResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
+  { method: 'GET', path: '/wikis/{id}/history', operationId: 'getWikiEditHistory', summary: 'Get edit history for a wiki', tags: ['Wikis'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '200': { description: 'Edit history records', schemaName: 'editHistoryResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
   { method: 'PATCH', path: '/wikis/{id}/bouncer', operationId: 'toggleBouncerMode', summary: 'Toggle bouncer mode (auto/review)', tags: ['Wikis'], auth: 'session', request: { params: { id: 'lookupKey' }, body: { schemaName: 'bouncerModeBodySchema' } }, responses: { '200': { description: 'Updated bouncer mode', schemaName: 'bouncerModeResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
   { method: 'PATCH', path: '/wikis/{id}/regenerate', operationId: 'toggleRegenerate', summary: 'Toggle regenerate flag on a wiki', tags: ['Wikis'], auth: 'session', request: { params: { id: 'lookupKey' }, body: { schemaName: 'toggleRegenerateBodySchema' } }, responses: { '200': { description: 'Updated regenerate flag', schemaName: 'toggleRegenerateResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },
   { method: 'POST', path: '/wikis/{id}/regenerate', operationId: 'regenerateWiki', summary: 'Trigger on-demand wiki regeneration', tags: ['Wikis'], auth: 'session', request: { params: { id: 'lookupKey' } }, responses: { '200': { description: 'Regeneration result', schemaName: 'okResponseSchema' }, '400': { description: 'Regeneration disabled', schemaName: 'errorResponseSchema' }, '404': { description: 'Not found', schemaName: 'errorResponseSchema' } } },

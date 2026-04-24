@@ -122,7 +122,7 @@ export default function WikiDetailPage() {
   const { data: _wiki, isLoading, error } = useWiki(id);
   // Extend generated type with fields added in #128 (bouncerMode, edgeStatus)
   // until the OpenAPI codegen picks them up from the live spec
-  const wiki = _wiki as typeof _wiki & { bouncerMode?: string; fragments?: Array<{ id: string; slug: string; title: string; snippet: string; edgeStatus?: string }> } | undefined;
+  const wiki = _wiki as typeof _wiki & { bouncerMode?: string; description?: string; fragments?: Array<{ id: string; slug: string; title: string; snippet: string; edgeStatus?: string }> } | undefined;
   const regenerate = useRegenerateWiki();
   const deleteWiki = useDeleteWiki();
   const acceptFragment = useAcceptFragment();
@@ -296,7 +296,7 @@ export default function WikiDetailPage() {
       chipLabel={typeLabel}
       title={wiki.name}
       promptOverride={wiki.prompt}
-      description={wiki.shortDescriptor}
+      description={wiki.description ?? wiki.shortDescriptor ?? ''}
       infobox={{ kind: "simple", typeLabel, lastUpdated: wiki.updatedAt, showSettings: true }}
       renderCustomInfobox={
         sidecarInfobox

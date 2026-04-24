@@ -28,7 +28,8 @@ import {
   ComboboxTrigger,
   ComboboxValue,
 } from "@/components/ui/combobox";
-import { useWikiEntityEditMode } from "@/components/wiki/useWikiEntityEditMode";
+import { useWikiEntityEditMode, type WikiRevision } from "@/components/wiki/useWikiEntityEditMode";
+import { useWikiEditHistory } from "@/hooks/useWikiEditHistory";
 import { wikiEntitySettingsPrefill } from "@/lib/wikiSettingsPrefill";
 import {
   type LucideIcon,
@@ -317,7 +318,7 @@ export type WikiEntityArticleProps = {
    * Optional custom infobox renderer used by pages that keep the shared shell
    * but need a type-specific infobox content/layout.
    */
-  renderCustomInfobox?: (args: { onSettingsClick?: () => void }) => ReactNode;
+  renderCustomInfobox?: () => ReactNode;
   /**
    * Optional sections rendered after divider and before modal.
    */
@@ -379,6 +380,21 @@ export function WikiEntityArticle({
   const [infoVisible, setInfoVisible] = useState(true);
   const [wikiSettingsOpen, setWikiSettingsOpen] = useState(false);
   const readContentRef = useRef<HTMLDivElement | null>(null);
+
+  const { data: historyData } = useWikiEditHistory(wikiId);
+  const serverRevisions = useMemo<WikiRevision[] | undefined>(() => {
+    if (!historyData?.edits?.length) return undefined;
+    return historyData.edits.map((edit) => ({
+      id: edit.id,
+      timestamp: new Date(edit.timestamp).getTime(),
+      title: '',
+      chipLabel: '',
+      content: edit.contentSnippet,
+      summary: edit.source === 'regen' ? 'Regenerated' : 'Edited',
+      author: edit.source === 'regen' ? 'Robin' : 'You',
+    }));
+  }, [historyData]);
+
   const {
     isEditing,
     isViewingHistory,
@@ -400,6 +416,7 @@ export function WikiEntityArticle({
   } = useWikiEntityEditMode({
     infoVisible,
     setInfoVisible,
+    serverRevisions,
   });
 
   const displayTitle = savedTitle ?? title;
@@ -407,6 +424,7 @@ export function WikiEntityArticle({
   const displayChipIcon = getWikiTypeIcon(displayChipLabel);
   const draftChipColors = getWikiTypeColors(draftChipLabel);
   const wikiTypeLocked = isPeopleWikiType(displayChipLabel);
+  const showSettings = infobox.showSettings === true;
 
   const wikiSettingsPrefill = useMemo(
     () => wikiEntitySettingsPrefill({ title: displayTitle, chipLabel: displayChipLabel, description, promptOverride }),
@@ -695,6 +713,25 @@ export function WikiEntityArticle({
                       {infoVisible ? <EyeOpenIcon /> : <EyeClosedIcon />}
                     </button>
                   ) : null}
+                  {showSettings && !isEditing && !isViewingHistory ? (
+                    <button
+                      type="button"
+                      title="Wiki settings"
+                      onClick={() => setWikiSettingsOpen(true)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: 24,
+                        paddingBottom: 12,
+                      }}
+                    >
+                      <SettingsIcon />
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -743,15 +780,9 @@ export function WikiEntityArticle({
 
             {showInfobox && infoVisible && !isEditing && !isViewingHistory
               ? (() => {
-                  const onSettingsClick =
-                    (infobox.kind === "simple" || infobox.kind === "extended") &&
-                    infobox.showSettings
-                      ? () => setWikiSettingsOpen(true)
-                      : undefined;
-
                   const content = renderCustomInfobox
-                    ? renderCustomInfobox({ onSettingsClick })
-                    : renderInfobox(infobox, onSettingsClick);
+                    ? renderCustomInfobox()
+                    : renderInfobox(infobox);
 
                   return (
                     <div className="hidden md:block">
