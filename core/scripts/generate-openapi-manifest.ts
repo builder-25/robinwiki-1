@@ -87,6 +87,8 @@ import {
   auditLogQuerySchema,
   auditEventSchema,
   timelineQuerySchema,
+  // system
+  systemStatusResponseSchema,
 } from '../src/schemas/index.js'
 
 // ── Schema registry ─────────────────────────────────────────────────────────
@@ -163,6 +165,8 @@ const schemaRegistry: Record<string, ZodType> = {
   auditLogQuerySchema,
   auditEventSchema,
   timelineQuerySchema,
+  // system
+  systemStatusResponseSchema,
 }
 
 // ── Route definitions ───────────────────────────────────────────────────────
@@ -186,6 +190,7 @@ const routes: RouteSpec[] = [
   // ── System ───────────────────────────────────────────────────────────────
   { method: 'GET', path: '/health', operationId: 'getHealth', summary: 'Health check', tags: ['System'], auth: 'none', responses: { '200': { description: 'Server is running' } } },
   { method: 'GET', path: '/openapi.json', operationId: 'getOpenApiSpec', summary: 'OpenAPI specification', tags: ['System'], auth: 'none', responses: { '200': { description: 'The OpenAPI spec' } } },
+  { method: 'GET', path: '/system/status', operationId: 'getSystemStatus', summary: 'Get instance setup state (no auth)', tags: ['System'], auth: 'none', responses: { '200': { description: 'Instance status', schemaName: 'systemStatusResponseSchema' } } },
 
   // ── Entries ──────────────────────────────────────────────────────────────
   { method: 'POST', path: '/entries', operationId: 'createEntry', summary: 'Create a new entry (queues async processing)', tags: ['Entries'], auth: 'session', request: { body: { schemaName: 'createEntryBodySchema' } }, responses: { '202': { description: 'Entry created and queued', schemaName: 'entryCreatedResponseSchema' }, '400': { description: 'Invalid input', schemaName: 'errorResponseSchema' } } },
