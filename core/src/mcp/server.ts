@@ -99,17 +99,31 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     'create_wiki',
     {
       description:
-        'Create a new wiki in the knowledge base. Robin infers the wiki type from the description.',
+        'Create a new wiki in the knowledge base. Pass `type` explicitly ' +
+        '(list valid slugs via get_wiki_types), or omit it and Robin will ' +
+        'infer the type from the description.',
       inputSchema: {
         title: z.string().describe('Wiki title (becomes the slug)'),
         description: z
           .string()
           .optional()
-          .describe('What this wiki is for — used to infer the wiki type'),
+          .describe(
+            'What this wiki is for — used to infer the type when `type` is omitted'
+          ),
+        type: z
+          .string()
+          .optional()
+          .describe(
+            'Explicit wiki type slug from get_wiki_types (bypasses inference)'
+          ),
       },
     },
-    async ({ title, description }, extra) => {
-      return handleCreateWiki(deps, { title, description }, extra.authInfo?.clientId as string)
+    async ({ title, description, type }, extra) => {
+      return handleCreateWiki(
+        deps,
+        { title, description, type },
+        extra.authInfo?.clientId as string
+      )
     }
   )
 
