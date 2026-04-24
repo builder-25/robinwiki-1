@@ -27,12 +27,10 @@ const log = logger.child({ component: 'wiki-types' })
 const wikiTypesRouter = new Hono()
 wikiTypesRouter.use('*', sessionMiddleware)
 
-// Resolve the wiki-types YAML directory on disk (colocated with @robin/shared).
+// Resolve the wiki-types YAML directory via @robin/shared's dist output.
+// tsdown copies YAML specs to packages/shared/dist/prompts/specs/wiki-types/
+// so this path works in both dev and production (no src/ dependency).
 const __dirname = dirname(fileURLToPath(import.meta.url))
-// TODO: see .planning/phases/prompt-backend-reconcile/04-PLAN.md#known-limitation-runtime-yaml-path-resolution
-// This __dirname-relative walk breaks under bundled/production deployments.
-// Deferred to a future 'prompt-path-resolution-hardening' phase — Phase 1
-// inherits the pre-existing fragility already present in @robin/shared's loadSpec.
 const SPECS_WIKI_TYPES_DIR = resolve(
   __dirname,
   '..',
@@ -40,7 +38,7 @@ const SPECS_WIKI_TYPES_DIR = resolve(
   '..',
   'packages',
   'shared',
-  'src',
+  'dist',
   'prompts',
   'specs',
   'wiki-types'
