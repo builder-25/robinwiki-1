@@ -31,7 +31,10 @@ import { QUEUE_NAMES } from '@robin/queue'
 import { bullBoardApp } from './routes/bull-board.js'
 import { adminRoutes } from './routes/admin.js'
 import { authRecoverRoutes } from './routes/auth-recover.js'
-import { checkOpenRouterKey } from './bootstrap/check-openrouter-key.js'
+import {
+  checkOpenRouterKey,
+  probeEmbeddingsOrRefuseWorkers,
+} from './bootstrap/check-openrouter-key.js'
 import { ensurePgvector } from './bootstrap/ensure-pgvector.js'
 import { runMigrations } from './bootstrap/run-migrations.js'
 import { seedWikiTypes } from './bootstrap/seed-wiki-types.js'
@@ -171,8 +174,34 @@ await seedWikiTypes().catch((err) => {
   logger.error({ err }, 'seed-wiki-types failed — continuing startup')
 })
 
-// Single global worker — no per-user spawning under single-user M2
-startWorkers()
+// Embedding reachability probe. When the OpenRouter key is configured but
+// the embedding endpoint is unreachable (bad key, blocked region, outage),
+// ingest workers would otherwise silently fill the DB with fragments whose
+// embedding column never populates. Refuse to start workers in that case;
+// HTTP server stays up so the operator can fix the config.
+const embedProbe = await probeEmbeddingsOrRefuseWorkers().catch((err) => {
+  logger.error({ err }, 'probe-embeddings unexpected error — continuing without gate')
+  return { status: 'ok' as const }
+})
+if (embedProbe.status === 'unreachable') {
+  logger.fatal(
+    { detail: embedProbe.detail },
+    'Embedding endpoint unreachable — refusing to start ingest workers. ' +
+      'Check the OpenRouter API key and account allowlist / region policy ' +
+      'at https://openrouter.ai/settings/privacy. HTTP server will continue ' +
+      'to serve non-ingest traffic.'
+  )
+} else {
+  if (embedProbe.status === 'no-key') {
+    logger.warn(
+      'Skipping embedding probe — no OPENROUTER_API_KEY. Workers starting ' +
+        'anyway; per-job failures will surface as "no_openrouter_key" until ' +
+        'a key is seeded.'
+    )
+  }
+  // Single global worker — no per-user spawning under single-user M2
+  startWorkers()
+}
 
 // Start the midnight regen batch scheduler (idempotent — safe on every boot)
 const schedulerQueue = producer.getQueue(QUEUE_NAMES.scheduler)
