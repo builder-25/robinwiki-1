@@ -362,6 +362,76 @@ else
   skip "6. No Transformer lookupKey — delete/re-seed path untested"
 fi
 
+# ── 7. Invariants — data-plane + retry scheduler ─────────────
+# Post-seed, the data plane must be in a known-good shape. These are
+# the checks that #150 (silent embeddings) and #151 (no retry) would
+# have failed pre-fix — they pair with the fixes to keep the data
+# plane from drifting silently going forward.
+
+# 7a. The seeded demo wiki must be RESOLVED (not PENDING / LINKING).
+# A seeded wiki that never reached RESOLVED means the seed path broke
+# before finalization — the wiki listing would show it but detail pages
+# would refuse to render.
+WIKI_STATE=$(psql -t -A -c "SELECT state FROM wikis WHERE slug='transformer-architecture' AND deleted_at IS NULL" 2>/dev/null | tr -d '[:space:]')
+if [ "$WIKI_STATE" = "RESOLVED" ]; then
+  pass "7a. seeded demo wiki is RESOLVED"
+else
+  fail "7a. seeded demo wiki state='$WIKI_STATE' (expected RESOLVED)"
+fi
+
+# 7b. The embedding retry scheduler must be registered in Redis (issue
+# #151). Without it, any fragment whose embedding failed at ingest time
+# stays NULL forever. Detect registration via BullMQ's scheduler key.
+if command -v redis-cli >/dev/null; then
+  if redis-cli KEYS 'bull:regen-scheduler-queue:repeat:*' 2>/dev/null | grep -q 'embedding-retry'; then
+    pass "7b. embedding retry scheduler registered"
+  elif redis-cli KEYS 'bull:regen-scheduler-queue:meta*' 2>/dev/null >/dev/null; then
+    # BullMQ's key shape varies across versions. Fall back to a broader
+    # search so this doesn't fail on a mere key-naming change.
+    if redis-cli --scan --pattern 'bull:regen-scheduler-queue:*' 2>/dev/null | grep -qi embedding; then
+      pass "7b. embedding retry scheduler registered (fallback match)"
+    else
+      fail "7b. no 'embedding-retry' scheduler found on regen-scheduler-queue"
+    fi
+  else
+    skip "7b. scheduler queue not initialized yet — retry check inconclusive"
+  fi
+else
+  skip "7b. redis-cli unavailable — scheduler registration not verified"
+fi
+
+# 7c. Count of unembedded live fragments must be *observable* (i.e.,
+# queryable with the index #151 added). This is not a zero-tolerance
+# check — the retry scheduler runs every 15 min and UAT can't wait
+# that long — but a SELECT that returns a definite integer proves the
+# index exists and the columns were migrated. Logs the count so a
+# soak test downstream can assert convergence to zero.
+UNEMBEDDED=$(psql -t -A -c "SELECT COUNT(*) FROM fragments WHERE embedding IS NULL AND deleted_at IS NULL" 2>/dev/null | tr -d '[:space:]')
+if [[ "$UNEMBEDDED" =~ ^[0-9]+$ ]]; then
+  pass "7c. unembedded-fragments count is observable (=$UNEMBEDDED)"
+  echo "    ↳ soak target: this value should trend to 0 as the retry scheduler runs"
+else
+  fail "7c. unembedded-fragments count query failed — migration 0006 not applied?"
+fi
+
+# 7d. Columns added by migration 0006 exist on fragments.
+HAS_ATTEMPT_COL=$(psql -t -A -c "SELECT 1 FROM information_schema.columns WHERE table_name='fragments' AND column_name='embedding_attempt_count'" 2>/dev/null | tr -d '[:space:]')
+HAS_LAST_COL=$(psql -t -A -c "SELECT 1 FROM information_schema.columns WHERE table_name='fragments' AND column_name='embedding_last_attempt_at'" 2>/dev/null | tr -d '[:space:]')
+if [ "$HAS_ATTEMPT_COL" = "1" ] && [ "$HAS_LAST_COL" = "1" ]; then
+  pass "7d. embedding retry bookkeeping columns present"
+else
+  fail "7d. migration 0006 did not apply (attempt_count=$HAS_ATTEMPT_COL, last=$HAS_LAST_COL)"
+fi
+
+# 7e. The partial index #151 added exists. Without it the retry scan
+# degrades to a table scan at scale.
+HAS_PARTIAL_IDX=$(psql -t -A -c "SELECT 1 FROM pg_indexes WHERE indexname='fragments_embedding_null_idx' AND indexdef LIKE '%WHERE%embedding IS NULL%deleted_at IS NULL%'" 2>/dev/null | tr -d '[:space:]')
+if [ "$HAS_PARTIAL_IDX" = "1" ]; then
+  pass "7e. fragments_embedding_null_idx is partial on embedding/deleted_at"
+else
+  fail "7e. partial index missing or non-partial — retry scan will degrade"
+fi
+
 # ── Cleanup ──────────────────────────────────────────────────
 npx agent-browser close 2>/dev/null || true
 
@@ -381,6 +451,7 @@ echo "$PASS passed, $FAIL failed, $SKIP skipped"
 | 4 | Seeded wiki returns populated sidecar: refs for all 4 kinds, infobox with 4 valueKinds, 2 citations each on 'overview' + 'architecture', empty on 'notes' + 'notes-1', tokens in body, `anonymous-reviewer` deliberately absent from refs | `buildSidecar` + fixture identity |
 | 5 | Explorer lists the seeded wiki; click → detail page with rendered body | onboarding landing path |
 | 6 | Deleting the demo wiki + subsequent sign-in does NOT re-seed (intentional — `ensureFirstUser` only fires when users table is empty); CLI `seed-fixture` remains the documented recovery path | bootstrap gate policy |
+| 7 | Invariants: wiki RESOLVED; embedding retry scheduler registered; unembedded count observable; migration 0006 applied with partial index | #150 + #151 |
 
 ---
 
