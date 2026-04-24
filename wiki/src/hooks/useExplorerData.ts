@@ -7,6 +7,7 @@ import { usePeople } from '@/hooks/usePeople'
 import { useEntries } from '@/hooks/useEntries'
 import { useGroups, type Group } from '@/hooks/useGroups'
 import type { ExplorerFilters } from '@/hooks/useExplorerFilters'
+import { ROUTES } from '@/lib/routes'
 
 export interface ExplorerItem {
   id: string
@@ -70,7 +71,7 @@ export function useExplorerData(filters: ExplorerFilters) {
         groupName: null,
         groupColor: null,
         date: frag.updatedAt,
-        href: `/wiki/fragments/${frag.lookupKey}`,
+        href: ROUTES.fragment(frag.lookupKey),
       })
     }
 
@@ -86,7 +87,7 @@ export function useExplorerData(filters: ExplorerFilters) {
         groupName: null,
         groupColor: null,
         date: person.updatedAt,
-        href: `/wiki/people/${person.lookupKey}`,
+        href: ROUTES.person(person.lookupKey),
       })
     }
 
@@ -102,7 +103,7 @@ export function useExplorerData(filters: ExplorerFilters) {
         groupName: null,
         groupColor: null,
         date: entry.createdAt,
-        href: `/wiki/entries/${entry.lookupKey}`,
+        href: ROUTES.entry(entry.lookupKey),
       })
     }
 

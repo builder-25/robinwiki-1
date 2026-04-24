@@ -35,6 +35,7 @@ import type {
   WikiRef,
   WikiSection,
 } from "@/lib/sidecarTypes";
+import { ROUTES } from "@/lib/routes";
 
 function capitalize(s: string | null | undefined) {
   if (!s) return '';
@@ -52,13 +53,13 @@ const REF_VALUE_RE = /^\s*\[\[([a-z]+):([a-z0-9-]+)\]\]\s*$/;
 function hrefForRef(ref: WikiRef): string | undefined {
   switch (ref.kind) {
     case "person":
-      return `/wiki/people/${ref.id}`;
+      return ROUTES.person(ref.id);
     case "fragment":
-      return `/wiki/fragments/${ref.id}`;
+      return ROUTES.fragment(ref.id);
     case "wiki":
-      return `/wiki/${ref.id}`;
+      return ROUTES.wiki(ref.id);
     case "entry":
-      return `/wiki/entries/${ref.id}`;
+      return ROUTES.entry(ref.id);
     default:
       return undefined;
   }
@@ -684,7 +685,7 @@ export default function WikiDetailPage() {
             {wiki.fragments.map((frag) => (
               <li key={frag.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Link
-                  href={`/wiki/fragments/${frag.id}`}
+                  href={ROUTES.fragment(frag.id)}
                   style={{
                     color: "var(--wiki-fragment-link)",
                     textDecoration: "underline",
@@ -755,7 +756,7 @@ export default function WikiDetailPage() {
             {wiki.people.map((person) => (
               <li key={person.id}>
                 <Link
-                  href={`/wiki/people/${person.id}`}
+                  href={ROUTES.person(person.id)}
                   style={{
                     color: "var(--wiki-fragment-link)",
                     textDecoration: "underline",

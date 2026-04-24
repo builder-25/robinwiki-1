@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { T } from "@/lib/typography";
 import { Spinner } from "@/components/ui/spinner";
+import { ROUTES } from "@/lib/routes";
 import { EntryArticle } from "@/components/wiki/EntryArticle";
 import { WikiSectionH2 } from "@/components/wiki/WikiEntityArticle";
 import { MarkdownContent } from "@/components/wiki/MarkdownContent";
@@ -85,7 +86,7 @@ export default function EntryPage() {
             {fragments.map((frag) => (
               <li key={frag.id}>
                 <Link
-                  href={`/wiki/fragments/${frag.id}`}
+                  href={ROUTES.fragment(frag.id)}
                   style={{
                     color: "var(--wiki-fragment-link)",
                     textDecoration: "underline",

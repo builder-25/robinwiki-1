@@ -16,6 +16,7 @@ import { useAcceptFragment } from "@/hooks/useAcceptFragment";
 import { useRejectFragment } from "@/hooks/useRejectFragment";
 import { useQueryClient } from "@tanstack/react-query";
 import { MarkdownContent } from "@/components/wiki/MarkdownContent";
+import { ROUTES } from "@/lib/routes";
 import type { FragmentWithContentResponseSchema } from "@/lib/generated/types.gen";
 
 type FragmentData = Omit<FragmentWithContentResponseSchema, "entryId"> & {
@@ -141,7 +142,7 @@ function EntryOriginSection({ entryId }: { entryId: string | null }) {
       >
         <li>
           <Link
-            href={`/wiki/entries/${entryId}`}
+            href={ROUTES.entry(entryId)}
             style={{
               color: "var(--wiki-fragment-link)",
               textDecoration: "underline",
@@ -187,7 +188,7 @@ function BacklinksSection({ backlinks }: { backlinks: Array<{ id: string; name: 
                 }}
               >
                 <Link
-                  href={bl.type === "person" ? `/wiki/people/${bl.id}` : `/wiki/${bl.id}`}
+                  href={bl.type === "person" ? ROUTES.person(bl.id) : ROUTES.wiki(bl.id)}
                   style={{
                     color: "var(--wiki-fragment-link)",
                     textDecoration: "underline",

@@ -37,6 +37,7 @@
 
 import { useEffect, type RefObject } from 'react'
 import type { WikiRef } from '@/lib/sidecarTypes'
+import { ROUTES } from '@/lib/routes'
 /** Matches `[[kind:slug]]` or `[[slug]]` wiki-link tokens. Kept in sync with @robin/shared/wiki-links. */
 const WIKI_LINK_RE = /\[\[(?:([a-z]+):)?([a-z0-9-]+)\]\]/g
 
@@ -50,14 +51,14 @@ export type RefsMap = Record<string, WikiRef>
 export function refToHref(ref: WikiRef): string {
   switch (ref.kind) {
     case 'person':
-      return `/wiki/people/${ref.id}`
+      return ROUTES.person(ref.id)
     case 'fragment':
-      return `/wiki/fragments/${ref.id}`
+      return ROUTES.fragment(ref.id)
     case 'entry':
-      return `/wiki/entries/${ref.id}`
+      return ROUTES.entry(ref.id)
     case 'wiki':
     default:
-      return `/wiki/${ref.id}`
+      return ROUTES.wiki(ref.id)
   }
 }
 

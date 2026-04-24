@@ -9,7 +9,7 @@
  * contract's per-section storage shape.
  *
  * Each superscript is an anchor to the source fragment
- * (`/wiki/fragments/${fragmentId}`); hovering shows the captured quote plus
+ * (`/fragments/${fragmentId}`); hovering shows the captured quote plus
  * the capture date via the shared `<Tooltip>` component. Empty citation
  * arrays render nothing — the component never emits an empty wrapper.
  *
@@ -27,6 +27,7 @@
 import Link from "next/link";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { WikiCitation } from "@/lib/sidecarTypes";
+import { ROUTES } from "@/lib/routes";
 
 /**
  * Format an ISO date string for the tooltip "Captured" line. Falls back to
@@ -49,7 +50,7 @@ interface CitationSuperscriptProps {
 }
 
 function CitationSuperscript({ citation, index }: CitationSuperscriptProps) {
-  const href = `/wiki/fragments/${citation.fragmentId}`;
+  const href = ROUTES.fragment(citation.fragmentId);
   const tooltipContent = (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       {citation.quote && (

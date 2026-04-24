@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useMemo, useState, type CSSProperties } from "react";
 import { T } from "@/lib/typography";
+import { ROUTES } from "@/lib/routes";
 import { useEntries } from "@/hooks/useEntries";
 import { useWikis } from "@/hooks/useWikis";
 
@@ -53,9 +54,9 @@ const ChevronIcon = () => (
 const navigationData: SidebarSectionData = {
   title: "Navigation",
   items: [
-    { label: "Main page", arrow: "none", href: "/wiki" },
-    { label: "Explorer", arrow: "none", href: "/wiki/explorer" },
-    { label: "Knowledge Graph", arrow: "none", href: "/wiki/graph" },
+    { label: "Main page", arrow: "none", href: ROUTES.home },
+    { label: "Explorer", arrow: "none", href: ROUTES.explorer },
+    { label: "Knowledge Graph", arrow: "none", href: ROUTES.graph },
   ],
 };
 
@@ -67,7 +68,7 @@ function useEntriesData(): SidebarSectionData {
     return entries.map((e) => ({
       label: e.title,
       arrow: "none" as ArrowState,
-      href: `/wiki/entries/${e.id}`,
+      href: ROUTES.entry(e.id),
     }));
   }, [data]);
 
