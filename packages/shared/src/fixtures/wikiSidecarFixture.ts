@@ -70,7 +70,7 @@ A note from [[person:anonymous-reviewer]]: the paper's scalability results gener
 
 ## Notes
 
-Duplicate heading on purpose — the renderer should disambiguate this anchor as \`notes-1\`.
+Subsequent work (BERT, GPT, Vision Transformer) generalized the encoder-only and decoder-only variants to tasks well outside the original neural machine translation benchmarks. Open-source PyTorch and JAX implementations followed within months of publication, which accelerated adoption far beyond the authors' initial scope.
 `
 
 const refs: Record<string, WikiRef> = {
