@@ -29,3 +29,32 @@ export async function setupRegenScheduler(queue: Queue): Promise<void> {
 
   log.info('midnight regen batch scheduler registered')
 }
+
+/**
+ * Register the embedding-retry scheduler. Runs every 15 minutes, retries a
+ * bounded batch of fragments whose embedding column is still NULL. Rides on
+ * the same BullMQ queue as the regen scheduler — the scheduler worker
+ * dispatches by job.type.
+ */
+export async function setupEmbeddingRetryScheduler(queue: Queue): Promise<void> {
+  if (process.env.ENABLE_EMBEDDING_RETRY === 'false') {
+    log.info('ENABLE_EMBEDDING_RETRY=false, skipping scheduler setup')
+    return
+  }
+
+  await queue.upsertJobScheduler(
+    'embedding-retry',
+    { pattern: '*/15 * * * *' },
+    {
+      name: 'embedding-retry',
+      data: {
+        type: 'embedding-retry',
+        jobId: 'embedding-retry-scheduled',
+        triggeredBy: 'scheduler',
+        enqueuedAt: new Date().toISOString(),
+      },
+    }
+  )
+
+  log.info('embedding retry scheduler registered')
+}

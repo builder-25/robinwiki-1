@@ -43,6 +43,13 @@
       "when": 1777680000000,
       "tag": "0005_wikis_slug_partial_uidx",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777766400000,
+      "tag": "0006_fragments_embedding_retry",
+      "breakpoints": true
     }
   ]
 }

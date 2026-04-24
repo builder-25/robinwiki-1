@@ -977,18 +977,29 @@ input:focus {
   border-color: var(--accent-500);
 }
 
-/* ─── Wiki chip (.wchip) — people/tag pills in articles ─── */
+/* ─── Wiki chip (.wchip) — token references inside prose ───
+   Inline-highlight style: subtle bg + [bracketed] pseudo-elements.
+   Inherits the surrounding font-size and line-height so tokens flow
+   with body text rather than breaking paragraph rhythm. Brackets are
+   pseudo-elements so they render visually but stay out of the DOM
+   text tree — selectors that target the chip label (tests, DOM
+   scrapers) are unaffected.
+*/
 .wchip {
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 2px;
-  font-size: 12px;
+  display: inline;
+  font-size: inherit;
   background: var(--wiki-chip-bg);
   color: var(--wiki-chip-text);
-  border: 1px solid var(--wiki-chip-border);
+  padding: 1px 3px;
+  border-radius: 3px;
+  border: none;
   text-decoration: none;
+}
+.wchip::before { content: "["; opacity: 0.45; }
+.wchip::after  { content: "]"; opacity: 0.45; }
+.wchip:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* ─── Toast ────────────────────────────────────────────────── */

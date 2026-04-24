@@ -33,8 +33,12 @@ export { DEFAULT_RESOLUTION_CONFIG } from './stages/types.js'
 // ── OpenRouter + embeddings ──────────────────────────────────────────────
 export type { OpenRouterConfig } from './openrouter-config.js'
 export { NoOpenRouterKeyError } from './openrouter-config.js'
-export { embedText } from './embeddings.js'
-export type { EmbedConfig } from './embeddings.js'
+export {
+  embedText,
+  probeEmbeddingReachable,
+  takeLastEmbedFailure,
+} from './embeddings.js'
+export type { EmbedConfig, EmbedFailure } from './embeddings.js'
 
 // ── Mastra agent factory + caller helpers ────────────────────────────────
 export { createIngestAgents } from './agent-factory.js'

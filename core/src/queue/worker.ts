@@ -53,6 +53,8 @@ import { emitPipelineEvent } from '../db/pipeline-events.js'
 import { emitAuditEvent } from '../db/audit.js'
 import { producer } from './producer.js'
 import { processRegenJob, processRegenBatchJob } from './regen-worker.js'
+import { processEmbeddingRetryJob } from './embedding-retry-worker.js'
+import type { SchedulerJob } from '@robin/queue'
 import { loadOpenRouterConfig } from '../lib/openrouter-config.js'
 import { generateKeypair } from '../keypair.js'
 import { logger } from '../lib/logger.js'
@@ -521,6 +523,26 @@ let provisionWorker: ReturnType<typeof bullWorker.startProvisionWorker> | null =
 let schedulerWorker: ReturnType<typeof bullWorker.startSchedulerWorker> | null = null
 
 /**
+ * Route scheduled jobs by discriminated type. BullMQ delivers both
+ * regen-batch (midnight cron) and embedding-retry (15-min cron) via the
+ * same queue, so the worker picks by `type` and forwards to the right
+ * processor.
+ */
+async function dispatchSchedulerJob(job: SchedulerJob): Promise<JobResult> {
+  if (job.type === 'regen-batch') return processRegenBatchJob(job)
+  if (job.type === 'embedding-retry') return processEmbeddingRetryJob(job)
+  // Unreachable given the SchedulerJob union; keep a loud log for safety.
+  const exhaustive: never = job
+  log.error({ job: exhaustive }, 'unknown scheduler job type')
+  return {
+    jobId: (exhaustive as { jobId?: string }).jobId ?? 'unknown',
+    success: false,
+    error: 'unknown scheduler job type',
+    processedAt: new Date().toISOString(),
+  }
+}
+
+/**
  * Start global ingest workers. Single-user — one worker per queue, no per-user fan-out.
  * Extraction and link workers handle ingest; regen worker rebuilds wikis when
  * new fragments are linked via FRAGMENT_IN_WIKI edges. Provision worker generates
@@ -550,9 +572,13 @@ export function startWorkers(): void {
   provisionWorker.on('completed', (job) => log.info({ jobId: job.id }, 'provision completed'))
   provisionWorker.on('failed', (job, err) => log.error({ jobId: job?.id, err }, 'provision failed'))
 
-  schedulerWorker = bullWorker.startSchedulerWorker(processRegenBatchJob)
-  schedulerWorker.on('completed', (job) => log.info({ jobId: job.id }, 'regen-batch completed'))
-  schedulerWorker.on('failed', (job, err) => log.error({ jobId: job?.id, err }, 'regen-batch failed'))
+  schedulerWorker = bullWorker.startSchedulerWorker(dispatchSchedulerJob)
+  schedulerWorker.on('completed', (job) =>
+    log.info({ jobId: job.id, name: job.name }, 'scheduled job completed')
+  )
+  schedulerWorker.on('failed', (job, err) =>
+    log.error({ jobId: job?.id, name: job?.name, err }, 'scheduled job failed')
+  )
 
   log.info('ingest workers started')
 }

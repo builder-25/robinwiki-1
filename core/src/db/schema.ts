@@ -210,9 +210,21 @@ export const fragments = pgTable(
       onDelete: 'cascade',
     }),
     embedding: vector('embedding', { dimensions: 1536 }),
+    // Embedding retry bookkeeping (m-embedding-retry / issue #151). Rows
+    // with embedding=null get picked up by the retry scheduler; the
+    // attempt count is bumped each tick until cap, then skipped.
+    embeddingAttemptCount: integer('embedding_attempt_count').notNull().default(0),
+    embeddingLastAttemptAt: timestamp('embedding_last_attempt_at'),
     searchVector: tsvector('search_vector'),
   },
-  (t) => [uniqueIndex('fragments_slug_uidx').on(t.slug)]
+  (t) => [
+    uniqueIndex('fragments_slug_uidx').on(t.slug),
+    // Partial index — keeps the retry scan O(unembedded) regardless of
+    // table size.
+    index('fragments_embedding_null_idx')
+      .on(t.embeddingLastAttemptAt)
+      .where(sql`${t.embedding} IS NULL AND ${t.deletedAt} IS NULL`),
+  ]
 )
 
 export const wikis = pgTable(

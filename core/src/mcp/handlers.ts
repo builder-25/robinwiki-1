@@ -480,7 +480,7 @@ export async function handleCreateWikiType(
  */
 export async function handleCreateWiki(
   deps: McpServerDeps,
-  input: { title: string; description?: string },
+  input: { title: string; description?: string; type?: string },
   userId: string | undefined
 ) {
   if (!userId) {
@@ -501,13 +501,45 @@ export async function handleCreateWiki(
     const slug = generateSlug(input.title.trim())
     const finalSlug = await resolveWikiSlug(deps.db, slug)
     const lookupKey = makeLookupKey('wiki')
-    const inferredType = inferWikiType(input.description ?? '')
+
+    // Resolve type: explicit `input.type` wins, else infer from description.
+    // Explicit types must exist in the wiki_types registry — the column is
+    // user-extensible (single-tenant table), so a runtime lookup replaces
+    // any static enum validation.
+    let resolvedType: string
+    let inferred: boolean
+    const explicitType = input.type?.trim()
+    if (explicitType) {
+      const [row] = await deps.db
+        .select({ slug: wikiTypesTable.slug })
+        .from(wikiTypesTable)
+        .where(eq(wikiTypesTable.slug, explicitType))
+        .limit(1)
+      if (!row) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text:
+                `Error: unknown wiki type "${explicitType}". ` +
+                'Use the get_wiki_types tool to list valid types.',
+            },
+          ],
+          isError: true as const,
+        }
+      }
+      resolvedType = row.slug
+      inferred = false
+    } else {
+      resolvedType = inferWikiType(input.description ?? '')
+      inferred = true
+    }
 
     await deps.db.insert(threadsTable).values({
       lookupKey,
       slug: finalSlug,
       name: input.title.trim(),
-      type: inferredType,
+      type: resolvedType,
       state: 'PENDING',
       prompt: '',
     })
@@ -518,10 +550,15 @@ export async function handleCreateWiki(
       eventType: 'created',
       source: 'mcp',
       summary: `Wiki created: ${input.title.trim()}`,
-      detail: { wikiKey: lookupKey, type: inferredType },
+      detail: { wikiKey: lookupKey, type: resolvedType, inferred },
     })
 
-    const result = { slug: finalSlug, lookupKey, inferredType }
+    const result = {
+      slug: finalSlug,
+      lookupKey,
+      type: resolvedType,
+      inferredType: inferred ? resolvedType : undefined,
+    }
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(result) }],
     }

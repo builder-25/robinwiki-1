@@ -25,13 +25,19 @@ import { aiModelsRoutes } from './routes/ai-models.js'
 import { publishedRoutes } from './routes/published.js'
 import { systemRoutes } from './routes/system.js'
 import { startWorkers } from './queue/worker.js'
-import { setupRegenScheduler } from './queue/scheduler.js'
+import {
+  setupRegenScheduler,
+  setupEmbeddingRetryScheduler,
+} from './queue/scheduler.js'
 import { producer } from './queue/producer.js'
 import { QUEUE_NAMES } from '@robin/queue'
 import { bullBoardApp } from './routes/bull-board.js'
 import { adminRoutes } from './routes/admin.js'
 import { authRecoverRoutes } from './routes/auth-recover.js'
-import { checkOpenRouterKey } from './bootstrap/check-openrouter-key.js'
+import {
+  checkOpenRouterKey,
+  probeEmbeddingsOrRefuseWorkers,
+} from './bootstrap/check-openrouter-key.js'
 import { ensurePgvector } from './bootstrap/ensure-pgvector.js'
 import { runMigrations } from './bootstrap/run-migrations.js'
 import { seedWikiTypes } from './bootstrap/seed-wiki-types.js'
@@ -91,6 +97,7 @@ app.onError((err, c) => {
 })
 
 const openapiSpec = JSON.parse(readFileSync(new URL('../openapi.json', import.meta.url), 'utf-8'))
+const faviconBuf = readFileSync(new URL('../assets/favicon.ico', import.meta.url))
 
 /***********************************************************************
  * ## Pre-auth routes
@@ -99,6 +106,15 @@ const openapiSpec = JSON.parse(readFileSync(new URL('../openapi.json', import.me
 
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }))
 app.get('/openapi.json', (c) => c.json(openapiSpec))
+// Favicon — MCP clients (and browsers hitting the core URL directly)
+// fall back to an ugly placeholder when this 404s. Adopted from
+// os.withrobin.org's canonical brand asset.
+app.get('/favicon.ico', (c) =>
+  c.body(faviconBuf, 200, {
+    'Content-Type': 'image/x-icon',
+    'Cache-Control': 'public, max-age=86400',
+  })
+)
 // M2 dormant: git-sync webhook. See import comment above.
 // app.route('/internal', internalRoutes)
 app.route('/admin', adminRoutes)
@@ -171,13 +187,46 @@ await seedWikiTypes().catch((err) => {
   logger.error({ err }, 'seed-wiki-types failed — continuing startup')
 })
 
-// Single global worker — no per-user spawning under single-user M2
-startWorkers()
+// Embedding reachability probe. When the OpenRouter key is configured but
+// the embedding endpoint is unreachable (bad key, blocked region, outage),
+// ingest workers would otherwise silently fill the DB with fragments whose
+// embedding column never populates. Refuse to start workers in that case;
+// HTTP server stays up so the operator can fix the config.
+const embedProbe = await probeEmbeddingsOrRefuseWorkers().catch((err) => {
+  logger.error({ err }, 'probe-embeddings unexpected error — continuing without gate')
+  return { status: 'ok' as const }
+})
+if (embedProbe.status === 'unreachable') {
+  logger.fatal(
+    { detail: embedProbe.detail },
+    'Embedding endpoint unreachable — refusing to start ingest workers. ' +
+      'Check the OpenRouter API key and account allowlist / region policy ' +
+      'at https://openrouter.ai/settings/privacy. HTTP server will continue ' +
+      'to serve non-ingest traffic.'
+  )
+} else {
+  if (embedProbe.status === 'no-key') {
+    logger.warn(
+      'Skipping embedding probe — no OPENROUTER_API_KEY. Workers starting ' +
+        'anyway; per-job failures will surface as "no_openrouter_key" until ' +
+        'a key is seeded.'
+    )
+  }
+  // Single global worker — no per-user spawning under single-user M2
+  startWorkers()
+}
 
 // Start the midnight regen batch scheduler (idempotent — safe on every boot)
 const schedulerQueue = producer.getQueue(QUEUE_NAMES.scheduler)
 await setupRegenScheduler(schedulerQueue).catch((err) => {
   logger.warn({ err }, 'regen scheduler setup failed — batch regen disabled')
+})
+
+// Embedding retry — fragments with embedding=NULL get opportunistically
+// healed on a 15-min cadence. Shares the scheduler queue; the scheduler
+// worker dispatches by job.type.
+await setupEmbeddingRetryScheduler(schedulerQueue).catch((err) => {
+  logger.warn({ err }, 'embedding retry scheduler setup failed — retries disabled')
 })
 
 const port = Number.parseInt(process.env.PORT ?? '3000', 10)
