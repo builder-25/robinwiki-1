@@ -219,6 +219,7 @@ export const fragments = pgTable(
   },
   (t) => [
     uniqueIndex('fragments_slug_uidx').on(t.slug),
+    index('fragments_dedup_hash_idx').on(t.dedupHash),
     // Partial index — keeps the retry scan O(unembedded) regardless of
     // table size.
     index('fragments_embedding_null_idx')

@@ -34,7 +34,7 @@ import {
 import type { PeopleExtractionOutput } from '@robin/shared'
 import type { BullMQProducer, ExtractionJob } from '@robin/queue'
 import { resolveEntrySlug, resolveWikiSlug } from '../db/slug.js'
-import { computeContentHash, findDuplicateEntry } from '../db/dedup.js'
+import { computeContentHash, findDuplicateEntry, findDuplicateFragment } from '../db/dedup.js'
 import type { DB } from '../db/client.js'
 import {
   entries as entriesTable,
@@ -220,6 +220,14 @@ export async function handleLogFragment(
   }
 
   try {
+    const hash = computeContentHash(trimmed)
+    const dup = await findDuplicateFragment(deps.db, hash)
+    if (dup) {
+      return {
+        content: [{ type: 'text' as const, text: `Duplicate: fragment ${dup.lookupKey} already contains this content` }],
+      }
+    }
+
     const resolverDeps: McpResolverDeps = {
       db: deps.db,
     }
@@ -292,6 +300,7 @@ export async function handleLogFragment(
       entryId: null,
       state: 'RESOLVED',
       content: trimmed,
+      dedupHash: hash,
     })
 
     // Insert FRAGMENT_IN_WIKI edge
