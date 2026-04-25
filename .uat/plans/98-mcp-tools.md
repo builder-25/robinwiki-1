@@ -58,6 +58,11 @@ SERVER_URL="${SERVER_URL:-http://localhost:3000}"
 COOKIE_JAR=$(mktemp /tmp/uat-cookies-98-XXXXXX.txt)
 trap 'rm -f "$COOKIE_JAR"' EXIT
 
+# Per-run salt for write-tool inputs that are content-dedup'd
+# (log_fragment hashes content; log_entry similar). Re-running the
+# plan in the same DB without a salt collides with the prior run.
+RUN_ID="$(date +%s)-$$"
+
 PASS=0; FAIL=0; SKIP=0
 pass() { PASS=$((PASS+1)); echo "  ✓ $1"; }
 fail() { FAIL=$((FAIL+1)); echo "  ✗ $1"; }
@@ -223,7 +228,7 @@ else
 fi
 
 if [ -n "${DATABASE_URL:-}" ] && [ -n "$WIKI2_SLUG" ]; then
-  DB_TYPE=$(psql -t -A -c "SELECT type FROM wikis WHERE slug='$WIKI2_SLUG' AND deleted_at IS NULL" 2>/dev/null | tr -d '[:space:]')
+  DB_TYPE=$(psql "$DATABASE_URL" -t -A -c "SELECT type FROM wikis WHERE slug='$WIKI2_SLUG' AND deleted_at IS NULL" 2>/dev/null | tr -d '[:space:]')
   if [ "$DB_TYPE" = "decision" ]; then
     pass "2b. DB row for $WIKI2_SLUG has type='decision'"
   else
@@ -252,7 +257,7 @@ else
   fail "3c. error text did not reference get_wiki_types: $RPC_TEXT"
 fi
 if [ -n "${DATABASE_URL:-}" ]; then
-  GHOST=$(psql -t -A -c "SELECT count(*) FROM wikis WHERE name='UAT Wiki Invalid Type'" 2>/dev/null | tr -d '[:space:]')
+  GHOST=$(psql "$DATABASE_URL" -t -A -c "SELECT count(*) FROM wikis WHERE name='UAT Wiki Invalid Type'" 2>/dev/null | tr -d '[:space:]')
   if [ "$GHOST" = "0" ]; then
     pass "3d. no DB row inserted on invalid-type rejection"
   else
@@ -286,7 +291,7 @@ else
   skip "4b. inferred type was '$WIKI4_TYPE' (expected 'log' but inference scoring may shift)"
 fi
 if [ -n "${DATABASE_URL:-}" ] && [ -n "$WIKI4_SLUG" ]; then
-  DB_EXISTS=$(psql -t -A -c "SELECT 1 FROM wikis WHERE slug='$WIKI4_SLUG' AND deleted_at IS NULL" 2>/dev/null | tr -d '[:space:]')
+  DB_EXISTS=$(psql "$DATABASE_URL" -t -A -c "SELECT 1 FROM wikis WHERE slug='$WIKI4_SLUG' AND deleted_at IS NULL" 2>/dev/null | tr -d '[:space:]')
   [ "$DB_EXISTS" = "1" ] && pass "4c. DB row for inferred wiki '$WIKI4_SLUG' exists" \
     || fail "4c. DB row for $WIKI4_SLUG missing"
 else
@@ -317,7 +322,7 @@ fi
 # wiki slug), and wikiKey.
 
 call_tool "6a." log_fragment \
-  '{"content":"UAT 98 fragment body — testing log_fragment happy path.","threadSlug":"transformer-architecture"}'
+  "$(jq -n --arg c "UAT 98 fragment body $RUN_ID — testing log_fragment happy path." '{content:$c, threadSlug:"transformer-architecture"}')"
 FRAG6_KEY=$(echo "$RPC_TEXT" | jq -r '.fragmentKey // empty')
 FRAG6_THREAD=$(echo "$RPC_TEXT" | jq -r '.threadSlug // empty')
 
@@ -329,7 +334,7 @@ else
 fi
 
 if [ -n "${DATABASE_URL:-}" ] && [ -n "$FRAG6_KEY" ]; then
-  DB_FRAG=$(psql -t -A -c "SELECT count(*) FROM fragments WHERE lookup_key='$FRAG6_KEY' AND deleted_at IS NULL" 2>/dev/null | tr -d '[:space:]')
+  DB_FRAG=$(psql "$DATABASE_URL" -t -A -c "SELECT count(*) FROM fragments WHERE lookup_key='$FRAG6_KEY' AND deleted_at IS NULL" 2>/dev/null | tr -d '[:space:]')
   [ "$DB_FRAG" = "1" ] && pass "6b. fragment row persisted with lookup_key=$FRAG6_KEY" \
     || fail "6b. fragment row not persisted for $FRAG6_KEY (count=$DB_FRAG)"
 else
@@ -361,7 +366,7 @@ fi
 # though the export is 'entries' in schema.ts).
 
 call_tool "8a." log_entry \
-  '{"content":"UAT 98 entry — capture this thought via MCP."}'
+  "$(jq -n --arg c "UAT 98 entry $RUN_ID — capture this thought via MCP." '{content:$c}')"
 if echo "$RPC_TEXT" | grep -qE '^Entry queued: entry[0-9A-Z]+$'; then
   ENTRY8_KEY=$(echo "$RPC_TEXT" | sed -n 's/^Entry queued: //p')
   pass "8a. log_entry → 'Entry queued: $ENTRY8_KEY'"
@@ -371,7 +376,7 @@ else
 fi
 
 if [ -n "${DATABASE_URL:-}" ] && [ -n "${ENTRY8_KEY:-}" ]; then
-  DB_ENTRY=$(psql -t -A -c "SELECT count(*) FROM raw_sources WHERE lookup_key='$ENTRY8_KEY'" 2>/dev/null | tr -d '[:space:]')
+  DB_ENTRY=$(psql "$DATABASE_URL" -t -A -c "SELECT count(*) FROM raw_sources WHERE lookup_key='$ENTRY8_KEY'" 2>/dev/null | tr -d '[:space:]')
   [ "$DB_ENTRY" = "1" ] && pass "8b. raw_sources row persisted with lookup_key=$ENTRY8_KEY" \
     || fail "8b. raw_sources row not found for $ENTRY8_KEY (count=$DB_ENTRY)"
 else
@@ -392,7 +397,7 @@ if [ -n "${WIKI2_KEY:-}" ]; then
     fail "9a. delete_wiki did not return deleted=true: $RPC_TEXT"
   fi
   if [ -n "${DATABASE_URL:-}" ]; then
-    DEL_AT=$(psql -t -A -c "SELECT deleted_at IS NOT NULL FROM wikis WHERE lookup_key='$WIKI2_KEY'" 2>/dev/null | tr -d '[:space:]')
+    DEL_AT=$(psql "$DATABASE_URL" -t -A -c "SELECT deleted_at IS NOT NULL FROM wikis WHERE lookup_key='$WIKI2_KEY'" 2>/dev/null | tr -d '[:space:]')
     [ "$DEL_AT" = "t" ] && pass "9b. wikis.deleted_at IS NOT NULL for $WIKI2_KEY" \
       || fail "9b. wikis.deleted_at not set for $WIKI2_KEY (got '$DEL_AT')"
   else
@@ -415,7 +420,7 @@ if [ -n "${PERSON_KEY:-}" ] && [ "$PERSON_KEY" != "null" ]; then
     fail "10a. delete_person did not return deleted=true: $RPC_TEXT"
   fi
   if [ -n "${DATABASE_URL:-}" ]; then
-    PERSON_DEL=$(psql -t -A -c "SELECT deleted_at IS NOT NULL FROM people WHERE lookup_key='$PERSON_KEY'" 2>/dev/null | tr -d '[:space:]')
+    PERSON_DEL=$(psql "$DATABASE_URL" -t -A -c "SELECT deleted_at IS NOT NULL FROM people WHERE lookup_key='$PERSON_KEY'" 2>/dev/null | tr -d '[:space:]')
     [ "$PERSON_DEL" = "t" ] && pass "10b. people.deleted_at IS NOT NULL for $PERSON_KEY" \
       || fail "10b. people.deleted_at not set (got '$PERSON_DEL')"
 
@@ -424,7 +429,7 @@ if [ -n "${PERSON_KEY:-}" ] && [ "$PERSON_KEY" != "null" ]; then
     # path resurrects soft-deleted rows by clearing deleted_at as part
     # of its slug-keyed upsert.
     pnpm -C core seed-fixture >/dev/null 2>&1 || true
-    RESTORED=$(psql -t -A -c "SELECT deleted_at IS NULL FROM people WHERE slug='ashish-vaswani'" 2>/dev/null | tr -d '[:space:]')
+    RESTORED=$(psql "$DATABASE_URL" -t -A -c "SELECT deleted_at IS NULL FROM people WHERE slug='ashish-vaswani'" 2>/dev/null | tr -d '[:space:]')
     [ "$RESTORED" = "t" ] && pass "10c. seed-fixture restored ashish-vaswani (deleted_at IS NULL)" \
       || fail "10c. seed-fixture did not restore ashish-vaswani (deleted_at NULL? got '$RESTORED') — downstream plans will break"
   else
@@ -497,23 +502,23 @@ if [ -n "${DATABASE_URL:-}" ]; then
   CLEANED=0
   for key in "${UAT_WIKI_KEYS[@]}"; do
     [ -z "$key" ] && continue
-    psql -c "UPDATE wikis SET deleted_at=now(), updated_at=now() WHERE lookup_key='$key'" >/dev/null 2>&1 \
+    psql "$DATABASE_URL" -c "UPDATE wikis SET deleted_at=now(), updated_at=now() WHERE lookup_key='$key'" >/dev/null 2>&1 \
       && CLEANED=$((CLEANED+1)) || true
   done
   for key in "${UAT_FRAGMENT_KEYS[@]}"; do
     [ -z "$key" ] && continue
-    psql -c "UPDATE fragments SET deleted_at=now(), updated_at=now() WHERE lookup_key='$key'" >/dev/null 2>&1 \
+    psql "$DATABASE_URL" -c "UPDATE fragments SET deleted_at=now(), updated_at=now() WHERE lookup_key='$key'" >/dev/null 2>&1 \
       && CLEANED=$((CLEANED+1)) || true
   done
   for key in "${UAT_ENTRY_KEYS[@]}"; do
     [ -z "$key" ] && continue
-    psql -c "UPDATE raw_sources SET deleted_at=now(), updated_at=now() WHERE lookup_key='$key'" >/dev/null 2>&1 \
+    psql "$DATABASE_URL" -c "UPDATE raw_sources SET deleted_at=now(), updated_at=now() WHERE lookup_key='$key'" >/dev/null 2>&1 \
       && CLEANED=$((CLEANED+1)) || true
   done
   # Belt + braces: anything matching the UAT name prefix that escaped
   # the per-key tracking (e.g. earlier failed run) gets swept too.
-  psql -c "UPDATE wikis SET deleted_at=now(), updated_at=now() WHERE name LIKE 'UAT %' AND deleted_at IS NULL" >/dev/null 2>&1 || true
-  psql -c "UPDATE raw_sources SET deleted_at=now(), updated_at=now() WHERE content LIKE 'UAT 98 %' AND deleted_at IS NULL" >/dev/null 2>&1 || true
+  psql "$DATABASE_URL" -c "UPDATE wikis SET deleted_at=now(), updated_at=now() WHERE name LIKE 'UAT %' AND deleted_at IS NULL" >/dev/null 2>&1 || true
+  psql "$DATABASE_URL" -c "UPDATE raw_sources SET deleted_at=now(), updated_at=now() WHERE content LIKE 'UAT 98 %' AND deleted_at IS NULL" >/dev/null 2>&1 || true
   pass "Cleanup. soft-deleted $CLEANED tracked UAT row(s) + UAT-named sweep"
 else
   skip "Cleanup. DATABASE_URL unset — UAT rows left in place; downstream plans may see them"
