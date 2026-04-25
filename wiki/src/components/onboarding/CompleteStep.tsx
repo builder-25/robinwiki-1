@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { T } from "@/lib/typography";
 import { useProfile } from "@/hooks/useProfile";
 import { ActionButton } from "@/components/ui/action-button";
+import { Spinner } from "@/components/ui/spinner";
 import { Card, CardContent } from "@/components/ui/card";
 
 function Logo() {
@@ -34,6 +35,15 @@ export default function CompleteStep() {
   const [copied, setCopied] = useState(false);
   const [completing, setCompleting] = useState(false);
   const mcpEndpoint = profile?.mcpEndpointUrl ?? "";
+
+  // Poll for MCP endpoint until it becomes available (keypair may still be generating)
+  useEffect(() => {
+    if (mcpEndpoint || profileLoading) return
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ['profile'] })
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [mcpEndpoint, profileLoading, queryClient])
 
   const handleCopy = async () => {
     try {
@@ -100,7 +110,14 @@ export default function CompleteStep() {
                   color: "var(--card-desc)",
                 }}
               >
-                {profileLoading ? "Loading..." : mcpEndpoint || "Unavailable"}
+                {profileLoading
+                  ? "Loading..."
+                  : mcpEndpoint || (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Spinner className="size-3" />
+                      Generating your MCP endpoint...
+                    </span>
+                  )}
               </span>
             </div>
             <button
