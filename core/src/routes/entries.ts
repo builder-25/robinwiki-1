@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq, desc } from 'drizzle-orm'
+import { eq, and, desc, isNull } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
 import { sessionMiddleware } from '../middleware/session.js'
 import { producer } from '../queue/producer.js'
@@ -102,6 +102,7 @@ entries.get('/', async (c) => {
   const rows = await db
     .select()
     .from(entriesTable)
+    .where(isNull(entriesTable.deletedAt))
     .orderBy(desc(entriesTable.createdAt))
     .limit(limit)
   return c.json(
@@ -113,7 +114,10 @@ entries.get('/', async (c) => {
 entries.get('/:id', async (c) => {
   const id = c.req.param('id')
 
-  const [entry] = await db.select().from(entriesTable).where(eq(entriesTable.lookupKey, id))
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.lookupKey, id), isNull(entriesTable.deletedAt)))
   if (!entry) return c.json({ error: 'Not found' }, 404)
 
   // Entries have no metadata column and no LLM citations yet; sidecar only
@@ -140,13 +144,16 @@ entries.get('/:id', async (c) => {
 entries.get('/:id/fragments', async (c) => {
   const id = c.req.param('id')
 
-  const [entry] = await db.select().from(entriesTable).where(eq(entriesTable.lookupKey, id))
+  const [entry] = await db
+    .select()
+    .from(entriesTable)
+    .where(and(eq(entriesTable.lookupKey, id), isNull(entriesTable.deletedAt)))
   if (!entry) return c.json({ error: 'Not found' }, 404)
 
   const rows = await db
     .select()
     .from(fragments)
-    .where(eq(fragments.entryId, id))
+    .where(and(eq(fragments.entryId, id), isNull(fragments.deletedAt)))
     .orderBy(desc(fragments.createdAt))
 
   return c.json(

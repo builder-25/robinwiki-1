@@ -39,6 +39,7 @@ fragmentsRouter.get('/', async (c) => {
   const rows = await db
     .select()
     .from(fragments)
+    .where(isNull(fragments.deletedAt))
     .orderBy(desc(fragments.updatedAt))
     .limit(limit)
     .offset(offset)
@@ -52,7 +53,10 @@ fragmentsRouter.get('/', async (c) => {
 fragmentsRouter.get('/:id', async (c) => {
   const id = c.req.param('id')
 
-  const [fragment] = await db.select().from(fragments).where(eq(fragments.lookupKey, id))
+  const [fragment] = await db
+    .select()
+    .from(fragments)
+    .where(and(eq(fragments.lookupKey, id), isNull(fragments.deletedAt)))
   if (!fragment) return c.json({ error: 'Not found' }, 404)
 
   // Resolve backlinks: edges where this fragment is srcId
