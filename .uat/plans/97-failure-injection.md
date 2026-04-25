@@ -44,7 +44,11 @@ BOOT_LOG=/tmp/uat-97-boot.log
 # This plan owns :3000 for its run. Any existing tsx-watch'd core
 # process must die before we boot the bogus-key variant, otherwise
 # our log assertions will be against the wrong process.
+# Kill the tsx watch wrappers AND any node process serving src/index.ts.
+# tsx-watch spawns a plain `node` worker whose argv is `node ... src/index.ts`
+# — `tsx watch` only matches the parent wrapper, not the worker holding :3000.
 pkill -9 -f 'tsx watch.*src/index' 2>/dev/null || true
+pkill -9 -f 'node.*src/index\.ts' 2>/dev/null || true
 sleep 3
 
 if ss -tlnp 2>/dev/null | grep -q ':3000 '; then
@@ -92,7 +96,11 @@ else
   fail "2. /health never responded within 90s — boot may have crashed"
   echo "    last 30 log lines:"
   tail -30 "$BOOT_LOG" | sed 's/^/    /'
-  pkill -9 -f 'tsx watch.*src/index' 2>/dev/null || true
+  # Kill the tsx watch wrappers AND any node process serving src/index.ts.
+# tsx-watch spawns a plain `node` worker whose argv is `node ... src/index.ts`
+# — `tsx watch` only matches the parent wrapper, not the worker holding :3000.
+pkill -9 -f 'tsx watch.*src/index' 2>/dev/null || true
+pkill -9 -f 'node.*src/index\.ts' 2>/dev/null || true
   echo ""
   echo "$PASS passed, $FAIL failed, $SKIP skipped"
   exit 1
@@ -183,7 +191,11 @@ fi
 # Leave the system in a clean stoppable state. Restoring the
 # production-style stack (real key + workers running) is the
 # operator's next step — see ## Notes.
+# Kill the tsx watch wrappers AND any node process serving src/index.ts.
+# tsx-watch spawns a plain `node` worker whose argv is `node ... src/index.ts`
+# — `tsx watch` only matches the parent wrapper, not the worker holding :3000.
 pkill -9 -f 'tsx watch.*src/index' 2>/dev/null || true
+pkill -9 -f 'node.*src/index\.ts' 2>/dev/null || true
 sleep 3
 
 if ss -tlnp 2>/dev/null | grep -q ':3000 '; then
