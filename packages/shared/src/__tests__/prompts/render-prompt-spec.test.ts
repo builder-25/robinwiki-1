@@ -51,9 +51,9 @@ describe('renderPromptSpec', () => {
     )
     const result = renderPromptSpec(spec, { declared: 'x', unknown: 'y' })
     expect(result.warnings).toHaveLength(1)
-    expect(result.warnings[0]!.code).toBe('UNKNOWN_VARIABLE')
-    expect(result.warnings[0]!.detail?.name).toBe('unknown')
-    expect(result.warnings[0]!.message).toContain('unknown')
+    expect(result.warnings[0]?.code).toBe('UNKNOWN_VARIABLE')
+    expect(result.warnings[0]?.detail?.name).toBe('unknown')
+    expect(result.warnings[0]?.message).toContain('unknown')
   })
 
   it('de-duplicates multiple references to the same undeclared variable', () => {
@@ -65,7 +65,7 @@ describe('renderPromptSpec', () => {
     )
     const result = renderPromptSpec(spec, { a: 'x', b: 'y' })
     expect(result.warnings).toHaveLength(1)
-    expect(result.warnings[0]!.detail?.name).toBe('b')
+    expect(result.warnings[0]?.detail?.name).toBe('b')
   })
 
   it('counts a declared block-helper variable as a valid reference (no warning)', () => {
@@ -88,8 +88,8 @@ describe('renderPromptSpec', () => {
     )
     const result = renderPromptSpec(spec, { flag: true })
     expect(result.warnings).toHaveLength(1)
-    expect(result.warnings[0]!.code).toBe('UNKNOWN_VARIABLE')
-    expect(result.warnings[0]!.detail?.name).toBe('flag')
+    expect(result.warnings[0]?.code).toBe('UNKNOWN_VARIABLE')
+    expect(result.warnings[0]?.detail?.name).toBe('flag')
   })
 
   it('each-helper reference counts — undeclared target becomes UNKNOWN_VARIABLE', () => {
@@ -101,7 +101,7 @@ describe('renderPromptSpec', () => {
     )
     const result = renderPromptSpec(spec, { items: [1, 2] })
     expect(result.warnings).toHaveLength(1)
-    expect(result.warnings[0]!.detail?.name).toBe('items')
+    expect(result.warnings[0]?.detail?.name).toBe('items')
   })
 
   it('rendered output matches renderTemplate byte-for-byte', () => {

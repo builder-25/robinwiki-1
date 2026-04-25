@@ -57,6 +57,9 @@ export const STRONG_SIGNAL_THRESHOLD = 0.7
 /** Below LLM_REVIEW_THRESHOLD → skip entirely, not relevant */
 // (implicit: similarity < 0.5 is ignored)
 
+/** Fragment-to-fragment similarity threshold for RELATED_TO edges */
+export const RELATED_FRAGMENT_THRESHOLD = 0.75
+
 /** Max unfiled fragments to evaluate per regen call */
 const MAX_UNFILED_PER_REGEN = 50
 
@@ -73,6 +76,111 @@ export interface RegenResult {
   fragmentCount: number
   hasEmbedding: boolean
   timing?: RegenTiming
+}
+
+/**
+ * Create bidirectional FRAGMENT_RELATED_TO_FRAGMENT edges between a newly-filed
+ * fragment and other fragments in the same wiki that are semantically similar.
+ *
+ * Uses cosine distance on stored embeddings. Only creates edges when similarity
+ * >= RELATED_FRAGMENT_THRESHOLD (0.75). Idempotent via onConflictDoNothing.
+ */
+export async function createRelatedToEdges(
+  database: DB,
+  fragmentKey: string,
+  wikiKey: string
+): Promise<number> {
+  const [frag] = await database
+    .select({ embedding: fragments.embedding })
+    .from(fragments)
+    .where(and(eq(fragments.lookupKey, fragmentKey), isNull(fragments.deletedAt)))
+    .limit(1)
+
+  if (!frag?.embedding) return 0
+
+  const vecLiteral = JSON.stringify(frag.embedding)
+  const maxDistance = 1 - RELATED_FRAGMENT_THRESHOLD
+
+  const neighbors = await database
+    .select({
+      lookupKey: fragments.lookupKey,
+      distance: sql<number>`${fragments.embedding} <=> ${vecLiteral}::vector`,
+    })
+    .from(fragments)
+    .innerJoin(
+      edges,
+      and(
+        eq(edges.srcId, fragments.lookupKey),
+        eq(edges.edgeType, 'FRAGMENT_IN_WIKI'),
+        eq(edges.dstId, wikiKey),
+        isNull(edges.deletedAt)
+      )
+    )
+    .where(
+      and(
+        isNull(fragments.deletedAt),
+        sql`${fragments.embedding} IS NOT NULL`,
+        sql`${fragments.lookupKey} != ${fragmentKey}`,
+        sql`${fragments.embedding} <=> ${vecLiteral}::vector < ${maxDistance}`
+      )
+    )
+    .orderBy(sql`${fragments.embedding} <=> ${vecLiteral}::vector`)
+    .limit(20)
+
+  let created = 0
+  for (const neighbor of neighbors) {
+    const similarity = 1 - neighbor.distance
+    await database
+      .insert(edges)
+      .values({
+        id: crypto.randomUUID(),
+        srcType: 'fragment',
+        srcId: fragmentKey,
+        dstType: 'fragment',
+        dstId: neighbor.lookupKey,
+        edgeType: 'FRAGMENT_RELATED_TO_FRAGMENT',
+        attrs: { score: similarity, method: 'cosine-regen' },
+      })
+      .onConflictDoNothing()
+    await database
+      .insert(edges)
+      .values({
+        id: crypto.randomUUID(),
+        srcType: 'fragment',
+        srcId: neighbor.lookupKey,
+        dstType: 'fragment',
+        dstId: fragmentKey,
+        edgeType: 'FRAGMENT_RELATED_TO_FRAGMENT',
+        attrs: { score: similarity, method: 'cosine-regen' },
+      })
+      .onConflictDoNothing()
+    created++
+
+    // Emit audit events for both fragments so the timeline endpoint
+    // surfaces relationship detection from either side (Issue #165)
+    await emitAuditEvent(database, {
+      entityType: 'fragment',
+      entityId: fragmentKey,
+      eventType: 'related_detected',
+      source: 'system',
+      summary: `Related fragment detected: ${neighbor.lookupKey} (${Math.round(similarity * 100)}%)`,
+      detail: { fragmentKey, relatedKey: neighbor.lookupKey, similarity, wikiKey, method: 'cosine-regen' },
+    })
+    await emitAuditEvent(database, {
+      entityType: 'fragment',
+      entityId: neighbor.lookupKey,
+      eventType: 'related_detected',
+      source: 'system',
+      summary: `Related fragment detected: ${fragmentKey} (${Math.round(similarity * 100)}%)`,
+      detail: { fragmentKey: neighbor.lookupKey, relatedKey: fragmentKey, similarity, wikiKey, method: 'cosine-regen' },
+    })
+  }
+
+  if (created > 0) {
+    log.info({ fragmentKey, wikiKey, relatedCount: created }, 'created RELATED_TO edges')
+  }
+
+  return created
 }
 
 /**
@@ -96,6 +204,7 @@ export async function classifyUnfiledFragments(
       name: wikis.name,
       type: wikis.type,
       prompt: wikis.prompt,
+      description: wikis.description,
       embedding: wikis.embedding,
     })
     .from(wikis)
@@ -104,12 +213,12 @@ export async function classifyUnfiledFragments(
 
   if (!wiki) return { linked: 0, autoFiled: 0, llmFiled: 0, llmRejected: 0 }
 
-  // If wiki has no embedding, generate one from name + prompt
+  // If wiki has no embedding, generate one from name + description (WHAT the wiki is about)
   let wikiEmbedding = wiki.embedding
   if (!wikiEmbedding) {
     try {
       const orConfig = await loadOpenRouterConfig()
-      const text = `${wiki.name} ${wiki.prompt ?? ''}`.trim()
+      const text = `${wiki.name} ${wiki.description ?? ''}`.trim()
       const vec = await embedText(text, {
         apiKey: orConfig.apiKey,
         model: orConfig.models.embedding,
@@ -198,6 +307,11 @@ export async function classifyUnfiledFragments(
         { fragmentKey: frag.lookupKey, wikiKey, similarity: similarity.toFixed(3), method: 'cosine-auto' },
         'regen classify: auto-filed (above threshold)'
       )
+      try {
+        await createRelatedToEdges(database, frag.lookupKey, wikiKey)
+      } catch (relErr) {
+        log.warn({ fragmentKey: frag.lookupKey, err: relErr }, 'failed to create RELATED_TO edges')
+      }
     } catch (err) {
       log.warn({ fragmentKey: frag.lookupKey, err }, 'failed to auto-file fragment')
     }
@@ -218,6 +332,7 @@ export async function classifyUnfiledFragments(
             name: wikis.name,
             type: wikis.type,
             prompt: wikis.prompt,
+            description: wikis.description,
           })
           .from(wikis)
           .where(
@@ -270,6 +385,11 @@ export async function classifyUnfiledFragments(
               })
               .onConflictDoNothing()
             llmFiled++
+            try {
+              await createRelatedToEdges(database, frag.lookupKey, edge.wikiKey)
+            } catch (relErr) {
+              log.warn({ fragmentKey: frag.lookupKey, err: relErr }, 'failed to create RELATED_TO edges')
+            }
           }
         } else {
           llmRejected++
@@ -298,13 +418,25 @@ export async function classifyUnfiledFragments(
  * and the background regen worker.
  */
 export async function regenerateWiki(
-  database: DB = defaultDb,
+  database: DB,
   wikiKey: string,
   opts?: { skipEmbedding?: boolean }
 ): Promise<RegenResult> {
   const t0 = performance.now()
   const [wiki] = await database.select().from(wikis).where(eq(wikis.lookupKey, wikiKey))
   if (!wiki) throw new Error(`Wiki not found: ${wikiKey}`)
+
+  // Optimistic lock: transition to LINKING to prevent concurrent regen runs.
+  // If the wiki is already LINKING, another worker owns it — bail out.
+  const [lockedWiki] = await database
+    .update(wikis)
+    .set({ state: 'LINKING' })
+    .where(and(eq(wikis.lookupKey, wikiKey), ne(wikis.state, 'LINKING')))
+    .returning()
+  if (!lockedWiki) {
+    log.warn({ wikiKey }, 'wiki is already being regenerated, skipping')
+    return { content: '', fragmentCount: 0, hasEmbedding: false, timing: { classify: 0, gatherFragments: 0, llmCall: 0, embed: 0, total: 0 } }
+  }
 
   // Classify unfiled fragments into this wiki before gathering (mechanism 1)
   const tClassify0 = performance.now()
@@ -477,7 +609,7 @@ export async function regenerateWiki(
       const lastDot = raw.lastIndexOf('.')
       const lastNewline = raw.lastIndexOf('\n')
       const boundary = Math.max(lastDot, lastNewline)
-      const truncated = boundary > 0 ? raw.slice(0, boundary + 1) : raw + '...'
+      const truncated = boundary > 0 ? raw.slice(0, boundary + 1) : `${raw}...`
       return `- [[${w.slug}]] (${w.type}): ${w.name}\n  > ${truncated.trim()}`
     }).join('\n')
   }
@@ -513,7 +645,7 @@ export async function regenerateWiki(
   // Load prompt spec with runtime fallback on override parse/validation failure.
   // A malformed stored YAML must not crash the regen worker — log a warn and retry
   // with no override (disk default).
-  let spec
+  let spec: ReturnType<typeof loadWikiGenerationSpec> | undefined
   try {
     spec = loadWikiGenerationSpec(wiki.type as WikiType, vars, override)
   } catch (err) {
@@ -549,6 +681,7 @@ export async function regenerateWiki(
       content: markdown,
       metadata: mergedMetadata,
       citationDeclarations: llmCitations,
+      state: 'RESOLVED',
       lastRebuiltAt: now,
       updatedAt: now,
     })

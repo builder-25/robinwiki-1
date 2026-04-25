@@ -65,6 +65,7 @@ export interface ThreadInfo {
   name: string
   type: string | null
   prompt: string | null
+  description: string | null
 }
 
 export interface WikiClassifyDeps {

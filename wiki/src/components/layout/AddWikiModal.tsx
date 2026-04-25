@@ -18,12 +18,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import type { WikiSettingsPrefill } from "@/lib/wikiSettingsPrefill";
 import {
   useWikiTypesList,
   findWikiType,
   type WikiTypeListItem,
 } from "@/hooks/useWikiTypesList";
+import { useToggleBouncerMode } from "@/hooks/useToggleBouncerMode";
 import { updateWiki } from "@/lib/generated";
 
 export type { WikiSettingsPrefill } from "@/lib/wikiSettingsPrefill";
@@ -97,10 +99,13 @@ export default function AddWikiModal({
   const [toastMessage, setToastMessage] = useState("Saved");
   const saveCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevWikiTypeRef = useRef<string>("");
+  const [bouncerMode, setBouncerMode] = useState<"auto" | "review">("auto");
+  const initialBouncerModeRef = useRef<"auto" | "review">("auto");
 
   const isSettingsView = Boolean(prefill);
 
   const queryClient = useQueryClient();
+  const toggleBouncer = useToggleBouncerMode();
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -137,6 +142,9 @@ export default function AddWikiModal({
             ),
           );
           prevWikiTypeRef.current = nextType;
+          const bm = prefill.bouncerMode ?? "auto";
+          setBouncerMode(bm);
+          initialBouncerModeRef.current = bm;
           setFieldsEditable(false);
         } else {
           setName("");
@@ -146,6 +154,8 @@ export default function AddWikiModal({
           setWikiPrompt("");
           setWikiPromptEdited(false);
           prevWikiTypeRef.current = "";
+          setBouncerMode("auto");
+          initialBouncerModeRef.current = "auto";
           setFieldsEditable(true);
         }
         setPromptDialogOpen(false);
@@ -218,7 +228,7 @@ export default function AddWikiModal({
       try {
         // Empty string clears the override; non-empty sets it.
         // Never send null — Zod rejects.
-        const payload: { name?: string; type?: string; prompt: string } = {
+        const payload: { name?: string; type?: string; description?: string; prompt: string } = {
           prompt: wikiPrompt,
         };
         if (prefill && trimmedName !== prefill.name) {
@@ -226,6 +236,9 @@ export default function AddWikiModal({
         }
         if (prefill && wikiType !== prefill.wikiType) {
           payload.type = wikiType;
+        }
+        if (prefill && description !== prefill.description) {
+          payload.description = description;
         }
         const { error } = await updateWiki({
           path: { id: wikiId },
@@ -237,6 +250,14 @@ export default function AddWikiModal({
             (error as { error?: string })?.error ?? "Save failed.";
           setSubmitError(message);
           return;
+        }
+        // Toggle bouncer mode separately if changed
+        if (bouncerMode !== initialBouncerModeRef.current) {
+          try {
+            await toggleBouncer.mutateAsync({ id: wikiId, mode: bouncerMode });
+          } catch {
+            // Non-fatal
+          }
         }
         await queryClient.invalidateQueries({ queryKey: ["wikis"] });
         await queryClient.invalidateQueries({ queryKey: ["wiki", wikiId] });
@@ -478,6 +499,28 @@ export default function AddWikiModal({
               );
             })()}
           </div>
+
+          {/* Fragment Review Mode toggle -- settings mode only */}
+          {isSettingsView && (
+            <div className="px-5 pt-4 flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-0.5">
+                <FieldLabel>Fragment Review Mode</FieldLabel>
+                <span className="text-[11px] leading-4" style={{ color: "#676d76" }}>
+                  {bouncerMode === "review"
+                    ? "New fragments require manual approval"
+                    : "Fragments auto-accepted into this wiki"}
+                </span>
+              </div>
+              <Switch
+                checked={bouncerMode === "review"}
+                onCheckedChange={(checked: boolean) =>
+                  setBouncerMode(checked ? "review" : "auto")
+                }
+                disabled={locked}
+                size="sm"
+              />
+            </div>
+          )}
 
           <div className="pb-5" />
 

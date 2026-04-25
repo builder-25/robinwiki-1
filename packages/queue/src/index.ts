@@ -91,6 +91,16 @@ export interface RegenBatchJob {
   enqueuedAt: string
 }
 
+export interface EmbeddingRetryJob {
+  type: 'embedding-retry'
+  jobId: string
+  triggeredBy: 'scheduler'
+  enqueuedAt: string
+}
+
+/** Job payloads dispatched by the scheduler worker (cron-driven). */
+export type SchedulerJob = RegenBatchJob | EmbeddingRetryJob
+
 export type RobinJob =
   | ProvisionJob
   | ExtractionJob
@@ -98,6 +108,7 @@ export type RobinJob =
   | ReclassifyJob
   | RegenJob
   | RegenBatchJob
+  | EmbeddingRetryJob
 
 export interface JobResult {
   jobId: string
@@ -128,7 +139,7 @@ export interface QueueWorker {
   startReclassifyWorker(processor: (job: ReclassifyJob) => Promise<JobResult>): Worker
   startRegenWorker(processor: (job: RegenJob) => Promise<JobResult>): Worker
   startProvisionWorker(processor: (job: ProvisionJob) => Promise<JobResult>): Worker
-  startSchedulerWorker(processor: (job: RegenBatchJob) => Promise<JobResult>): Worker
+  startSchedulerWorker(processor: (job: SchedulerJob) => Promise<JobResult>): Worker
 }
 
 // ── BullMQ implementation ─────────────────────────────────────────────────────
@@ -247,10 +258,10 @@ export class BullMQWorker implements QueueWorker {
     )
   }
 
-  startSchedulerWorker(processor: (job: RegenBatchJob) => Promise<JobResult>): Worker {
+  startSchedulerWorker(processor: (job: SchedulerJob) => Promise<JobResult>): Worker {
     return new Worker(
       QUEUE_NAMES.scheduler,
-      async (job: Job<RegenBatchJob>) => processor(job.data),
+      async (job: Job<SchedulerJob>) => processor(job.data),
       { connection: this.connection, concurrency: 1, autorun: true }
     )
   }

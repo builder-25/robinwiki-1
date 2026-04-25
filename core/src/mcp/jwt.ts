@@ -95,6 +95,8 @@ export async function signMcpToken(userId: string): Promise<string | null> {
 
   return new SignJWT({ ver: user.mcpTokenVersion })
     .setProtectedHeader({ alg: 'EdDSA', kid })
+    .setIssuer('robin')
+    .setAudience('robin-mcp')
     .setIssuedAt()
     .setExpirationTime('100y')
     .sign(privateKey)
@@ -130,10 +132,19 @@ export async function verifyMcpToken(token: string): Promise<string> {
     format: 'der',
     type: 'spki',
   })
-  const { payload } = await jwtVerify(token, publicKey)
+  const { payload } = await jwtVerify(token, publicKey, {
+    issuer: 'robin',
+    audience: 'robin-mcp',
+  })
 
-  /** @gate — token version mismatch → revoked */
-  if (payload.ver !== user.mcpTokenVersion) throw new Error('Token revoked')
+  /** @gate — re-fetch mcpTokenVersion from DB to defeat stale kidCache */
+  const [freshUser] = await db
+    .select({ mcpTokenVersion: users.mcpTokenVersion })
+    .from(users)
+    .where(eq(users.id, user.id))
+  if (!freshUser || payload.ver !== freshUser.mcpTokenVersion) {
+    throw new Error('Token revoked')
+  }
 
   return user.id
 }

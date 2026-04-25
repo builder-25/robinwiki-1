@@ -61,7 +61,7 @@ function timeAgo(dateStr: string): string {
 function ExplorerInner() {
   const { filters, setFilter, clearFilters, hasActiveFilters } =
     useExplorerFilters();
-  const { items, isLoading, isError, groups } = useExplorerData(filters);
+  const { items, isLoading, isError, collections } = useExplorerData(filters);
 
   const [showFilters, setShowFilters] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -69,7 +69,7 @@ function ExplorerInner() {
   // Reset visible count when filters change
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [filters.types.join(","), filters.group, filters.sort]);
+  }, [filters.types.join(","), filters.collection, filters.sort]);
 
   // Infinite scroll
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -213,8 +213,8 @@ function ExplorerInner() {
               </div>
             </div>
 
-            {/* Group filters */}
-            {groups.length > 0 && (
+            {/* Collection filters */}
+            {collections.length > 0 && (
               <div style={{ marginBottom: 16 }}>
                 <span
                   style={{
@@ -226,33 +226,33 @@ function ExplorerInner() {
                     marginBottom: 8,
                   }}
                 >
-                  Group
+                  Collection
                 </span>
                 <div className="flex flex-wrap items-start" style={{ gap: 8 }}>
                   <Chip
-                    label="All groups"
-                    active={filters.group === null}
-                    onClick={() => setFilter("group", null)}
+                    label="All collections"
+                    active={filters.collection === null}
+                    onClick={() => setFilter("collection", null)}
                   />
-                  {groups.map((group) => (
+                  {collections.map((collection) => (
                     <Chip
-                      key={group.id}
+                      key={collection.id}
                       icon={
                         <span
                           className="inline-block h-2.5 w-2.5 rounded-full"
                           style={{
                             backgroundColor:
-                              group.color || "var(--wiki-count)",
+                              collection.color || "var(--wiki-count)",
                           }}
                           aria-hidden
                         />
                       }
-                      label={group.name}
-                      active={filters.group === group.id}
+                      label={collection.name}
+                      active={filters.collection === collection.id}
                       onClick={() =>
                         setFilter(
-                          "group",
-                          filters.group === group.id ? null : group.id,
+                          "collection",
+                          filters.collection === collection.id ? null : collection.id,
                         )
                       }
                     />
@@ -424,7 +424,7 @@ function ExplorerRow({ item }: { item: ExplorerItem }) {
         </Link>
       </div>
 
-      {/* Right: badge + group indicator + date */}
+      {/* Right: badge + collection indicator + date */}
       <div
         style={{
           display: "flex",
@@ -437,20 +437,20 @@ function ExplorerRow({ item }: { item: ExplorerItem }) {
           type={item.subtype ?? (item.type.charAt(0).toUpperCase() + item.type.slice(1))}
         />
 
-        {item.groupColor && item.groupName && (
+        {item.collectionColor && item.collectionName && (
           <div
             style={{ display: "flex", alignItems: "center", gap: 6 }}
           >
             <span
               className="inline-block h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: item.groupColor }}
+              style={{ backgroundColor: item.collectionColor }}
               aria-hidden
             />
             <span
               className="hidden sm:inline"
               style={{ ...T.micro, color: "var(--wiki-count)" }}
             >
-              {item.groupName}
+              {item.collectionName}
             </span>
           </div>
         )}

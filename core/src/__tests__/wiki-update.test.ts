@@ -68,7 +68,7 @@ function createApp() {
 
 const now = new Date()
 
-function makeThread(overrides: Record<string, unknown> = {}) {
+function makeWiki(overrides: Record<string, unknown> = {}) {
   return {
     lookupKey: 'thread01TEST',
     userId: 'test-user-123',
@@ -109,8 +109,8 @@ describe('PUT /wikis/:id — DB update', () => {
   })
 
   it('syncs name change to DB', async () => {
-    const existing = makeThread()
-    const updated = makeThread({ name: 'New Name', slug: 'new-name', updatedAt: new Date() })
+    const existing = makeWiki()
+    const updated = makeWiki({ name: 'New Name', slug: 'new-name', updatedAt: new Date() })
 
     mockDbSelect.mockReturnValue(selectChainMock([existing]))
     mockDbUpdate.mockReturnValue(updateChainMock([updated]))
@@ -126,9 +126,9 @@ describe('PUT /wikis/:id — DB update', () => {
     expect(mockDbUpdate).toHaveBeenCalled()
   })
 
-  it('marks thread PENDING when prompt changes', async () => {
-    const existing = makeThread()
-    const updated = makeThread({ prompt: 'new prompt', state: 'PENDING', updatedAt: new Date() })
+  it('marks wiki PENDING when prompt changes', async () => {
+    const existing = makeWiki()
+    const updated = makeWiki({ prompt: 'new prompt', state: 'PENDING', updatedAt: new Date() })
 
     mockDbSelect.mockReturnValue(selectChainMock([existing]))
     const updateChain = updateChainMock([updated])
@@ -147,8 +147,8 @@ describe('PUT /wikis/:id — DB update', () => {
   })
 
   it('does NOT change state when only name changes', async () => {
-    const existing = makeThread()
-    const updated = makeThread({ name: 'Renamed', slug: 'renamed', updatedAt: new Date() })
+    const existing = makeWiki()
+    const updated = makeWiki({ name: 'Renamed', slug: 'renamed', updatedAt: new Date() })
 
     mockDbSelect.mockReturnValue(selectChainMock([existing]))
     const updateChain = updateChainMock([updated])

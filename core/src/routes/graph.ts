@@ -16,6 +16,17 @@ const EDGE_TYPE_MAP: Record<string, string> = {
   WIKI_RELATED_TO_WIKI: 'wikilink',
 }
 
+// DB stores "frag" → API "fragment"; "raw_source" (the table name after
+// 0001_taxonomy_rename) → API "entry". The API-facing set is enumerated
+// by graphNodeSchema.type; any other literal passes through unchanged and
+// will be rejected downstream — which is the desired loud-fail behaviour
+// for unknown DB types rather than a silent 500.
+export function normalizeNodeType(t: string): string {
+  if (t === 'frag') return 'fragment'
+  if (t === 'raw_source') return 'entry'
+  return t
+}
+
 const graphRouter = new Hono()
 graphRouter.use('*', sessionMiddleware)
 
@@ -44,13 +55,11 @@ graphRouter.get('/', async (c) => {
     return c.json({ nodes: [], edges: [] })
   }
 
-  // 3. Collect unique node identifiers
-  // DB stores "frag" as edge src/dst type; normalize to "fragment" for API consistency
-  const normalizeType = (t: string) => (t === 'frag' ? 'fragment' : t)
+  // 3. Collect unique node identifiers.
   const nodeSet = new Map<string, { type: string; id: string; edgeCount: number }>()
   for (const e of edgeRows) {
-    const srcType = normalizeType(e.srcType)
-    const dstType = normalizeType(e.dstType)
+    const srcType = normalizeNodeType(e.srcType)
+    const dstType = normalizeNodeType(e.dstType)
     const srcKey = `${srcType}:${e.srcId}`
     const dstKey = `${dstType}:${e.dstId}`
     if (!nodeSet.has(srcKey)) nodeSet.set(srcKey, { type: srcType, id: e.srcId, edgeCount: 0 })

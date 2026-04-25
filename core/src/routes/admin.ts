@@ -5,6 +5,7 @@ import { db } from '../db/client.js'
 import { fragments, entries } from '../db/schema.js'
 import { producer } from '../queue/producer.js'
 import { logger } from '../lib/logger.js'
+import { sessionMiddleware } from '../middleware/session.js'
 import {
   retryStuckDryRunResponseSchema,
   retryStuckResponseSchema,
@@ -13,19 +14,20 @@ import {
 const log = logger.child({ component: 'admin' })
 
 export const adminRoutes = new Hono()
+adminRoutes.use('*', sessionMiddleware)
 
 /**
  * POST /admin/retry-stuck
  *
  * Finds PENDING fragments older than ?minutes (default 5) and re-enqueues
- * their link jobs. No auth — intended for curl from the dev machine.
+ * their link jobs. Session-authenticated.
  *
  * Query params:
- *   minutes  — age threshold (default 5)
+ *   minutes  — age threshold (default 5, clamped 1-1440)
  *   dryRun   — if "true", returns what would be re-enqueued without doing it
  */
 adminRoutes.post('/retry-stuck', async (c) => {
-  const minutes = Number(c.req.query('minutes') ?? '5')
+  const minutes = Math.max(1, Math.min(1440, Number(c.req.query('minutes') ?? '5') || 5))
   const dryRun = c.req.query('dryRun') === 'true'
 
   const stuckFragments = (await db.execute(
@@ -34,7 +36,7 @@ adminRoutes.post('/retry-stuck', async (c) => {
         JOIN ${entries} e ON e.lookup_key = f.entry_id
         WHERE f.state = 'PENDING'
           AND f.locked_by IS NULL
-          AND f.updated_at < NOW() - INTERVAL '${sql.raw(String(minutes))} minutes'
+          AND f.updated_at < NOW() - make_interval(mins => ${minutes})
         ORDER BY f.updated_at ASC`
   )) as Array<{
     lookup_key: string

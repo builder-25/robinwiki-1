@@ -97,7 +97,7 @@ describe('handleLogEntry', () => {
   })
 
   it('sets title from first 80 chars of content', async () => {
-    const longContent = 'A'.repeat(100) + ' trailing text'
+    const longContent = `${'A'.repeat(100)} trailing text`
     const deps = makeDeps()
     await handleLogEntry(deps, { content: longContent }, testUserId)
 

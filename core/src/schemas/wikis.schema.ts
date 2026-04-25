@@ -24,7 +24,7 @@ export const updateProgressResponseSchema = z.object({
 
 // ── Response schemas ────────────────────────────────────────────────────────
 
-export const threadResponseSchema = z.object({
+export const wikiResponseSchema = z.object({
   id: lookupKeySchema,
   lookupKey: lookupKeySchema,
   slug: z.string(),
@@ -42,13 +42,15 @@ export const threadResponseSchema = z.object({
   descriptor: z.string().default(''),
   progress: wikiProgressSchema.nullable().default(null),
   bouncerMode: z.enum(['auto', 'review']).default('auto'),
+  published: z.boolean().default(false),
+  publishedSlug: z.string().nullable().default(null),
 })
 
-export const threadWithWikiResponseSchema = threadResponseSchema.extend({
+export const wikiWithContentResponseSchema = wikiResponseSchema.extend({
   wikiContent: z.string(),
 })
 
-export const wikiDetailResponseSchema = threadResponseSchema.extend({
+export const wikiDetailResponseSchema = wikiResponseSchema.extend({
   wikiContent: z.string(),
   fragments: z.array(
     z.object({
@@ -70,8 +72,8 @@ export const wikiDetailResponseSchema = threadResponseSchema.extend({
   sections: z.array(wikiSectionSchema).default([]),
 })
 
-export const threadListResponseSchema = z.object({
-  wikis: z.array(threadResponseSchema),
+export const wikiListResponseSchema = z.object({
+  wikis: z.array(wikiResponseSchema),
 })
 
 // ── Query schemas ──────────────────────────────────────────────────────────
@@ -84,21 +86,21 @@ export const wikiListQuerySchema = z.object({
 
 // ── Request schemas ─────────────────────────────────────────────────────────
 
-export const createThreadBodySchema = z.object({
+export const createWikiBodySchema = z.object({
   name: z.string().min(3, 'name must be at least 3 characters'),
   type: z.string().optional(),
   description: z.string().optional(),
   prompt: z.string().optional(),
 })
 
-export const updateThreadBodySchema = z.object({
+export const updateWikiBodySchema = z.object({
   name: z.string().optional(),
   description: z.string().optional(),
   type: z.string().optional(),
   prompt: z.string().optional(),
 })
 
-export { queuedResponseSchema as threadRegenerateResponseSchema }
+export { queuedResponseSchema as wikiRegenerateResponseSchema }
 
 // ── Bouncer mode schemas ──────────────────────────────────────────────────
 

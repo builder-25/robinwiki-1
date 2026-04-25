@@ -21,7 +21,7 @@ export const fragmentWithContentResponseSchema = fragmentResponseSchema.extend({
   content: z.string(),
 })
 
-/** Fragment detail with backlinks resolved from edges table */
+/** Fragment detail with backlinks and related fragments resolved from edges table */
 export const fragmentDetailResponseSchema = fragmentWithContentResponseSchema.extend({
   backlinks: z.array(
     z.object({
@@ -30,6 +30,14 @@ export const fragmentDetailResponseSchema = fragmentWithContentResponseSchema.ex
       type: z.string(),
     })
   ),
+  relatedFragments: z.array(
+    z.object({
+      id: z.string(),
+      slug: z.string(),
+      title: z.string(),
+      similarity: z.number(),
+    })
+  ).default([]),
 })
 
 export const fragmentListResponseSchema = z.object({

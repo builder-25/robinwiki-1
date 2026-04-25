@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { wikiDetailResponseSchema } from '../schemas/wikis.schema.js'
 
-const baseThreadFields = {
+const baseWikiFields = {
   id: 'wiki01ABC',
   lookupKey: 'wiki01ABC',
   slug: 'example',
@@ -39,7 +39,7 @@ describe('wikiDetailResponseSchema', () => {
       citations: [],
     }
     const result = wikiDetailResponseSchema.safeParse({
-      ...baseThreadFields,
+      ...baseWikiFields,
       refs: { 'person:ashish-vaswani': personRef },
       infobox: { rows: [infoboxRow] },
       sections: [section],
@@ -53,7 +53,7 @@ describe('wikiDetailResponseSchema', () => {
   })
 
   it('defaults refs/infobox/sections when the server omits them', () => {
-    const result = wikiDetailResponseSchema.safeParse(baseThreadFields)
+    const result = wikiDetailResponseSchema.safeParse(baseWikiFields)
     expect(result.success).toBe(true)
     if (!result.success) return
     expect(result.data.refs).toEqual({})

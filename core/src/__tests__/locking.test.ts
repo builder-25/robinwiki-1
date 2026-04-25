@@ -133,8 +133,8 @@ describe('acquireLock', () => {
     await db.insert(wikis).values({
       lookupKey: key,
       userId: testUserId,
-      slug: `thread-${Date.now()}`,
-      name: 'Thread Lock Test',
+      slug: `wiki-${Date.now()}`,
+      name: 'Wiki Lock Test',
       state: 'RESOLVED',
     })
 
@@ -208,7 +208,7 @@ describe('canRebuildThread', () => {
     await db.insert(wikis).values({
       lookupKey: wikiKey,
       userId: testUserId,
-      slug: `thread-${Date.now()}`,
+      slug: `wiki-${Date.now()}`,
       name: 'Rebuild Test',
       state: 'RESOLVED',
     })
@@ -252,7 +252,7 @@ describe('canRebuildThread', () => {
     await db.insert(wikis).values({
       lookupKey: wikiKey,
       userId: testUserId,
-      slug: `thread-${Date.now()}`,
+      slug: `wiki-${Date.now()}`,
       name: 'Rebuild Test',
       state: 'RESOLVED',
     })
@@ -298,7 +298,7 @@ describe('canRebuildThread', () => {
     await db.insert(wikis).values({
       lookupKey: wikiKey,
       userId: testUserId,
-      slug: `thread-${Date.now()}`,
+      slug: `wiki-${Date.now()}`,
       name: 'Rebuild Test',
       state: 'RESOLVED',
     })
@@ -348,13 +348,13 @@ describe('canRebuildThread', () => {
     expect(result).toBe(true)
   })
 
-  it('returns true when thread has no linked fragments', async () => {
+  it('returns true when wiki has no linked fragments', async () => {
     const wikiKey = makeLookupKey(ObjectType.THREAD)
     await db.insert(wikis).values({
       lookupKey: wikiKey,
       userId: testUserId,
-      slug: `thread-${Date.now()}`,
-      name: 'Empty Thread',
+      slug: `wiki-${Date.now()}`,
+      name: 'Empty Wiki',
       state: 'RESOLVED',
     })
 

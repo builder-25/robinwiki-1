@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ROUTES } from "@/lib/routes";
 import WikiSearchResults from "@/components/wiki/WikiSearchResults";
 
 function WikiSearchPageInner() {
@@ -11,7 +12,7 @@ function WikiSearchPageInner() {
   const qTrim = rawQ.trim();
 
   useEffect(() => {
-    if (!qTrim) router.replace("/wiki");
+    if (!qTrim) router.replace(ROUTES.home);
   }, [qTrim, router]);
 
   if (!qTrim) return null;

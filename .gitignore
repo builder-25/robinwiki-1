@@ -14,6 +14,9 @@ next-env.d.ts
 !.claude/skills
 !.claude/gitkeep
 
+.nvim.lua
+.design
+
 .env
 .env.*
 !.env.example

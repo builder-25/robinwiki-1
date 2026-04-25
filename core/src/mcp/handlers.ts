@@ -18,10 +18,10 @@
  *
  * **Fail-open semantics:**
  * - Entity extraction errors → fragment persisted without people edges.
- * - Thread marked DIRTY after insert → wiki regen picks it up next cycle.
+ * - Wiki marked DIRTY after insert → wiki regen picks it up next cycle.
  *
  * @see {@link handleLogEntry} — pipeline entry point
- * @see {@link handleLogFragment} — direct-to-thread fast path
+ * @see {@link handleLogFragment} — direct-to-wiki fast path
  * @see {@link McpServerDeps} — dependency injection interface
  */
 
@@ -34,19 +34,18 @@ import {
 import type { PeopleExtractionOutput } from '@robin/shared'
 import type { BullMQProducer, ExtractionJob } from '@robin/queue'
 import { resolveEntrySlug, resolveWikiSlug } from '../db/slug.js'
-import { computeContentHash, findDuplicateEntry } from '../db/dedup.js'
+import { computeContentHash, findDuplicateEntry, findDuplicateFragment } from '../db/dedup.js'
 import type { DB } from '../db/client.js'
 import {
   entries as entriesTable,
   fragments as fragmentsTable,
-  wikis as threadsTable,
+  wikis as wikisTable,
   edges as edgesTable,
   people as peopleTable,
   wikiTypes as wikiTypesTable,
   edits as editsTable,
-  groupWikis as groupWikisTable,
 } from '../db/schema.js'
-import { resolveThreadBySlug } from './resolvers.js'
+import { resolveWikiBySlug } from './resolvers.js'
 import type { McpResolverDeps } from './resolvers.js'
 import { inferWikiType } from './wiki-type-inference.js'
 import { resolvePerson, DEFAULT_RESOLUTION_CONFIG } from '@robin/agent'
@@ -177,13 +176,13 @@ export async function handleLogEntry(
 /**
  * Handle the `log_fragment` MCP tool call.
  *
- * @summary Persist a fragment directly to a known thread, bypassing
+ * @summary Persist a fragment directly to a known wiki, bypassing
  * the full AI ingestion pipeline.
  *
  * @param deps   - Injected dependencies (db, LLM calls, etc.)
- * @param input  - Fragment content, target thread slug, optional title/tags
+ * @param input  - Fragment content, target wiki slug, optional title/tags
  * @param userId - Authenticated user ID (`undefined` = not authenticated)
- * @returns MCP-shaped response with fragment/thread keys or error
+ * @returns MCP-shaped response with fragment/wiki keys or error
  *
  * @throws Never — all errors caught and returned as `{ isError: true }`
  */
@@ -220,11 +219,19 @@ export async function handleLogFragment(
   }
 
   try {
+    const hash = computeContentHash(trimmed)
+    const dup = await findDuplicateFragment(deps.db, hash)
+    if (dup) {
+      return {
+        content: [{ type: 'text' as const, text: `Duplicate: fragment ${dup.lookupKey} already contains this content` }],
+      }
+    }
+
     const resolverDeps: McpResolverDeps = {
       db: deps.db,
     }
 
-    const threadResult = await resolveThreadBySlug(resolverDeps, input.threadSlug.trim())
+    const threadResult = await resolveWikiBySlug(resolverDeps, input.threadSlug.trim())
 
     if ('error' in threadResult) {
       return {
@@ -234,8 +241,8 @@ export async function handleLogFragment(
     }
 
     // Entity extraction (fail-open)
-    let personKeys: string[] = []
-    let newPeople: Array<{ personKey: string; canonicalName: string }> = []
+    const personKeys: string[] = []
+    const newPeople: Array<{ personKey: string; canonicalName: string }> = []
     try {
       const knownPeople = await deps.loadUserPeople(userId)
       const knownPeopleJson =
@@ -292,6 +299,7 @@ export async function handleLogFragment(
       entryId: null,
       state: 'RESOLVED',
       content: trimmed,
+      dedupHash: hash,
     })
 
     // Insert FRAGMENT_IN_WIKI edge
@@ -338,11 +346,11 @@ export async function handleLogFragment(
         .onConflictDoNothing()
     }
 
-    // Mark thread for wiki regen (PENDING signals regen needed)
+    // Mark wiki for regen (PENDING signals regen needed)
     await deps.db
-      .update(threadsTable)
+      .update(wikisTable)
       .set({ state: 'PENDING', updatedAt: now })
-      .where(eq(threadsTable.lookupKey, threadResult.lookupKey))
+      .where(eq(wikisTable.lookupKey, threadResult.lookupKey))
 
     await emitAuditEvent(deps.db, {
       entityType: 'fragment',
@@ -480,7 +488,7 @@ export async function handleCreateWikiType(
  */
 export async function handleCreateWiki(
   deps: McpServerDeps,
-  input: { title: string; description?: string },
+  input: { title: string; description?: string; type?: string },
   userId: string | undefined
 ) {
   if (!userId) {
@@ -501,13 +509,45 @@ export async function handleCreateWiki(
     const slug = generateSlug(input.title.trim())
     const finalSlug = await resolveWikiSlug(deps.db, slug)
     const lookupKey = makeLookupKey('wiki')
-    const inferredType = inferWikiType(input.description ?? '')
 
-    await deps.db.insert(threadsTable).values({
+    // Resolve type: explicit `input.type` wins, else infer from description.
+    // Explicit types must exist in the wiki_types registry — the column is
+    // user-extensible (single-tenant table), so a runtime lookup replaces
+    // any static enum validation.
+    let resolvedType: string
+    let inferred: boolean
+    const explicitType = input.type?.trim()
+    if (explicitType) {
+      const [row] = await deps.db
+        .select({ slug: wikiTypesTable.slug })
+        .from(wikiTypesTable)
+        .where(eq(wikiTypesTable.slug, explicitType))
+        .limit(1)
+      if (!row) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text:
+                `Error: unknown wiki type "${explicitType}". Use the get_wiki_types tool to list valid types.`,
+            },
+          ],
+          isError: true as const,
+        }
+      }
+      resolvedType = row.slug
+      inferred = false
+    } else {
+      resolvedType = inferWikiType(input.description ?? '')
+      inferred = true
+    }
+
+    await deps.db.insert(wikisTable).values({
       lookupKey,
       slug: finalSlug,
       name: input.title.trim(),
-      type: inferredType,
+      description: input.description?.trim() ?? '',
+      type: resolvedType,
       state: 'PENDING',
       prompt: '',
     })
@@ -518,10 +558,15 @@ export async function handleCreateWiki(
       eventType: 'created',
       source: 'mcp',
       summary: `Wiki created: ${input.title.trim()}`,
-      detail: { wikiKey: lookupKey, type: inferredType },
+      detail: { wikiKey: lookupKey, type: resolvedType, inferred },
     })
 
-    const result = { slug: finalSlug, lookupKey, inferredType }
+    const result = {
+      slug: finalSlug,
+      lookupKey,
+      type: resolvedType,
+      inferredType: inferred ? resolvedType : undefined,
+    }
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(result) }],
     }
@@ -571,25 +616,25 @@ export async function handleEditWiki(
     // Resolve wiki by exact slug match (exclude soft-deleted)
     const [wiki] = await deps.db
       .select({
-        lookupKey: threadsTable.lookupKey,
-        slug: threadsTable.slug,
-        content: threadsTable.content,
+        lookupKey: wikisTable.lookupKey,
+        slug: wikisTable.slug,
+        content: wikisTable.content,
       })
-      .from(threadsTable)
-      .where(and(eq(threadsTable.slug, input.wikiSlug.trim()), isNull(threadsTable.deletedAt)))
+      .from(wikisTable)
+      .where(and(eq(wikisTable.slug, input.wikiSlug.trim()), isNull(wikisTable.deletedAt)))
       .limit(1)
 
     if (!wiki) {
-      // Provide suggestions via resolveThreadBySlug
+      // Provide suggestions via resolveWikiBySlug
       const resolverDeps: McpResolverDeps = { db: deps.db }
-      const resolved = await resolveThreadBySlug(resolverDeps, input.wikiSlug.trim())
+      const resolved = await resolveWikiBySlug(resolverDeps, input.wikiSlug.trim())
       if ('error' in resolved) {
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(resolved) }],
           isError: true as const,
         }
       }
-      // Shouldn't reach here if resolveThreadBySlug returned an error
+      // Shouldn't reach here if resolveWikiBySlug returned an error
       return {
         content: [{ type: 'text' as const, text: `Error: wiki "${input.wikiSlug}" not found` }],
         isError: true as const,
@@ -600,9 +645,9 @@ export async function handleEditWiki(
 
     // Update canonical content
     await deps.db
-      .update(threadsTable)
+      .update(wikisTable)
       .set({ content: input.content, updatedAt: new Date() })
-      .where(eq(threadsTable.lookupKey, wiki.lookupKey))
+      .where(eq(wikisTable.lookupKey, wiki.lookupKey))
 
     // Store previous content as edit record (diff computation deferred)
     await deps.db.insert(editsTable).values({
@@ -638,135 +683,4 @@ export async function handleEditWiki(
   }
 }
 
-/**
- * Handle the `delete_wiki` MCP tool call.
- *
- * @summary Soft-delete a wiki by setting deletedAt. Existing queries
- * already filter WHERE deletedAt IS NULL, so the wiki disappears from
- * all listings immediately.
- */
-export async function handleDeleteWiki(
-  deps: McpServerDeps,
-  input: { wikiKey: string },
-  userId: string | undefined
-) {
-  if (!userId) {
-    return {
-      content: [{ type: 'text' as const, text: 'Error: not authenticated' }],
-      isError: true as const,
-    }
-  }
 
-  if (!input.wikiKey?.trim()) {
-    return {
-      content: [{ type: 'text' as const, text: 'Error: wikiKey is required' }],
-      isError: true as const,
-    }
-  }
-
-  try {
-    const [wiki] = await deps.db
-      .select()
-      .from(threadsTable)
-      .where(and(eq(threadsTable.lookupKey, input.wikiKey.trim()), isNull(threadsTable.deletedAt)))
-
-    if (!wiki) {
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Wiki not found' }) }],
-        isError: true as const,
-      }
-    }
-
-    await deps.db
-      .update(threadsTable)
-      .set({ deletedAt: new Date(), updatedAt: new Date() })
-      .where(eq(threadsTable.lookupKey, input.wikiKey.trim()))
-
-    // Hard-delete group memberships — soft-delete doesn't trigger FK CASCADE
-    await deps.db.delete(groupWikisTable).where(eq(groupWikisTable.wikiId, input.wikiKey.trim()))
-
-    await emitAuditEvent(deps.db, {
-      entityType: 'wiki',
-      entityId: wiki.lookupKey,
-      eventType: 'deleted',
-      source: 'mcp',
-      summary: `Wiki deleted: ${wiki.name}`,
-      detail: { wikiKey: wiki.lookupKey, wikiSlug: wiki.slug },
-    })
-
-    return {
-      content: [{ type: 'text' as const, text: JSON.stringify({ deleted: true, wikiKey: wiki.lookupKey }) }],
-    }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    log.error({ err, userId }, 'mcp delete_wiki failed')
-    return {
-      content: [{ type: 'text' as const, text: `Error: ${message}` }],
-      isError: true as const,
-    }
-  }
-}
-
-/**
- * Handle the `delete_person` MCP tool call.
- *
- * @summary Soft-delete a person by setting deletedAt.
- */
-export async function handleDeletePerson(
-  deps: McpServerDeps,
-  input: { personKey: string },
-  userId: string | undefined
-) {
-  if (!userId) {
-    return {
-      content: [{ type: 'text' as const, text: 'Error: not authenticated' }],
-      isError: true as const,
-    }
-  }
-
-  if (!input.personKey?.trim()) {
-    return {
-      content: [{ type: 'text' as const, text: 'Error: personKey is required' }],
-      isError: true as const,
-    }
-  }
-
-  try {
-    const [person] = await deps.db
-      .select()
-      .from(peopleTable)
-      .where(and(eq(peopleTable.lookupKey, input.personKey.trim()), isNull(peopleTable.deletedAt)))
-
-    if (!person) {
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Person not found' }) }],
-        isError: true as const,
-      }
-    }
-
-    await deps.db
-      .update(peopleTable)
-      .set({ deletedAt: new Date(), updatedAt: new Date() })
-      .where(eq(peopleTable.lookupKey, input.personKey.trim()))
-
-    await emitAuditEvent(deps.db, {
-      entityType: 'person',
-      entityId: person.lookupKey,
-      eventType: 'deleted',
-      source: 'mcp',
-      summary: `Person deleted: ${person.name}`,
-      detail: { personKey: person.lookupKey },
-    })
-
-    return {
-      content: [{ type: 'text' as const, text: JSON.stringify({ deleted: true, personKey: person.lookupKey }) }],
-    }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    log.error({ err, userId }, 'mcp delete_person failed')
-    return {
-      content: [{ type: 'text' as const, text: `Error: ${message}` }],
-      isError: true as const,
-    }
-  }
-}

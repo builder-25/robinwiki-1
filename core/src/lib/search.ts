@@ -136,13 +136,13 @@ async function vectorSearchTable(
       id: meta.idCol,
       title: meta.titleCol,
       content: meta.contentCol,
-      distance: sql<number>`${meta.embeddingCol} <=> ${sql.raw(`'${vecLiteral}'::vector`)}`,
+      distance: sql<number>`${meta.embeddingCol} <=> ${vecLiteral}::vector`,
     })
     .from(meta.table)
     .where(
       sql`${meta.deletedAtCol} IS NULL AND ${meta.embeddingCol} IS NOT NULL`
     )
-    .orderBy(sql`${meta.embeddingCol} <=> ${sql.raw(`'${vecLiteral}'::vector`)}`)
+    .orderBy(sql`${meta.embeddingCol} <=> ${vecLiteral}::vector`)
     .limit(limit)
 
   return rows.map((r) => ({

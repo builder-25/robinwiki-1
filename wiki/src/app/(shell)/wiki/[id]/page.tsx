@@ -3,7 +3,7 @@
 import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Check, RefreshCw, Trash2, X } from "lucide-react";
+import { Check, LinkIcon, RefreshCw, Trash2, X } from "lucide-react";
 import { T } from "@/lib/typography";
 import { Spinner } from "@/components/ui/spinner";
 import { useWiki } from "@/hooks/useWiki";
@@ -12,7 +12,7 @@ import { useDeleteWiki } from "@/hooks/useDeleteWiki";
 import { useAcceptFragment } from "@/hooks/useAcceptFragment";
 import { useRejectFragment } from "@/hooks/useRejectFragment";
 import { useQueryClient } from "@tanstack/react-query";
-import ConfirmDialog from "@/components/prompts/ConfirmDialog";
+import DestructiveConfirmDialog from "@/components/prompts/DestructiveConfirmDialog";
 import SectionEditor from "@/components/editor/SectionEditor";
 import {
   WikiEntityArticle,
@@ -24,6 +24,7 @@ import { WikiInfobox } from "@/components/wiki/WikiInfobox";
 import { WikiChip } from "@/components/wiki/WikiChip";
 import { WikiCitations } from "@/components/wiki/WikiCitations";
 import { WikiEditLink } from "@/components/wiki/WikiFurniture";
+import { SectionedMarkdownBody } from "./SectionedMarkdownBody";
 import {
   parseSectionsFromMarkdown,
   replaceSectionInMarkdown,
@@ -35,6 +36,7 @@ import type {
   WikiRef,
   WikiSection,
 } from "@/lib/sidecarTypes";
+import { ROUTES } from "@/lib/routes";
 
 function capitalize(s: string | null | undefined) {
   if (!s) return '';
@@ -52,13 +54,13 @@ const REF_VALUE_RE = /^\s*\[\[([a-z]+):([a-z0-9-]+)\]\]\s*$/;
 function hrefForRef(ref: WikiRef): string | undefined {
   switch (ref.kind) {
     case "person":
-      return `/wiki/people/${ref.id}`;
+      return ROUTES.person(ref.id);
     case "fragment":
-      return `/wiki/fragments/${ref.id}`;
+      return ROUTES.fragment(ref.id);
     case "wiki":
-      return `/wiki/${ref.id}`;
+      return ROUTES.wiki(ref.id);
     case "entry":
-      return `/wiki/entries/${ref.id}`;
+      return ROUTES.entry(ref.id);
     default:
       return undefined;
   }
@@ -114,216 +116,20 @@ function HtmlWikiBody({
   );
 }
 
-/**
- * Match server-computed `sections[]` entries to the anchors produced by
- * `parseSectionsFromMarkdown` against the displayed markdown. The server
- * slugifier and the client helper are kept in sync (see
- * `wiki/src/lib/sectionEdit.ts` header) so this lookup is a plain
- * `Map<anchor, WikiSection>`.
- */
-function buildCitationsByAnchor(
-  sections: WikiSection[] | undefined,
-): Map<string, WikiSection> {
-  const map = new Map<string, WikiSection>();
-  if (!sections) return map;
-  for (const s of sections) {
-    map.set(s.anchor, s);
-  }
-  return map;
-}
-
-/**
- * Heading styles mirroring `MarkdownContent`'s internal `buildComponents`
- * heading mapping so that section-scoped headings (rendered by this
- * page) look identical to headings rendered inside `<MarkdownContent>`
- * body blocks. Kept inline rather than extracted to a shared module so
- * the duplication is local and easy to resync when either side drifts.
- */
-const sectionHeadingStyle: Record<2 | 3 | 4, CSSProperties> = {
-  2: {
-    ...T.h2,
-    color: "var(--wiki-article-h2)",
-    margin: "24px 0 8px",
-    borderBottom: "1px solid var(--wiki-card-border)",
-    paddingBottom: 4,
-  },
-  3: {
-    ...T.h3,
-    color: "var(--wiki-article-h2)",
-    margin: "20px 0 6px",
-  },
-  4: {
-    ...T.h4,
-    color: "var(--wiki-article-h2)",
-    margin: "16px 0 4px",
-  },
-};
-
-/**
- * Render a section's heading line with a trailing `[edit]` affordance.
- * The edit link is suppressed for H1 (per the phase spec — editing H1
- * is equivalent to full-body edit, which lives on the Edit tab) and for
- * H5/H6 (no visual treatment exists in `MarkdownContent`; fall through
- * to plain `MarkdownContent` rendering).
- *
- * Returns `null` when the level is outside 2–4 so the caller falls back
- * to rendering the whole section — including its heading — via
- * `<MarkdownContent>`.
- */
-function SectionHeadingWithEdit({
-  section,
-  onEdit,
-  showEditLink,
-}: {
-  section: SectionInfo;
-  onEdit: (sectionId: string) => void;
-  showEditLink: boolean;
-}) {
-  const style = sectionHeadingStyle[section.level as 2 | 3 | 4];
-  if (!style) return null;
-
-  const HeadingTag = (section.level === 3
-    ? "h3"
-    : section.level === 4
-      ? "h4"
-      : "h2") as "h2" | "h3" | "h4";
-
-  const editLink = showEditLink ? (
-    <>
-      {" "}
-      <WikiEditLink onClick={() => onEdit(section.id)} />
-    </>
-  ) : null;
-
-  return (
-    <HeadingTag style={style}>
-      {section.heading}
-      {editLink}
-    </HeadingTag>
-  );
-}
-
-/**
- * Render the markdown body as a sequence of section-scoped
- * `<MarkdownContent>` blocks, each followed by its `<WikiCitations>`
- * superscripts. Preamble before the first heading (if any) renders as
- * an unattributed leading block.
- *
- * If the body has no headings, falls back to a single whole-body render
- * — `sections` is empty in that case, so no citations are rendered.
- *
- * When `onEditSection` is provided, H2/H3/H4 headings gain a trailing
- * `[edit]` bracket affordance. H1 is excluded (editing it is equivalent
- * to whole-body edit). The heading itself is extracted and rendered
- * separately so the `[edit]` link can sit next to the heading text;
- * only the section body (lines after the heading) goes through
- * `<MarkdownContent>`.
- */
-function SectionedMarkdownBody({
-  content,
-  refs,
-  sections,
-  style,
-  onEditSection,
-}: {
-  content: string;
-  refs: Record<string, WikiRef>;
-  sections: WikiSection[] | undefined;
-  style: CSSProperties;
-  onEditSection?: (sectionId: string) => void;
-}) {
-  const parsed: SectionInfo[] = parseSectionsFromMarkdown(content);
-  if (parsed.length === 0) {
-    return <MarkdownContent content={content} refs={refs} style={style} />;
-  }
-
-  const lines = content.split("\n");
-  const citationsByAnchor = buildCitationsByAnchor(sections);
-
-  const preamble = lines.slice(0, parsed[0].startLine).join("\n");
-  const blocks: ReactNode[] = [];
-  if (preamble.trim().length > 0) {
-    blocks.push(
-      <MarkdownContent
-        key="__preamble"
-        content={preamble}
-        refs={refs}
-        style={style}
-      />,
-    );
-  }
-
-  for (const section of parsed) {
-    const matched = citationsByAnchor.get(section.anchor);
-    const citations = matched?.citations ?? [];
-
-    // H1 spans the whole document (no following H1 to bound it), so its
-    // endLine engulfs every H2+ that follows. Rendering the full H1 span
-    // here would double-render everything, since H2+ are then rendered
-    // again as their own blocks. Render only the H1 heading line.
-    if (section.level === 1) {
-      const headingOnly = lines[section.startLine];
-      blocks.push(
-        <div key={section.anchor} id={section.anchor}>
-          <MarkdownContent content={headingOnly} refs={refs} style={style} />
-          {citations.length > 0 && <WikiCitations citations={citations} />}
-        </div>,
-      );
-      continue;
-    }
-
-    // H1 never gets the [edit] affordance — it's the document-level
-    // heading and section-editing it is equivalent to full-body edit.
-    // Levels outside 2–4 fall through to plain MarkdownContent so the
-    // `[edit]` affordance isn't shown on H5/H6 that MarkdownContent
-    // renders with default styling.
-    const canExtractHeading =
-      section.level >= 2 && section.level <= 4 && onEditSection !== undefined;
-
-    if (canExtractHeading) {
-      const bodyOnly = lines
-        .slice(section.startLine + 1, section.endLine + 1)
-        .join("\n");
-      blocks.push(
-        <div key={section.anchor} id={section.anchor}>
-          <SectionHeadingWithEdit
-            section={section}
-            onEdit={onEditSection}
-            showEditLink={true}
-          />
-          {bodyOnly.trim().length > 0 && (
-            <MarkdownContent content={bodyOnly} refs={refs} style={style} />
-          )}
-          {citations.length > 0 && <WikiCitations citations={citations} />}
-        </div>,
-      );
-      continue;
-    }
-
-    const body = lines
-      .slice(section.startLine, section.endLine + 1)
-      .join("\n");
-    blocks.push(
-      <div key={section.anchor} id={section.anchor}>
-        <MarkdownContent content={body} refs={refs} style={style} />
-        {citations.length > 0 && <WikiCitations citations={citations} />}
-      </div>,
-    );
-  }
-
-  return <>{blocks}</>;
-}
-
 export default function WikiDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { data: wiki, isLoading, error } = useWiki(id);
+  const { data: _wiki, isLoading, error } = useWiki(id);
+  // Extend generated type with fields added in #128 (bouncerMode, edgeStatus)
+  // until the OpenAPI codegen picks them up from the live spec
+  const wiki = _wiki as typeof _wiki & { bouncerMode?: string; description?: string; fragments?: Array<{ id: string; slug: string; title: string; snippet: string; edgeStatus?: string }> } | undefined;
   const regenerate = useRegenerateWiki();
   const deleteWiki = useDeleteWiki();
   const acceptFragment = useAcceptFragment();
   const rejectFragment = useRejectFragment();
   const queryClient = useQueryClient();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
 
   // Section-scoped edit state. `editingSectionId` doubles as the
   // "dialog open" indicator — non-null ⇒ open. The anchor id is stable
@@ -491,7 +297,8 @@ export default function WikiDetailPage() {
       chipLabel={typeLabel}
       title={wiki.name}
       promptOverride={wiki.prompt}
-      description={wiki.shortDescriptor}
+      description={wiki.description ?? wiki.shortDescriptor ?? ''}
+      bouncerMode={wiki.bouncerMode as 'auto' | 'review' | undefined}
       infobox={{ kind: "simple", typeLabel, lastUpdated: wiki.updatedAt, showSettings: true }}
       renderCustomInfobox={
         sidecarInfobox
@@ -563,6 +370,35 @@ export default function WikiDetailPage() {
               <Trash2 size={14} strokeWidth={1.5} />
               {deleteWiki.isPending ? "Deleting..." : "Delete Wiki"}
             </button>
+            {wiki.published && wiki.publishedSlug && (
+              <button
+                type="button"
+                onClick={() => {
+                  const url = `${window.location.origin}/p/${wiki.publishedSlug}`;
+                  navigator.clipboard.writeText(url);
+                  setShareCopied(true);
+                  setTimeout(() => setShareCopied(false), 2000);
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "4px 10px",
+                  fontSize: 12,
+                  color: "var(--wiki-article-link)",
+                  background: "none",
+                  border: "1px solid var(--wiki-card-border)",
+                  cursor: "pointer",
+                }}
+              >
+                {shareCopied ? (
+                  <Check size={14} strokeWidth={1.5} />
+                ) : (
+                  <LinkIcon size={14} strokeWidth={1.5} />
+                )}
+                {shareCopied ? "Copied!" : "Copy share link"}
+              </button>
+            )}
             {regenerate.isSuccess && (
               <span style={{ fontSize: 12, color: "var(--wiki-article-link)" }}>
                 Regeneration queued
@@ -579,13 +415,13 @@ export default function WikiDetailPage() {
               </span>
             )}
           </div>
-          <ConfirmDialog
+          <DestructiveConfirmDialog
             open={showDeleteConfirm}
             onOpenChange={setShowDeleteConfirm}
             title="Delete Wiki"
             description="Are you sure? This permanently deletes this wiki."
+            confirmText={wiki.name}
             confirmLabel="Delete"
-            destructive
             onConfirm={() => {
               deleteWiki.mutate(wiki.id, {
                 onSuccess: () => router.push("/wiki"),
@@ -699,7 +535,7 @@ export default function WikiDetailPage() {
             {wiki.fragments.map((frag) => (
               <li key={frag.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Link
-                  href={`/wiki/fragments/${frag.id}`}
+                  href={ROUTES.fragment(frag.id)}
                   style={{
                     color: "var(--wiki-fragment-link)",
                     textDecoration: "underline",
@@ -708,7 +544,7 @@ export default function WikiDetailPage() {
                 >
                   {frag.title}
                 </Link>
-                {wiki.bouncerMode === "review" && frag.edgeStatus === "pending" && (
+                {wiki.bouncerMode === "review" && (frag as typeof frag & { edgeStatus?: string }).edgeStatus === "pending" && (
                   <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
                     <button
                       type="button"
@@ -770,7 +606,7 @@ export default function WikiDetailPage() {
             {wiki.people.map((person) => (
               <li key={person.id}>
                 <Link
-                  href={`/wiki/people/${person.id}`}
+                  href={ROUTES.person(person.id)}
                   style={{
                     color: "var(--wiki-fragment-link)",
                     textDecoration: "underline",

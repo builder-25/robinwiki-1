@@ -581,6 +581,89 @@ else
   skip "13. Person 'ashish-vaswani' not seeded — re-run seed-fixture"
 fi
 
+# ── 14. H1 + intro + H2 shape — regression guard for #152 ───
+# The Transformer fixture starts `# Title\n\nIntro paragraph\n\n## Section`.
+# Before #152's fix, the render loop treated H1 as a full-span block that
+# ran to EOF, so every post-H1 section rendered twice. The first fix (#156
+# commit 3803473) skipped H1 in the loop but dropped the intro paragraph
+# entirely — a regression caught in ultrathink review and fixed in commit
+# 061c3a6. This step guards against BOTH failure modes by asserting the
+# intro renders exactly once AND each section body renders exactly once.
+#
+# Drive the shape directly via PUT so this assertion survives future
+# fixture body edits.
+
+INTRO_BODY='# Transformer Architecture
+
+The Transformer discards recurrence in favour of attention. Canonical refs live at [[person:ashish-vaswani]] and [[wiki:attention-is-all-you-need]].
+
+## Overview
+
+Body of overview with [[fragment:self-attention-replaces-recurrence]].
+
+## Architecture
+
+Body of architecture.'
+
+curl -s -o /dev/null -b "$COOKIE_JAR" -X PUT \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://localhost:3000" \
+  -d "$(jq -n --arg body "$INTRO_BODY" --arg name "Transformer Architecture" '{frontmatter:{name:$name,type:"project",prompt:""},body:$body}')" \
+  "$SERVER_URL/api/content/wiki/$TRANSFORMER_KEY"
+
+npx agent-browser open "$WIKI_URL/wiki/$TRANSFORMER_KEY" 2>/dev/null
+npx agent-browser wait --load networkidle
+sleep 1
+INTRO_SNAP=$(npx agent-browser snapshot 2>/dev/null)
+npx agent-browser eval "document.documentElement.outerHTML" > /tmp/uat-21-h1intro-dom.html 2>/dev/null
+npx agent-browser screenshot /tmp/uat-21-14-h1intro.png 2>/dev/null
+
+# 14a. Intro paragraph renders at least once — the regression dropped
+# it entirely because preamble was `lines.slice(0, H1.startLine) = ''`.
+if echo "$INTRO_SNAP" | grep -q "Transformer discards recurrence in favour of attention"; then
+  pass "14a. H1-intro paragraph renders (not dropped)"
+else
+  fail "14a. H1-intro paragraph is missing — regression of 061c3a6"
+fi
+
+# 14b. Intro paragraph renders EXACTLY once — original bug rendered it
+# twice because H1's full span was rendered then each H2 again.
+INTRO_COUNT=$(echo "$INTRO_SNAP" | grep -oc "Transformer discards recurrence in favour of attention" || echo 0)
+if [ "$INTRO_COUNT" = "1" ]; then
+  pass "14b. H1-intro paragraph rendered exactly once"
+else
+  fail "14b. H1-intro rendered $INTRO_COUNT times (expected 1) — double-render regression"
+fi
+
+# 14c. Each H2 body renders exactly once.
+OVERVIEW_COUNT=$(echo "$INTRO_SNAP" | grep -oc "Body of overview with" || echo 0)
+ARCH_COUNT=$(echo "$INTRO_SNAP" | grep -oc "Body of architecture" || echo 0)
+if [ "$OVERVIEW_COUNT" = "1" ] && [ "$ARCH_COUNT" = "1" ]; then
+  pass "14c. H2 bodies render exactly once each"
+else
+  fail "14c. H2 body render counts: overview=$OVERVIEW_COUNT architecture=$ARCH_COUNT (expected 1 each)"
+fi
+
+# 14d. The markdown `# Transformer Architecture` does NOT render as an <h1>
+# in the body — page chrome owns the document-level heading.
+if grep -qE '<h1[^>]*>[^<]*Transformer Architecture' /tmp/uat-21-h1intro-dom.html; then
+  # Chrome H1 lives inside .wiki-article-h1 — the SectionedMarkdownBody
+  # MUST NOT produce its own H1 with the title text. Distinguish chrome
+  # from body by checking whether any <h1> outside the chrome class contains
+  # the title.
+  if grep -oE '<h1[^>]*(wiki-article-h1)[^>]*>[^<]*Transformer' /tmp/uat-21-h1intro-dom.html >/dev/null \
+     && ! grep -oE '<h1(?![^>]*wiki-article-h1)[^>]*>[^<]*Transformer' /tmp/uat-21-h1intro-dom.html >/dev/null; then
+    pass "14d. H1 only rendered by page chrome, not markdown body"
+  else
+    fail "14d. H1 'Transformer Architecture' appears in markdown body (should only be page chrome)"
+  fi
+else
+  fail "14d. No <h1> contains the wiki title — page chrome regression"
+fi
+
+# Restore the canonical fixture body for downstream steps and plan 22.
+pnpm -C core seed-fixture >/dev/null 2>&1 || true
+
 # ── Cleanup ──────────────────────────────────────────────────
 npx agent-browser close 2>/dev/null || true
 
@@ -608,6 +691,7 @@ echo "$PASS passed, $FAIL failed, $SKIP skipped"
 | 11 | Code-fence isolation: tokens inside `<code>`/`<pre>` render as literal source, prose tokens still resolve | HTML-body walker |
 | 12 | Entry detail page resolves tokens and has no infobox | useEntry + EntryArticle |
 | 13 | Person detail page renders server-derived .winfo infobox with Relationship row | usePerson + derivePersonInfobox |
+| 14 | H1 + intro + H2 shape: intro renders exactly once, H2 bodies render exactly once, no body-level H1 — regression guard for #152 + 061c3a6 | SectionedMarkdownBody preamble + H1 skip |
 
 ---
 

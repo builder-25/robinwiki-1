@@ -18,6 +18,7 @@ import type {
   WikiInfobox as WikiInfoboxData,
   WikiRef,
 } from "@/lib/sidecarTypes";
+import { ROUTES } from "@/lib/routes";
 import { usePerson } from "@/hooks/usePerson";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -37,13 +38,13 @@ const REF_VALUE_RE = /^\s*\[\[([a-z]+):([a-z0-9-]+)\]\]\s*$/;
 function hrefForRef(ref: WikiRef): string | undefined {
   switch (ref.kind) {
     case "person":
-      return `/wiki/people/${ref.id}`;
+      return ROUTES.person(ref.id);
     case "fragment":
-      return `/wiki/fragments/${ref.id}`;
+      return ROUTES.fragment(ref.id);
     case "wiki":
-      return `/wiki/${ref.id}`;
+      return ROUTES.wiki(ref.id);
     case "entry":
-      return `/wiki/entries/${ref.id}`;
+      return ROUTES.entry(ref.id);
     default:
       return undefined;
   }
@@ -221,7 +222,7 @@ function PeopleFragmentsSection({ backlinks }: { backlinks: Array<{ id: string; 
                 }}
               >
                 <Link
-                  href={`/wiki/fragments/${frag.id}`}
+                  href={ROUTES.fragment(frag.id)}
                   style={{
                     color: "var(--wiki-fragment-link)",
                     textDecoration: "underline",
@@ -310,7 +311,7 @@ export default function WikiPeoplePage() {
       chipLabel="People"
       title={person.name}
       infobox={{ kind: "simple", typeLabel: "People", showSettings: true }}
-      renderCustomInfobox={({ onSettingsClick }) =>
+      renderCustomInfobox={() =>
         sidecarInfobox ? (
           <WikiInfobox
             title={person.name}
@@ -326,7 +327,7 @@ export default function WikiPeoplePage() {
             ]}
           />
         ) : (
-          <PeopleInfobox person={person} onSettingsClick={onSettingsClick} />
+          <PeopleInfobox person={person} />
         )
       }
       onSave={handleSaveToApi}

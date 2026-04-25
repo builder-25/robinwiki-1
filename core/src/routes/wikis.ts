@@ -18,11 +18,11 @@ import { makeSidecarDeps } from '../lib/wikiSidecarDeps.js'
 import { stripWikiContent } from '../lib/strip-wiki-content.js'
 import { producer } from '../queue/producer.js'
 import {
-  threadResponseSchema,
-  threadListResponseSchema,
+  wikiResponseSchema,
+  wikiListResponseSchema,
   wikiDetailResponseSchema,
   wikiListQuerySchema,
-  updateThreadBodySchema,
+  updateWikiBodySchema,
   publishWikiResponseSchema,
   bouncerModeBodySchema,
   bouncerModeResponseSchema,
@@ -33,15 +33,15 @@ import {
   updateProgressBodySchema,
   updateProgressResponseSchema,
   editHistoryResponseSchema,
-  createThreadBodySchema,
+  createWikiBodySchema,
 } from '../schemas/wikis.schema.js'
 import { emitAuditEvent } from '../db/audit.js'
 import { timelineQuerySchema } from '../schemas/audit.schema.js'
 
 const log = logger.child({ component: 'wikis' })
 
-/** Prepare a thread row for schema parsing (add id alias + computed defaults) */
-function prepareThread(
+/** Prepare a wiki row for schema parsing (add id alias + computed defaults) */
+function prepareWiki(
   t: typeof wikis.$inferSelect & {
     noteCount?: number
     lastUpdated?: string
@@ -94,10 +94,10 @@ wikisRouter.get('/', zValidator('query', wikiListQuerySchema, validationHook), a
     .offset(offset)
 
   return c.json(
-    threadListResponseSchema.parse({
+    wikiListResponseSchema.parse({
       wikis: rows.map((r) =>
-        threadResponseSchema.parse(
-          prepareThread({
+        wikiResponseSchema.parse(
+          prepareWiki({
             ...r.wiki,
             noteCount: r.fragmentCount,
             shortDescriptor: r.shortDescriptor ?? '',
@@ -110,7 +110,7 @@ wikisRouter.get('/', zValidator('query', wikiListQuerySchema, validationHook), a
 })
 
 // POST /wikis — create a new wiki
-wikisRouter.post('/', zValidator('json', createThreadBodySchema, validationHook), async (c) => {
+wikisRouter.post('/', zValidator('json', createWikiBodySchema, validationHook), async (c) => {
   const body = c.req.valid('json')
 
   const slug = generateSlug(body.name)
@@ -203,7 +203,7 @@ wikisRouter.post('/', zValidator('json', createThreadBodySchema, validationHook)
     log.warn({ wikiKey: lookupKey, err }, 'quick-classify on wiki create failed — wiki created without fragment linking')
   }
 
-  return c.json(threadResponseSchema.parse(prepareThread(created)), 201)
+  return c.json(wikiResponseSchema.parse(prepareWiki(created)), 201)
 })
 
 // GET /wikis/:id — wiki detail with member fragments and aggregated people
@@ -219,12 +219,12 @@ wikisRouter.get('/:id', async (c) => {
     .leftJoin(wikiTypes, eq(wikis.type, wikiTypes.slug))
     .where(and(eq(wikis.lookupKey, id), isNull(wikis.deletedAt)))
   if (!row) return c.json({ error: 'Not found' }, 404)
-  const thread = row.wiki
+  const wiki = row.wiki
 
   // Member fragments via FRAGMENT_IN_WIKI edges
   // For review-mode wikis, also include pending edges (deletedAt set) so the UI
   // can show them for accept/reject. Pending = edge exists with deletedAt set.
-  const isReviewMode = thread.bouncerMode === 'review'
+  const isReviewMode = wiki.bouncerMode === 'review'
   const edgeConditions = [
     eq(edges.dstId, id),
     eq(edges.edgeType, 'FRAGMENT_IN_WIKI'),
@@ -281,17 +281,17 @@ wikisRouter.get('/:id', async (c) => {
       : []
 
   const sidecar = await buildSidecar({
-    content: thread.content ?? '',
-    metadata: thread.metadata ?? null,
-    citationDeclarations: thread.citationDeclarations ?? [],
+    content: wiki.content ?? '',
+    metadata: wiki.metadata ?? null,
+    citationDeclarations: wiki.citationDeclarations ?? [],
     deps: makeSidecarDeps(db),
   })
 
   // ?raw — token-efficient response for LLM consumption
   if (c.req.query('raw') !== undefined) {
-    const stripped = stripWikiContent(thread.content ?? '', sidecar.refs)
+    const stripped = stripWikiContent(wiki.content ?? '', sidecar.refs)
     return c.json({
-      ...prepareThread(thread),
+      ...prepareWiki(wiki),
       wikiContent: stripped,
       fragments: frags.map((f) => ({
         id: f.lookupKey,
@@ -308,12 +308,12 @@ wikisRouter.get('/:id', async (c) => {
 
   return c.json(
     wikiDetailResponseSchema.parse({
-      ...prepareThread({
-        ...thread,
+      ...prepareWiki({
+        ...wiki,
         shortDescriptor: row.shortDescriptor ?? '',
         descriptor: row.descriptor ?? '',
       }),
-      wikiContent: thread.content ?? '',
+      wikiContent: wiki.content ?? '',
       fragments: frags.map((f) => ({
         id: f.lookupKey,
         slug: f.slug,
@@ -415,8 +415,8 @@ wikisRouter.get('/:id/history', async (c) => {
   )
 })
 
-// PUT /wikis/:id — update thread
-wikisRouter.put('/:id', zValidator('json', updateThreadBodySchema, validationHook), async (c) => {
+// PUT /wikis/:id — update wiki
+wikisRouter.put('/:id', zValidator('json', updateWikiBodySchema, validationHook), async (c) => {
   const id = c.req.param('id')
   const body = c.req.valid('json')
 
@@ -444,7 +444,7 @@ wikisRouter.put('/:id', zValidator('json', updateThreadBodySchema, validationHoo
     if (body.prompt !== existing.prompt) updates.state = 'PENDING'
   }
 
-  const [thread] = await db
+  const [updated] = await db
     .update(wikis)
     .set(updates)
     .where(eq(wikis.lookupKey, id))
@@ -459,11 +459,11 @@ wikisRouter.put('/:id', zValidator('json', updateThreadBodySchema, validationHoo
     entityId: id,
     eventType: 'edited',
     source: 'api',
-    summary: `Wiki edited: ${thread.name}`,
+    summary: `Wiki edited: ${updated.name}`,
     detail: { wikiKey: id, changedFields: Object.keys(updates).filter(k => k !== 'updatedAt'), typeTransition },
   })
 
-  return c.json(threadResponseSchema.parse(prepareThread(thread)))
+  return c.json(wikiResponseSchema.parse(prepareWiki(updated)))
 })
 
 // POST /wikis/:id/publish — publish wiki with stable nanoid slug
@@ -686,9 +686,9 @@ wikisRouter.post(
   }
 )
 
-// POST /wikis/:targetId/merge — merge source thread into target
+// POST /wikis/:targetId/merge — merge source wiki into target
 wikisRouter.post('/:targetId/merge', async (c) => {
-  return c.json({ error: 'Not implemented — thread merge needs edges table rewrite' }, 501)
+  return c.json({ error: 'Not implemented — wiki merge needs edges table rewrite' }, 501)
 })
 
 
@@ -718,4 +718,4 @@ wikisRouter.delete('/:id', async (c) => {
   return c.body(null, 204)
 })
 
-export { wikisRouter as wikisRoutes, prepareThread }
+export { wikisRouter as wikisRoutes, prepareWiki }

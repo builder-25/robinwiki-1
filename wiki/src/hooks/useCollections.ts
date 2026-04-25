@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 
-export interface Group {
+export interface Collection {
   id: string
   name: string
   slug: string
@@ -12,14 +12,14 @@ export interface Group {
   wikiCount: number
 }
 
-export function useGroups() {
+export function useCollections() {
   return useQuery({
-    queryKey: ['groups'],
+    queryKey: ['collections'],
     queryFn: async () => {
       const res = await fetch('/api/groups', { credentials: 'include' })
-      if (!res.ok) throw new Error(`Groups fetch failed: ${res.status}`)
+      if (!res.ok) throw new Error(`Collections fetch failed: ${res.status}`)
       const data = await res.json()
-      return data.groups as Group[]
+      return data.groups as Collection[]
     },
     staleTime: 60_000,
   })

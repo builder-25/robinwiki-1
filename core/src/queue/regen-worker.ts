@@ -100,6 +100,8 @@ export async function processRegenBatchJob(job: RegenBatchJob): Promise<JobResul
     }
 
     // ── Reason 3: Wikis stuck in non-RESOLVED state ──
+    // Respect the LINKING lock: only pick up LINKING wikis if they've been
+    // stuck for over 15 minutes (stale lock from a crashed worker).
     const stuckWikis = await db
       .select({ lookupKey: wikis.lookupKey })
       .from(wikis)
@@ -107,6 +109,7 @@ export async function processRegenBatchJob(job: RegenBatchJob): Promise<JobResul
         and(
           isNull(wikis.deletedAt),
           sql`${wikis.state} != 'RESOLVED'`,
+          sql`(${wikis.state} != 'LINKING' OR ${wikis.updatedAt} < NOW() - INTERVAL '15 minutes')`,
         )
       )
     for (const r of stuckWikis) candidateKeys.add(r.lookupKey)

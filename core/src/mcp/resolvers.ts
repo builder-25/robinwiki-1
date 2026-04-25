@@ -20,7 +20,7 @@
  * `content` column on each domain table (populated by the ingest pipeline).
  *
  * @see {@link resolveSlug} — generic fuzzy slug matching (auto-resolve at 70+)
- * @see {@link resolveThreadBySlug} — strict exact-match for write paths
+ * @see {@link resolveWikiBySlug} — strict exact-match for write paths
  * @see {@link listWikis} — wiki listing with fragment counts
  * @see {@link getWiki} — full wiki detail with wiki body
  * @see {@link getFragment} — full fragment with content + frontmatter
@@ -80,10 +80,13 @@ interface WikiSummary {
 }
 
 /**
- * Full thread detail with wiki body and member fragment snippets.
+ * Full wiki detail with wiki body and member fragment snippets.
  *
  * Sidecar: detail tool emits `refs`, `infobox`, and `sections[].citations`
  * per CONTRACT §9. `infobox` is sourced from `wikis.metadata.infobox`.
+ *
+ * NOTE: the `thread` key is part of the MCP response shape and will be
+ * renamed to `wiki` in Phase 2 with a deprecation window.
  */
 interface WikiDetail {
   thread: {
@@ -101,7 +104,7 @@ interface WikiDetail {
   sections: WikiSection[]
 }
 
-/** Abbreviated fragment — used in thread and person detail responses. */
+/** Abbreviated fragment — used in wiki and person detail responses. */
 interface FragmentSnippet {
   slug: string
   type: string | null
@@ -286,7 +289,7 @@ function partialRatio(a: string, b: string): number {
  * ## Slug resolution
  *
  * @remarks Generic fuzzy matching used by read-only resolvers.
- * Write paths use {@link resolveThreadBySlug} (exact only).
+ * Write paths use {@link resolveWikiBySlug} (exact only).
  ***********************************************************************/
 
 /** @internal */
@@ -528,7 +531,7 @@ export async function getWiki(
   deps: McpResolverDeps,
   slugInput: string
 ): Promise<WikiDetail | ErrorResult> {
-  const allThreads = await deps.db
+  const allWikis = await deps.db
     .select({
       lookupKey: wikis.lookupKey,
       slug: wikis.slug,
@@ -545,14 +548,14 @@ export async function getWiki(
 
   const resolved = resolveSlug(
     slugInput,
-    allThreads.map((t) => ({ slug: t.slug, name: t.name }))
+    allWikis.map((t) => ({ slug: t.slug, name: t.name }))
   )
   if ('error' in resolved) return resolved
 
-  const thread = allThreads.find((t) => t.slug === resolved.match.slug)
-  if (!thread) return { error: 'Thread not found', suggestions: [] }
+  const wiki = allWikis.find((t) => t.slug === resolved.match.slug)
+  if (!wiki) return { error: 'Wiki not found', suggestions: [] }
 
-  const wikiBody = stripFrontmatter(thread.content || '')
+  const wikiBody = stripFrontmatter(wiki.content || '')
 
   // Fetch member fragments via edge graph
   const fragEdges = await deps.db
@@ -560,7 +563,7 @@ export async function getWiki(
     .from(edges)
     .where(
       and(
-        eq(edges.dstId, thread.lookupKey),
+        eq(edges.dstId, wiki.lookupKey),
         eq(edges.edgeType, 'FRAGMENT_IN_WIKI'),
         isNull(edges.deletedAt)
       )
@@ -588,9 +591,9 @@ export async function getWiki(
   // Build sidecar from the *full* stored content so section anchors and
   // token refs line up with what the REST /wikis/:id route emits.
   const sidecar = await buildSidecar({
-    content: thread.content ?? '',
-    metadata: thread.metadata ?? null,
-    citationDeclarations: thread.citationDeclarations ?? [],
+    content: wiki.content ?? '',
+    metadata: wiki.metadata ?? null,
+    citationDeclarations: wiki.citationDeclarations ?? [],
     deps: makeSidecarDeps(deps.db),
   })
 
@@ -599,12 +602,12 @@ export async function getWiki(
 
   return {
     thread: {
-      lookupKey: thread.lookupKey,
-      slug: thread.slug,
-      name: thread.name,
-      type: thread.type,
-      state: thread.state,
-      lastRebuiltAt: thread.lastRebuiltAt?.toISOString() ?? null,
+      lookupKey: wiki.lookupKey,
+      slug: wiki.slug,
+      name: wiki.name,
+      type: wiki.type,
+      state: wiki.state,
+      lastRebuiltAt: wiki.lastRebuiltAt?.toISOString() ?? null,
     },
     wikiBody: strippedBody,
     fragments: fragmentSnippets,
@@ -877,35 +880,35 @@ export async function findPersonByQuery(
 }
 
 /***********************************************************************
- * ## Thread slug resolution (strict)
+ * ## Wiki slug resolution (strict)
  *
  * @remarks Exact-match only — used by write paths where precision
  * matters more than convenience. Compare with {@link resolveSlug}.
  ***********************************************************************/
 
 /**
- * Resolve a thread by exact slug match — no fuzzy auto-resolution.
+ * Resolve a wiki by exact slug match — no fuzzy auto-resolution.
  *
  * @remarks
  * Used by {@link handleLogFragment} where precision is critical. When
- * writing a fragment to a thread, we can't afford to fuzzy-match and
- * accidentally file content to the wrong thread.
+ * writing a fragment to a wiki, we can't afford to fuzzy-match and
+ * accidentally file content to the wrong wiki.
  *
  * On miss, returns scored suggestions so the MCP client can present
  * "did you mean?" options without auto-resolving.
  *
  * @param deps      - Database client
- * @param slugInput - Exact thread slug to match
- * @returns Thread metadata or {@link ErrorResult} with suggestions
+ * @param slugInput - Exact wiki slug to match
+ * @returns Wiki metadata or {@link ErrorResult} with suggestions
  */
-export async function resolveThreadBySlug(
+export async function resolveWikiBySlug(
   deps: McpResolverDeps,
   slugInput: string
 ): Promise<
   | { lookupKey: string; slug: string; name: string; state: string }
   | { error: string; suggestions: string[] }
 > {
-  const allThreads = await deps.db
+  const allWikis = await deps.db
     .select({
       lookupKey: wikis.lookupKey,
       slug: wikis.slug,
@@ -916,11 +919,11 @@ export async function resolveThreadBySlug(
     .where(isNull(wikis.deletedAt))
 
   // Exact match only — log_fragment requires precision
-  const exact = allThreads.find((t) => t.slug === slugInput)
+  const exact = allWikis.find((t) => t.slug === slugInput)
   if (exact) return exact
 
   // No fuzzy auto-resolution — just provide ranked suggestions
-  const scored = allThreads
+  const scored = allWikis
     .map((t) => ({
       slug: t.slug,
       score: Math.max(
@@ -932,7 +935,7 @@ export async function resolveThreadBySlug(
     .sort((a, b) => b.score - a.score)
 
   return {
-    error: `Thread not found: "${slugInput}"`,
+    error: `Wiki not found: "${slugInput}"`,
     suggestions: scored.slice(0, 3).map((s) => s.slug),
   }
 }

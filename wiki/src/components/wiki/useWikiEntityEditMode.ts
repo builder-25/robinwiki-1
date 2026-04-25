@@ -6,6 +6,7 @@ import { htmlToPlainText } from "./wikiDiff";
 type UseWikiEntityEditModeArgs = {
   infoVisible: boolean;
   setInfoVisible: (visible: boolean) => void;
+  serverRevisions?: WikiRevision[];
 };
 
 export type WikiRevision = {
@@ -68,6 +69,7 @@ const diffSummary = (prev: WikiRevision | null, next: Omit<WikiRevision, "id" | 
 export function useWikiEntityEditMode({
   infoVisible,
   setInfoVisible,
+  serverRevisions,
 }: UseWikiEntityEditModeArgs): WikiEntityEditMode {
   const [isEditing, setIsEditing] = useState(false);
   const [isViewingHistory, setIsViewingHistory] = useState(false);
@@ -109,6 +111,14 @@ export function useWikiEntityEditMode({
     },
     [],
   );
+
+  // Seed revisions from server data when available and local revisions are empty
+  useEffect(() => {
+    if (serverRevisions && serverRevisions.length > 0 && revisions.length === 0) {
+      setRevisions(serverRevisions);
+      seededRef.current = true;
+    }
+  }, [serverRevisions, revisions.length]);
 
   const setDraftContent = useCallback((value: string) => {
     setDraftContentState(value);

@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { handleLogFragment, type McpServerDeps } from '../mcp/handlers.js'
 import {
   fragments as fragmentsTable,
-  wikis as threadsTable,
+  wikis as wikisTable,
   edges as edgesTable,
   people as peopleTable,
 } from '../db/schema.js'
@@ -25,8 +25,8 @@ let sqlConn: ReturnType<typeof postgres>
 let testUserId: string
 let testVaultId: string
 
-const TEST_THREAD_KEY = 'thread01TESTTHREAD000000000001'
-const TEST_THREAD_SLUG = 'fitness'
+const TEST_WIKI_KEY = 'thread01TESTTHREAD000000000001'
+const TEST_WIKI_SLUG = 'fitness'
 
 function makeDeps(overrides: Partial<McpServerDeps> = {}): McpServerDeps {
   return {
@@ -47,12 +47,12 @@ function makeDeps(overrides: Partial<McpServerDeps> = {}): McpServerDeps {
   }
 }
 
-async function createTestThread() {
+async function createTestWiki() {
   await db
-    .insert(threadsTable)
+    .insert(wikisTable)
     .values({
-      lookupKey: TEST_THREAD_KEY,
-      slug: TEST_THREAD_SLUG,
+      lookupKey: TEST_WIKI_KEY,
+      slug: TEST_WIKI_SLUG,
       name: 'Fitness',
       type: 'log',
       state: 'RESOLVED',
@@ -77,7 +77,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await clearTestData(db)
-  await createTestThread()
+  await createTestWiki()
 })
 
 // ─── Tests ───
@@ -87,15 +87,15 @@ describe('handleLogFragment', () => {
     const deps = makeDeps()
     const result = await handleLogFragment(
       deps,
-      { content: 'Did a 5k run today', threadSlug: TEST_THREAD_SLUG },
+      { content: 'Did a 5k run today', threadSlug: TEST_WIKI_SLUG },
       testUserId
     )
 
     expect(result.isError).toBeUndefined()
     const parsed = JSON.parse(result.content[0].text)
     expect(parsed.fragmentKey).toMatch(/^frag/)
-    expect(parsed.threadSlug).toBe(TEST_THREAD_SLUG)
-    expect(parsed.wikiKey).toBe(TEST_THREAD_KEY)
+    expect(parsed.threadSlug).toBe(TEST_WIKI_SLUG)
+    expect(parsed.wikiKey).toBe(TEST_WIKI_KEY)
 
     const rows = await db.select().from(fragmentsTable)
     expect(rows).toHaveLength(1)
@@ -109,7 +109,7 @@ describe('handleLogFragment', () => {
     const deps = makeDeps()
     await handleLogFragment(
       deps,
-      { content: 'Morning run notes', threadSlug: TEST_THREAD_SLUG },
+      { content: 'Morning run notes', threadSlug: TEST_WIKI_SLUG },
       testUserId
     )
 
@@ -122,7 +122,7 @@ describe('handleLogFragment', () => {
     const deps = makeDeps()
     const result = await handleLogFragment(
       deps,
-      { content: 'Leg day', threadSlug: TEST_THREAD_SLUG },
+      { content: 'Leg day', threadSlug: TEST_WIKI_SLUG },
       testUserId
     )
 
@@ -133,22 +133,22 @@ describe('handleLogFragment', () => {
       .where(eq(edgesTable.srcId, parsed.fragmentKey))
     expect(edgeRows).toHaveLength(1)
     expect(edgeRows[0].edgeType).toBe('FRAGMENT_IN_WIKI')
-    expect(edgeRows[0].dstId).toBe(TEST_THREAD_KEY)
+    expect(edgeRows[0].dstId).toBe(TEST_WIKI_KEY)
   })
 
-  it('marks thread DIRTY after fragment insert', async () => {
+  it('marks wiki PENDING after fragment insert', async () => {
     const deps = makeDeps()
     await handleLogFragment(
       deps,
-      { content: 'Recovery session', threadSlug: TEST_THREAD_SLUG },
+      { content: 'Recovery session', threadSlug: TEST_WIKI_SLUG },
       testUserId
     )
 
-    const [thread] = await db
+    const [wiki] = await db
       .select()
-      .from(threadsTable)
-      .where(eq(threadsTable.lookupKey, TEST_THREAD_KEY))
-    expect(thread.state).toBe('PENDING')
+      .from(wikisTable)
+      .where(eq(wikisTable.lookupKey, TEST_WIKI_KEY))
+    expect(wiki.state).toBe('PENDING')
   })
 
   it('uses provided title when given', async () => {
@@ -157,7 +157,7 @@ describe('handleLogFragment', () => {
       deps,
       {
         content: 'Details here',
-        threadSlug: TEST_THREAD_SLUG,
+        threadSlug: TEST_WIKI_SLUG,
         title: 'Custom Title',
       },
       testUserId
@@ -169,10 +169,10 @@ describe('handleLogFragment', () => {
 
   it('derives title from first 80 chars when not provided', async () => {
     const deps = makeDeps()
-    const longContent = 'A'.repeat(100) + ' trailing'
+    const longContent = `${'A'.repeat(100)} trailing`
     await handleLogFragment(
       deps,
-      { content: longContent, threadSlug: TEST_THREAD_SLUG },
+      { content: longContent, threadSlug: TEST_WIKI_SLUG },
       testUserId
     )
 
@@ -186,7 +186,7 @@ describe('handleLogFragment', () => {
       deps,
       {
         content: 'Tagged note',
-        threadSlug: TEST_THREAD_SLUG,
+        threadSlug: TEST_WIKI_SLUG,
         tags: ['fitness', 'running'],
       },
       testUserId
@@ -209,7 +209,7 @@ describe('handleLogFragment', () => {
 
     const result = await handleLogFragment(
       deps,
-      { content: 'Marcus helped with form', threadSlug: TEST_THREAD_SLUG },
+      { content: 'Marcus helped with form', threadSlug: TEST_WIKI_SLUG },
       testUserId
     )
 
@@ -220,7 +220,7 @@ describe('handleLogFragment', () => {
       .where(eq(edgesTable.srcId, parsed.fragmentKey))
     const personEdge = edgeRows.find((e) => e.edgeType === 'FRAGMENT_MENTIONS_PERSON')
     expect(personEdge).toBeDefined()
-    expect(personEdge!.dstId).toBe(personKey)
+    expect(personEdge?.dstId).toBe(personKey)
   })
 
   it('proceeds when entity extraction throws (fail-open)', async () => {
@@ -230,7 +230,7 @@ describe('handleLogFragment', () => {
 
     const result = await handleLogFragment(
       deps,
-      { content: 'Still works', threadSlug: TEST_THREAD_SLUG },
+      { content: 'Still works', threadSlug: TEST_WIKI_SLUG },
       testUserId
     )
 
@@ -258,7 +258,7 @@ describe('handleLogFragment', () => {
     const deps = makeDeps()
     const result = await handleLogFragment(
       deps,
-      { content: 'Hello', threadSlug: TEST_THREAD_SLUG },
+      { content: 'Hello', threadSlug: TEST_WIKI_SLUG },
       undefined
     )
 
@@ -270,7 +270,7 @@ describe('handleLogFragment', () => {
     const deps = makeDeps()
     const result = await handleLogFragment(
       deps,
-      { content: '', threadSlug: TEST_THREAD_SLUG },
+      { content: '', threadSlug: TEST_WIKI_SLUG },
       testUserId
     )
 
@@ -299,7 +299,7 @@ describe('handleLogFragment', () => {
 
     const result = await handleLogFragment(
       deps,
-      { content: 'Trained with Sarah', threadSlug: TEST_THREAD_SLUG },
+      { content: 'Trained with Sarah', threadSlug: TEST_WIKI_SLUG },
       testUserId
     )
 

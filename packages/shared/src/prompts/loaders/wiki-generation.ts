@@ -53,8 +53,7 @@ export function renderFragmentsBlock(frags: WikiFragmentInput[]): string {
     .map((f) => {
       const captured = toIsoDate(f.createdAt)
       const header =
-        `- id: ${f.id}  slug: ${f.slug}` +
-        (captured ? `  captured: ${captured}` : '')
+        `- id: ${f.id}  slug: ${f.slug}${captured ? `  captured: ${captured}` : ''}`
       const titleLine = f.title ? `  ### ${f.title}` : ''
       const contentLines = f.content
         .split('\n')

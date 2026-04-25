@@ -7,6 +7,7 @@ import { useSession } from "@/hooks/useSession";
 import { useLogout } from "@/hooks/useLogout";
 
 import AddWikiModal from "@/components/layout/AddWikiModal";
+import AddEntryModal from "@/components/layout/AddEntryModal";
 import WikiHeaderSearch from "@/components/layout/WikiHeaderSearch";
 
 interface HeaderProps {
@@ -16,6 +17,7 @@ interface HeaderProps {
 export default function Header({ onMenuToggle }: HeaderProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [addWikiOpen, setAddWikiOpen] = useState(false);
+  const [addEntryOpen, setAddEntryOpen] = useState(false);
   const { session } = useSession();
   const router = useRouter();
   const pathname = usePathname();
@@ -67,6 +69,49 @@ export default function Header({ onMenuToggle }: HeaderProps) {
         className="flex shrink-0 items-center"
         style={{ gap: 16, position: "relative" }}
       >
+        <button
+          type="button"
+          onClick={() => setAddEntryOpen(true)}
+          className="flex cursor-pointer items-center justify-center"
+          style={{
+            gap: 4,
+            padding: "8px 12px",
+            height: 35,
+            boxSizing: "border-box",
+            background: "transparent",
+            border: "none",
+            borderRadius: 2,
+          }}
+        >
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden
+          >
+            <path
+              d="M12 5v14M5 12h14"
+              stroke={addWikiFg}
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </svg>
+          <span
+            style={{
+              ...T.bodySmall,
+              fontWeight: 600,
+              lineHeight: "normal",
+              letterSpacing: "-0.0336px",
+              color: addWikiFg,
+              whiteSpace: "nowrap",
+            }}
+          >
+            Add Entry
+          </span>
+        </button>
+
         <button
           type="button"
           onClick={() => setAddWikiOpen(true)}
@@ -254,6 +299,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
       </div>
 
       <AddWikiModal open={addWikiOpen} onClose={() => setAddWikiOpen(false)} />
+      <AddEntryModal open={addEntryOpen} onClose={() => setAddEntryOpen(false)} />
     </header>
   );
 }

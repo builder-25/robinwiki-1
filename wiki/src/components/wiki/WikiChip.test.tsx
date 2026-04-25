@@ -6,10 +6,10 @@ afterEach(cleanup)
 
 describe('<WikiChip>', () => {
   it('renders an anchor with the given href and label when href is provided', () => {
-    render(<WikiChip label="Sarah Chen" href="/wiki/people/p-sarah" />)
+    render(<WikiChip label="Sarah Chen" href="/people/p-sarah" />)
     const anchor = screen.getByText('Sarah Chen')
     expect(anchor.tagName).toBe('A')
-    expect(anchor).toHaveAttribute('href', '/wiki/people/p-sarah')
+    expect(anchor).toHaveAttribute('href', '/people/p-sarah')
     expect(anchor).toHaveAttribute('data-slot', 'wiki-chip')
     expect(anchor).toHaveClass('wchip')
   })

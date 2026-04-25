@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ROUTES } from "@/lib/routes";
 import WikiSearchBar from "@/components/wiki/WikiSearchBar";
 
 /** Search in the wiki header row — same vertical band as menu / Add Wiki / profile */
@@ -17,13 +18,13 @@ function WikiHeaderSearchInner() {
     const prev = prevPathRef.current;
     prevPathRef.current = pathname;
 
-    if (pathname.startsWith("/wiki/search")) {
+    if (pathname.startsWith(ROUTES.search)) {
       setDraft(qFromUrl);
       return;
     }
     if (
-      prev.startsWith("/wiki/search") &&
-      !pathname.startsWith("/wiki/search")
+      prev.startsWith(ROUTES.search) &&
+      !pathname.startsWith(ROUTES.search)
     ) {
       setDraft("");
     }
@@ -32,7 +33,7 @@ function WikiHeaderSearchInner() {
   const submit = () => {
     const t = draft.trim();
     if (!t) return;
-    router.push(`/wiki/search?q=${encodeURIComponent(t)}`);
+    router.push(`${ROUTES.search}?q=${encodeURIComponent(t)}`);
   };
 
   return (

@@ -15,7 +15,7 @@ export const validationHook = (
 ) => {
   if (!result.success) {
     return c.json(
-      { error: 'Validation failed', fields: result.error!.flatten() },
+      { error: 'Validation failed', fields: result.error?.flatten() },
       400,
     )
   }

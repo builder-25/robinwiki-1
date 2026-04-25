@@ -10,6 +10,7 @@ import {
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BookOpen, FileCode, UserRound } from "lucide-react";
 import WikiSearchBar from "@/components/wiki/WikiSearchBar";
+import { ROUTES } from "@/lib/routes";
 import { useSession } from "@/hooks/useSession";
 import { T } from "@/lib/typography";
 
@@ -36,13 +37,13 @@ function HomeSearchBlock({ activeFilter }: { activeFilter: HeroFilter | null }) 
     const prev = prevPathRef.current;
     prevPathRef.current = pathname;
 
-    if (pathname.startsWith("/wiki/search")) {
+    if (pathname.startsWith(ROUTES.search)) {
       setDraft(qFromUrl);
       return;
     }
     if (
-      prev.startsWith("/wiki/search") &&
-      !pathname.startsWith("/wiki/search")
+      prev.startsWith(ROUTES.search) &&
+      !pathname.startsWith(ROUTES.search)
     ) {
       setDraft("");
     }
@@ -52,7 +53,7 @@ function HomeSearchBlock({ activeFilter }: { activeFilter: HeroFilter | null }) 
     const t = draft.trim();
     if (!t) return;
     const typeParam = activeFilter ? `&type=${activeFilter}` : "";
-    router.push(`/wiki/search?q=${encodeURIComponent(t)}${typeParam}`);
+    router.push(`${ROUTES.search}?q=${encodeURIComponent(t)}${typeParam}`);
   };
 
   return (

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { T, FONT } from "@/lib/typography";
+import { ROUTES } from "@/lib/routes";
 import type { GraphData, GraphNode, GraphNodeType } from "./graphSampleData";
 
 const TYPE_LABEL: Record<GraphNodeType, string> = {
@@ -196,11 +197,11 @@ export function GraphDetailPanel({
     const id = node.lookupKey ?? node.id;
     switch (node.type) {
       case "wiki":
-        return `/wiki/${id}`;
+        return ROUTES.wiki(id);
       case "fragment":
-        return `/wiki/fragments/${id}`;
+        return ROUTES.fragment(id);
       case "person":
-        return `/wiki/people/${id}`;
+        return ROUTES.person(id);
     }
   };
 

@@ -551,13 +551,13 @@ describe('MCP resolvers (real DB)', () => {
 
       // Server-derived infobox: contract pins the label set
       expect(result.infobox).not.toBeNull()
-      const labels = result.infobox!.rows.map((r) => r.label)
+      const labels = result.infobox?.rows.map((r) => r.label)
       expect(labels).toContain('Relationship')
       expect(labels).toContain('Aliases')
       expect(labels).toContain('First mentioned')
       expect(labels).toContain('Mentions')
       // Mentions row reflects the one FRAGMENT_MENTIONS_PERSON edge we seeded
-      const mentions = result.infobox!.rows.find((r) => r.label === 'Mentions')
+      const mentions = result.infobox?.rows.find((r) => r.label === 'Mentions')
       expect(mentions?.value).toBe('1')
     })
 
@@ -620,7 +620,7 @@ describe('MCP resolvers (real DB)', () => {
       expect(result.refs).toHaveProperty('wiki:ai-infrastructure')
       expect(result.sections.map((s) => s.anchor)).toContain('background')
       expect(result.infobox).not.toBeNull()
-      const labels = result.infobox!.rows.map((r) => r.label)
+      const labels = result.infobox?.rows.map((r) => r.label)
       expect(labels).toEqual(
         expect.arrayContaining(['Relationship', 'Aliases', 'First mentioned', 'Mentions'])
       )

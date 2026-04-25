@@ -2,6 +2,7 @@ import { eq, sql } from 'drizzle-orm'
 import { auth } from '../auth.js'
 import { db } from '../db/client.js'
 import { users } from '../db/schema.js'
+import { generateKeypair } from '../keypair.js'
 import { generateDek, loadMasterKey, wrapDek } from '../lib/crypto.js'
 import { logger } from '../lib/logger.js'
 import { producer } from '../queue/producer.js'
@@ -72,7 +73,21 @@ export async function ensureFirstUser(): Promise<void> {
     })
     .where(eq(users.id, userId))
 
-  // Fire-and-forget provision job for keypair generation
+  // Generate keypair inline so the MCP endpoint is available immediately
+  // after onboarding — no dependency on BullMQ worker being up.
+  const kek = process.env.KEY_ENCRYPTION_SECRET ?? ''
+  if (kek) {
+    try {
+      const { publicKey, encryptedPrivateKey } = generateKeypair(kek)
+      await db.update(users).set({ publicKey, encryptedPrivateKey }).where(eq(users.id, userId))
+      log.info({ userId }, 'keypair generated inline during provisioning')
+    } catch (err) {
+      log.error({ userId, err }, 'inline keypair generation failed — falling back to async')
+    }
+  }
+
+  // Fallback: enqueue async provision job. The worker skips if keypair
+  // already exists (guard at processProvisionJob).
   producer
     .enqueueProvision({
       type: 'provision',

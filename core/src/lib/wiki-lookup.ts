@@ -3,7 +3,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { wikis, people, fragments, entries } from '../db/schema.js'
 
 const TABLE_MAP = {
-  thread: wikis,
+  wiki: wikis,
   person: people,
   fragment: fragments,
   entry: entries,

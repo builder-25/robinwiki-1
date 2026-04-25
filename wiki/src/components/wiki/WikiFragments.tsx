@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { T } from "@/lib/typography";
+import { ROUTES } from "@/lib/routes";
 import { useFragments } from "@/hooks/useFragments";
 
 function FragmentListItem({
@@ -103,7 +104,7 @@ export default function WikiFragments() {
               key={frag.id}
               index={i + 1}
               text={frag.title}
-              href={`/wiki/fragments/${frag.lookupKey}`}
+              href={ROUTES.fragment(frag.lookupKey)}
             />
           ))
         )}

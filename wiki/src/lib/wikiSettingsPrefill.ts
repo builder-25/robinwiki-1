@@ -9,6 +9,8 @@ export type WikiSettingsPrefill = {
   subtitle?: string;
   /** Per-wiki prompt override (empty string = "no override", undefined = unseeded) */
   promptOverride?: string;
+  /** Current bouncer mode: 'auto' or 'review' */
+  bouncerMode?: 'auto' | 'review';
 };
 
 /** Placeholder — callers may supply a real description in the future. */

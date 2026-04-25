@@ -20,7 +20,7 @@ const fixtureSections: WikiInfoboxSection[] = [
       // ref valueKind — rendered via <WikiChip>
       {
         key: 'Lead author',
-        value: <WikiChip label="Ashish Vaswani" href="/wiki/people/p-ashish-vaswani" />,
+        value: <WikiChip label="Ashish Vaswani" href="/people/p-ashish-vaswani" />,
       },
       // date valueKind — ISO date string
       { key: 'Published', value: '2017-06-12' },
@@ -50,7 +50,7 @@ describe('<WikiInfobox>', () => {
     // ref-valueKind row renders a WikiChip anchor
     const chip = screen.getByText('Ashish Vaswani')
     expect(chip.tagName).toBe('A')
-    expect(chip).toHaveAttribute('href', '/wiki/people/p-ashish-vaswani')
+    expect(chip).toHaveAttribute('href', '/people/p-ashish-vaswani')
   })
 
   it('renders an image and caption when provided', () => {

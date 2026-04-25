@@ -54,13 +54,13 @@ export async function loadOpenRouterConfig(): Promise<OpenRouterConfig> {
 
   function resolve(dbKey: string): string {
     const fromDb = dbPrefs.get(dbKey)
-    if (!fromDb) return MODEL_DEFAULTS[dbKey]!
+    if (!fromDb) return MODEL_DEFAULTS[dbKey] ?? ''
 
     // Embedding models must produce 1536-dim vectors to match our DB columns.
     if (dbKey === 'embedding') {
       return (SAFE_EMBEDDING_MODELS as readonly string[]).includes(fromDb)
         ? fromDb
-        : MODEL_DEFAULTS[dbKey]!
+        : (MODEL_DEFAULTS[dbKey] ?? '')
     }
     return fromDb
   }

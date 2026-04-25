@@ -46,16 +46,16 @@ const entryRef: WikiRef = {
 }
 
 describe('refToHref', () => {
-  it('returns /wiki/people/:id for person refs', () => {
-    expect(refToHref(personRef)).toBe('/wiki/people/p-sarah')
+  it('returns /people/:id for person refs', () => {
+    expect(refToHref(personRef)).toBe('/people/p-sarah')
   })
 
-  it('returns /wiki/fragments/:id for fragment refs', () => {
-    expect(refToHref(fragmentRef)).toBe('/wiki/fragments/f-alpha')
+  it('returns /fragments/:id for fragment refs', () => {
+    expect(refToHref(fragmentRef)).toBe('/fragments/f-alpha')
   })
 
-  it('returns /wiki/entries/:id for entry refs', () => {
-    expect(refToHref(entryRef)).toBe('/wiki/entries/e-gamma')
+  it('returns /entries/:id for entry refs', () => {
+    expect(refToHref(entryRef)).toBe('/entries/e-gamma')
   })
 
   it('returns /wiki/:id for wiki refs (default branch)', () => {
@@ -71,7 +71,7 @@ describe('substituteTokensInHtml', () => {
       substituteTokensInHtml(container, refs)
       const anchor = container.querySelector('a.wchip')
       expect(anchor).not.toBeNull()
-      expect(anchor!.getAttribute('href')).toBe('/wiki/people/p-sarah')
+      expect(anchor!.getAttribute('href')).toBe('/people/p-sarah')
       expect(anchor!.getAttribute('data-slot')).toBe('wiki-chip')
       expect(anchor!.textContent).toBe('Sarah Chen')
       // Surrounding text preserved.
@@ -96,8 +96,8 @@ describe('substituteTokensInHtml', () => {
       const anchors = Array.from(container.querySelectorAll('a.wchip'))
       expect(anchors).toHaveLength(3)
       expect(anchors.map((a) => a.getAttribute('href'))).toEqual([
-        '/wiki/people/p-sarah',
-        '/wiki/fragments/f-alpha',
+        '/people/p-sarah',
+        '/fragments/f-alpha',
         '/wiki/w-beta',
       ])
       expect(anchors.map((a) => a.textContent)).toEqual([

@@ -257,6 +257,8 @@ export type ThreadResponseSchema = {
         }>;
         percentage: number;
     };
+    published?: boolean;
+    publishedSlug?: string;
 };
 
 export type ThreadWithWikiResponseSchema = {
@@ -315,7 +317,6 @@ export type WikiDetailResponseSchema = {
     lookupKey: string;
     slug: string;
     name: string;
-    description?: string;
     type: string;
     prompt: string;
     state: 'PENDING' | 'RESOLVED' | 'LINKING' | 'DIRTY';
@@ -333,14 +334,14 @@ export type WikiDetailResponseSchema = {
         }>;
         percentage: number;
     };
-    bouncerMode?: 'auto' | 'review';
+    published?: boolean;
+    publishedSlug?: string;
     wikiContent: string;
     fragments: Array<{
         id: string;
         slug: string;
         title: string;
         snippet: string;
-        edgeStatus?: 'active' | 'pending';
     }>;
     people: Array<{
         id: string;
@@ -689,6 +690,19 @@ export type AuditEventSchema = {
 export type TimelineQuerySchema = {
     limit?: number;
     offset?: number;
+};
+
+export type EditRecordSchema = {
+    id: string;
+    timestamp: string;
+    type: string;
+    source: string;
+    contentSnippet: string;
+};
+
+export type EditHistoryResponseSchema = {
+    edits: Array<EditRecordSchema>;
+    total: number;
 };
 
 export type GetHealthData = {
@@ -1966,3 +1980,30 @@ export type McpTransportResponses = {
      */
     200: unknown;
 };
+
+export type GetWikiEditHistoryData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/wikis/{id}/history';
+};
+
+export type GetWikiEditHistoryErrors = {
+    /**
+     * Not found
+     */
+    404: ErrorResponseSchema;
+};
+
+export type GetWikiEditHistoryError = GetWikiEditHistoryErrors[keyof GetWikiEditHistoryErrors];
+
+export type GetWikiEditHistoryResponses = {
+    /**
+     * Edit history records
+     */
+    200: EditHistoryResponseSchema;
+};
+
+export type GetWikiEditHistoryResponse = GetWikiEditHistoryResponses[keyof GetWikiEditHistoryResponses];

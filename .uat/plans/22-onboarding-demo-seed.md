@@ -362,6 +362,130 @@ else
   skip "6. No Transformer lookupKey — delete/re-seed path untested"
 fi
 
+# ── 7. Invariants — data-plane + retry scheduler ─────────────
+# Post-seed, the data plane must be in a known-good shape. These are
+# the checks that #150 (silent embeddings) and #151 (no retry) would
+# have failed pre-fix — they pair with the fixes to keep the data
+# plane from drifting silently going forward.
+
+# 7a. The seeded demo wiki must be RESOLVED (not PENDING / LINKING).
+# A seeded wiki that never reached RESOLVED means the seed path broke
+# before finalization — the wiki listing would show it but detail pages
+# would refuse to render.
+WIKI_STATE=$(psql "$DATABASE_URL" -t -A -c "SELECT state FROM wikis WHERE slug='transformer-architecture' AND deleted_at IS NULL" 2>/dev/null | tr -d '[:space:]')
+if [ "$WIKI_STATE" = "RESOLVED" ]; then
+  pass "7a. seeded demo wiki is RESOLVED"
+else
+  fail "7a. seeded demo wiki state='$WIKI_STATE' (expected RESOLVED)"
+fi
+
+# 7b. The embedding retry scheduler must be registered in Redis (issue
+# #151). Without it, any fragment whose embedding failed at ingest time
+# stays NULL forever. Detect registration via BullMQ's scheduler key.
+if command -v redis-cli >/dev/null; then
+  if redis-cli KEYS 'bull:regen-scheduler-queue:repeat:*' 2>/dev/null | grep -q 'embedding-retry'; then
+    pass "7b. embedding retry scheduler registered"
+  elif redis-cli KEYS 'bull:regen-scheduler-queue:meta*' 2>/dev/null >/dev/null; then
+    # BullMQ's key shape varies across versions. Fall back to a broader
+    # search so this doesn't fail on a mere key-naming change.
+    if redis-cli --scan --pattern 'bull:regen-scheduler-queue:*' 2>/dev/null | grep -qi embedding; then
+      pass "7b. embedding retry scheduler registered (fallback match)"
+    else
+      fail "7b. no 'embedding-retry' scheduler found on regen-scheduler-queue"
+    fi
+  else
+    skip "7b. scheduler queue not initialized yet — retry check inconclusive"
+  fi
+else
+  skip "7b. redis-cli unavailable — scheduler registration not verified"
+fi
+
+# 7c. Count of unembedded live fragments must be *observable* (i.e.,
+# queryable with the index #151 added). This is not a zero-tolerance
+# check — the retry scheduler runs every 15 min and UAT can't wait
+# that long — but a SELECT that returns a definite integer proves the
+# index exists and the columns were migrated. Logs the count so a
+# soak test downstream can assert convergence to zero.
+UNEMBEDDED=$(psql "$DATABASE_URL" -t -A -c "SELECT COUNT(*) FROM fragments WHERE embedding IS NULL AND deleted_at IS NULL" 2>/dev/null | tr -d '[:space:]')
+if [[ "$UNEMBEDDED" =~ ^[0-9]+$ ]]; then
+  pass "7c. unembedded-fragments count is observable (=$UNEMBEDDED)"
+  echo "    ↳ soak target: this value should trend to 0 as the retry scheduler runs"
+else
+  fail "7c. unembedded-fragments count query failed — migration 0006 not applied?"
+fi
+
+# 7d. Columns added by migration 0006 exist on fragments.
+HAS_ATTEMPT_COL=$(psql "$DATABASE_URL" -t -A -c "SELECT 1 FROM information_schema.columns WHERE table_name='fragments' AND column_name='embedding_attempt_count'" 2>/dev/null | tr -d '[:space:]')
+HAS_LAST_COL=$(psql "$DATABASE_URL" -t -A -c "SELECT 1 FROM information_schema.columns WHERE table_name='fragments' AND column_name='embedding_last_attempt_at'" 2>/dev/null | tr -d '[:space:]')
+if [ "$HAS_ATTEMPT_COL" = "1" ] && [ "$HAS_LAST_COL" = "1" ]; then
+  pass "7d. embedding retry bookkeeping columns present"
+else
+  fail "7d. migration 0006 did not apply (attempt_count=$HAS_ATTEMPT_COL, last=$HAS_LAST_COL)"
+fi
+
+# 7e. The partial index #151 added exists. Without it the retry scan
+# degrades to a table scan at scale.
+HAS_PARTIAL_IDX=$(psql "$DATABASE_URL" -t -A -c "SELECT 1 FROM pg_indexes WHERE indexname='fragments_embedding_null_idx' AND indexdef LIKE '%WHERE%embedding IS NULL%deleted_at IS NULL%'" 2>/dev/null | tr -d '[:space:]')
+if [ "$HAS_PARTIAL_IDX" = "1" ]; then
+  pass "7e. fragments_embedding_null_idx is partial on embedding/deleted_at"
+else
+  fail "7e. partial index missing or non-partial — retry scan will degrade"
+fi
+
+# ── 8. wikis.description column accepts INSERTs ────────────
+# Regression guard for #167. Pre-fix every wiki INSERT failed because
+# drizzle's insert lists the description column but no migration created
+# it (visible as a swallowed error in seedDemoWiki on first-user
+# provisioning, plus 500s on MCP create_wiki and HTTP POST /wikis).
+# This step proves the seeded wiki row is readable on .description AND
+# a fresh HTTP create_wiki round-trips through 2xx.
+
+# 8a. The seed succeeded — verified by step 2b/7a above. Strengthen it:
+# the description column exists on wikis (i.e. migration 0007 applied,
+# not just present in the file). Use information_schema rather than a
+# value test — the seeded row's description may legitimately be NULL.
+HAS_DESC_COL=$(psql "$DATABASE_URL" -t -A -c "SELECT 1 FROM information_schema.columns WHERE table_name='wikis' AND column_name='description'" 2>/dev/null | tr -d '[:space:]')
+if [ "$HAS_DESC_COL" = "1" ]; then
+  pass "8a. wikis.description column exists (migration 0007 applied)"
+else
+  fail "8a. wikis.description column missing — migration 0007 did not apply"
+fi
+
+# 8b. Cross-surface: HTTP POST /wikis succeeds. Pre-fix this 500'd
+# because the column referenced in the INSERT didn't exist in the DB.
+RESP_CODE=$(curl -s -o /tmp/uat-22-create-wiki.json -w "%{http_code}" -b "$COOKIE_JAR" \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://localhost:3000" \
+  -d '{"name":"UAT description test","type":"log"}' \
+  "$SERVER_URL/wikis")
+if [ "$RESP_CODE" = "200" ] || [ "$RESP_CODE" = "201" ]; then
+  pass "8b. HTTP POST /wikis returns $RESP_CODE (description column present in DB)"
+  # Cleanup: soft-delete the UAT row so downstream plans see a clean
+  # seeded fixture. Response shape carries both .lookupKey and .id —
+  # prefer lookupKey since that's the documented routing key.
+  KEY=$(jq -r '.lookupKey // .id' /tmp/uat-22-create-wiki.json 2>/dev/null)
+  if [ -n "$KEY" ] && [ "$KEY" != "null" ]; then
+    curl -s -o /dev/null -X DELETE -b "$COOKIE_JAR" \
+      -H "Origin: http://localhost:3000" "$SERVER_URL/wikis/$KEY" || true
+  fi
+else
+  fail "8b. HTTP POST /wikis returned $RESP_CODE — description column may be missing"
+fi
+
+# ── 9. Embedding retry execution ────────────────────────────
+# step 9 graduates from SKIP to a real assertion once /admin/scheduler/run-now/embedding-retry exists (PR D)
+#
+# Plan 22 step 7c only proves the unembedded count is observable. A real
+# assertion that the retry worker executes — i.e. the end-to-end
+# correctness of #151 — needs a force-trigger debug endpoint so UAT can
+# drive convergence to zero without waiting for the 15-min scheduler
+# tick. That endpoint (POST /admin/scheduler/run-now/:jobName, gated by
+# NODE_ENV !== 'production') is planned in PR D of this workstream.
+#
+# Until PR D lands, mark this step SKIP. The placeholder keeps the
+# numbering stable so PR D is a pure additive replacement.
+skip "9. embedding retry execution — debug endpoint not yet present"
+
 # ── Cleanup ──────────────────────────────────────────────────
 npx agent-browser close 2>/dev/null || true
 
@@ -381,6 +505,9 @@ echo "$PASS passed, $FAIL failed, $SKIP skipped"
 | 4 | Seeded wiki returns populated sidecar: refs for all 4 kinds, infobox with 4 valueKinds, 2 citations each on 'overview' + 'architecture', empty on 'notes' + 'notes-1', tokens in body, `anonymous-reviewer` deliberately absent from refs | `buildSidecar` + fixture identity |
 | 5 | Explorer lists the seeded wiki; click → detail page with rendered body | onboarding landing path |
 | 6 | Deleting the demo wiki + subsequent sign-in does NOT re-seed (intentional — `ensureFirstUser` only fires when users table is empty); CLI `seed-fixture` remains the documented recovery path | bootstrap gate policy |
+| 7 | Invariants: wiki RESOLVED; embedding retry scheduler registered; unembedded count observable; migration 0006 applied with partial index | #150 + #151 |
+| 8 | `wikis.description` column readable on the seeded row; fresh HTTP `POST /wikis` returns 2xx (cleanup deletes the UAT row) | #167 / migration 0007 |
+| 9 | Embedding retry worker actually heals NULL embeddings — SKIP until `POST /admin/scheduler/run-now/embedding-retry` debug endpoint lands (PR D) | #151 |
 
 ---
 

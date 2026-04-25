@@ -9,6 +9,7 @@ import { WikiSectionH2 } from "@/components/wiki/WikiEntityArticle";
 import { Spinner } from "@/components/ui/spinner";
 import { Chip } from "@/components/ui/chip";
 import { useSearch } from "@/hooks/useSearch";
+import { ROUTES } from "@/lib/routes";
 
 function SectionRule() {
   return (
@@ -95,12 +96,12 @@ interface SearchResultItem {
 function hrefForResult(item: SearchResultItem): string {
   switch (item.type) {
     case "person":
-      return `/wiki/people/${item.id}`;
+      return ROUTES.person(item.id);
     case "wiki":
     case "thread":
-      return `/wiki/${item.id}`;
+      return ROUTES.wiki(item.id);
     default:
-      return `/wiki/fragments/${item.id}`;
+      return ROUTES.fragment(item.id);
   }
 }
 

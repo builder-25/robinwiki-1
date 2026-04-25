@@ -132,6 +132,7 @@ function chainMock(finalValue: unknown) {
   chain.offset = vi.fn().mockReturnValue(chain)
   chain.leftJoin = vi.fn().mockReturnValue(chain)
   chain.groupBy = vi.fn().mockReturnValue(chain)
+  // biome-ignore lint/suspicious/noThenProperty: Drizzle thenable mock
   chain.then = (resolve: any) => resolve(finalValue)
   return chain
 }

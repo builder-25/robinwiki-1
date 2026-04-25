@@ -171,7 +171,7 @@ export default function PromptsStep({ onNext, onSkip }: PromptsStepProps) {
           <ActionButton
             type="button"
             onClick={handleContinue}
-            disabled={!hasEdited}
+            disabled={false}
           >
             Continue
           </ActionButton>

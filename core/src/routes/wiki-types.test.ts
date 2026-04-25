@@ -37,6 +37,7 @@ vi.mock('../db/client.js', () => {
     const getRows = () => (globalThis as any).__currentRows ?? []
     return {
       where: async () => getRows(),
+      // biome-ignore lint/suspicious/noThenProperty: Drizzle thenable mock
       then: (onFulfilled: (v: unknown) => unknown) => Promise.resolve(getRows()).then(onFulfilled),
     }
   }
@@ -108,7 +109,7 @@ const LOG_YAML = readFileSync(LOG_YAML_PATH, 'utf-8')
 // flip that single field to required: false so the validation pipeline accepts
 // the blob as-is. The raw LOG_YAML remains the GET-list hydration fixture.
 const LOG_YAML_VALID = LOG_YAML.replace(
-  /  - name: date\n    description: Current date\n    required: true/,
+  / {2}- name: date\n {4}description: Current date\n {4}required: true/,
   '  - name: date\n    description: Current date\n    required: false'
 )
 
@@ -164,7 +165,7 @@ function readSlugYaml(slug: string): string {
 // pipeline accepts the blob for the preview render.
 function withDateOptional(y: string): string {
   return y.replace(
-    /  - name: date\n    description: Current date\n    required: true/,
+    / {2}- name: date\n {4}description: Current date\n {4}required: true/,
     '  - name: date\n    description: Current date\n    required: false'
   )
 }
@@ -290,7 +291,7 @@ describe('PUT /wiki-types/:slug', () => {
   })
 
   it('rejects YAML > 32KB with 400 + code YAML_TOO_LARGE (reaches validatePromptYaml, not zod)', async () => {
-    const bigYaml = LOG_YAML + '\n# pad\n' + 'x'.repeat(33 * 1024)
+    const bigYaml = `${LOG_YAML}\n# pad\n${'x'.repeat(33 * 1024)}`
     const res = await putJson('/wiki-types/log', { promptYaml: bigYaml })
     expect(res.status).toBe(400)
     const json = await res.json()
@@ -485,7 +486,7 @@ describe('POST /wiki-types/:slug/preview', () => {
   })
 
   it('rejects YAML > 32KB with 400 + code YAML_TOO_LARGE', async () => {
-    const bigYaml = LOG_YAML + '\n# pad\n' + 'x'.repeat(33 * 1024)
+    const bigYaml = `${LOG_YAML}\n# pad\n${'x'.repeat(33 * 1024)}`
     const res = await postJson('/wiki-types/log/preview', { promptYaml: bigYaml })
     expect(res.status).toBe(400)
     const json = (await res.json()) as { code: string }
