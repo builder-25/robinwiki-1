@@ -7,6 +7,7 @@ import { T } from "@/lib/typography";
 import { ROUTES } from "@/lib/routes";
 import { useEntries } from "@/hooks/useEntries";
 import { useWikis } from "@/hooks/useWikis";
+import { useCollections } from "@/hooks/useCollections";
 
 const ACTIVE_COLOR = "#000000";
 const ACTIVE_WEIGHT = 700;
@@ -73,6 +74,21 @@ function useEntriesData(): SidebarSectionData {
   }, [data]);
 
   return { title: "Entries", items, emptyText: "no entries added" };
+}
+
+function useCollectionsData(): SidebarSectionData {
+  const { data } = useCollections();
+  const items = useMemo<NavItem[]>(() => {
+    const collections = data;
+    if (!collections || collections.length === 0) return [];
+    return collections.map((c) => ({
+      label: c.name,
+      arrow: "none" as ArrowState,
+      count: c.wikiCount,
+    }));
+  }, [data]);
+
+  return { title: "Collections", items, emptyText: "no collections yet" };
 }
 
 function useContentsData(): SidebarSectionData {
@@ -453,6 +469,7 @@ function SidebarSection({
 
 export default function Sidebar() {
   const entriesData = useEntriesData();
+  const collectionsData = useCollectionsData();
   const contentsData = useContentsData();
 
   return (
@@ -460,6 +477,11 @@ export default function Sidebar() {
       <SidebarSection
         sectionId="nav"
         section={navigationData}
+        borderColor="var(--wiki-nav-border)"
+      />
+      <SidebarSection
+        sectionId="collections"
+        section={collectionsData}
         borderColor="var(--wiki-nav-border)"
       />
       <SidebarSection

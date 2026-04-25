@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq, and, desc, isNull, inArray } from 'drizzle-orm'
+import { eq, and, desc, isNull, inArray, sql } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
 import { makeLookupKey, generateSlug } from '@robin/shared'
 import { resolveFragmentSlug } from '../db/slug.js'
@@ -96,12 +96,53 @@ fragmentsRouter.get('/:id', async (c) => {
     for (const r of rows) backlinks.push({ id: r.key, name: r.title, type: 'fragment' })
   }
 
+  // Resolve related fragments via FRAGMENT_RELATED_TO_FRAGMENT edges (both directions)
+  const relatedEdges = await db
+    .select({ srcId: edges.srcId, dstId: edges.dstId, attrs: edges.attrs })
+    .from(edges)
+    .where(
+      and(
+        eq(edges.edgeType, 'FRAGMENT_RELATED_TO_FRAGMENT'),
+        isNull(edges.deletedAt),
+        sql`(${edges.srcId} = ${id} OR ${edges.dstId} = ${id})`
+      )
+    )
+
+  const relatedKeySet = new Set<string>()
+  const relatedScores = new Map<string, number>()
+  for (const e of relatedEdges) {
+    const otherKey = e.srcId === id ? e.dstId : e.srcId
+    if (!relatedKeySet.has(otherKey)) {
+      relatedKeySet.add(otherKey)
+      const attrs = e.attrs as Record<string, unknown> | null
+      relatedScores.set(otherKey, typeof attrs?.score === 'number' ? attrs.score : 0)
+    }
+  }
+
+  const relatedFragments: { id: string; slug: string; title: string; similarity: number }[] = []
+  if (relatedKeySet.size > 0) {
+    const relatedRows = await db
+      .select({ lookupKey: fragments.lookupKey, slug: fragments.slug, title: fragments.title })
+      .from(fragments)
+      .where(and(inArray(fragments.lookupKey, [...relatedKeySet]), isNull(fragments.deletedAt)))
+    for (const r of relatedRows) {
+      relatedFragments.push({
+        id: r.lookupKey,
+        slug: r.slug,
+        title: r.title,
+        similarity: relatedScores.get(r.lookupKey) ?? 0,
+      })
+    }
+    relatedFragments.sort((a, b) => b.similarity - a.similarity)
+  }
+
   return c.json(
     fragmentDetailResponseSchema.parse({
       ...fragment,
       id: fragment.lookupKey,
       content: fragment.content ?? '',
       backlinks,
+      relatedFragments,
     })
   )
 })

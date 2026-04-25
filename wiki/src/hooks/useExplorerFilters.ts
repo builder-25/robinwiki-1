@@ -8,7 +8,7 @@ export type ExplorerType = (typeof EXPLORER_TYPES)[number]
 
 export interface ExplorerFilters {
   types: string[]
-  group: string | null
+  collection: string | null
   sort: 'recent' | 'oldest' | 'alpha'
 }
 
@@ -28,9 +28,9 @@ export function useExplorerFilters() {
   const filters = useMemo<ExplorerFilters>(() => {
     const rawType = searchParams.get('type')
     const types = rawType ? rawType.split(',').filter(Boolean) : []
-    const group = searchParams.get('group') ?? null
+    const collection = searchParams.get('collection') ?? null
     const sort = parseSort(searchParams.get('sort'))
-    return { types, group, sort }
+    return { types, collection, sort }
   }, [searchParams])
 
   const setFilter = useCallback(
@@ -44,11 +44,11 @@ export function useExplorerFilters() {
         } else {
           next.set('type', arr.join(','))
         }
-      } else if (key === 'group') {
+      } else if (key === 'collection') {
         if (value === null || value === '') {
-          next.delete('group')
+          next.delete('collection')
         } else {
-          next.set('group', value as string)
+          next.set('collection', value as string)
         }
       } else if (key === 'sort') {
         if (value === 'recent' || value === null) {
@@ -69,7 +69,7 @@ export function useExplorerFilters() {
   }, [router])
 
   const hasActiveFilters = useMemo(() => {
-    return filters.types.length > 0 || filters.group !== null || filters.sort !== 'recent'
+    return filters.types.length > 0 || filters.collection !== null || filters.sort !== 'recent'
   }, [filters])
 
   return { filters, setFilter, clearFilters, hasActiveFilters }

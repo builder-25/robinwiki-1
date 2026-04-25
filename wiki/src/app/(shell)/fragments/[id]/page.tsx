@@ -22,6 +22,7 @@ import type { FragmentWithContentResponseSchema } from "@/lib/generated/types.ge
 type FragmentData = Omit<FragmentWithContentResponseSchema, "entryId"> & {
   entryId: string | null;
   backlinks?: Array<{ id: string; name: string; type: string; bouncerMode?: string }>;
+  relatedFragments?: Array<{ id: string; slug: string; title: string; similarity: number }>;
 };
 
 function formatDate(iso: string) {
@@ -219,11 +220,68 @@ function BacklinksSection({ backlinks }: { backlinks: Array<{ id: string; name: 
   );
 }
 
+function RelatedFragmentsSection({ relatedFragments }: { relatedFragments: Array<{ id: string; slug: string; title: string; similarity: number }> }) {
+  if (relatedFragments.length === 0) return null;
+
+  return (
+    <section style={{ width: "100%" }}>
+      <WikiSectionH2 title="Related fragments" count={relatedFragments.length} />
+      <ul
+        style={{
+          ...T.bodySmall,
+          color: "var(--wiki-article-text)",
+          lineHeight: 1.6,
+          listStyle: "decimal",
+          paddingLeft: 20,
+          margin: "12px 0 0 0",
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+        }}
+      >
+        {relatedFragments.map((rf) => (
+          <li key={rf.id}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <Link
+                href={ROUTES.fragment(rf.id)}
+                style={{
+                  color: "var(--wiki-fragment-link)",
+                  textDecoration: "underline",
+                  textDecorationSkipInk: "none",
+                }}
+              >
+                {rf.title}
+              </Link>
+              <span
+                style={{
+                  ...T.micro,
+                  color: "var(--wiki-count)",
+                  flexShrink: 0,
+                }}
+              >
+                {Math.round(rf.similarity * 100)}%
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function FragmentBottomSections({ fragment }: { fragment: FragmentData }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 40, width: "100%" }}>
       <EntryOriginSection entryId={fragment.entryId} />
       <BacklinksSection backlinks={fragment.backlinks ?? []} />
+      <RelatedFragmentsSection relatedFragments={fragment.relatedFragments ?? []} />
     </div>
   );
 }

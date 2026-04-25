@@ -5,7 +5,7 @@ import { useWikis } from '@/hooks/useWikis'
 import { useFragments } from '@/hooks/useFragments'
 import { usePeople } from '@/hooks/usePeople'
 import { useEntries } from '@/hooks/useEntries'
-import { useGroups, type Group } from '@/hooks/useGroups'
+import { useCollections, type Collection } from '@/hooks/useCollections'
 import type { ExplorerFilters } from '@/hooks/useExplorerFilters'
 import { ROUTES } from '@/lib/routes'
 
@@ -15,9 +15,9 @@ export interface ExplorerItem {
   type: 'fragment' | 'wiki' | 'person' | 'entry'
   subtype: string | null
   title: string
-  groupId: string | null
-  groupName: string | null
-  groupColor: string | null
+  collectionId: string | null
+  collectionName: string | null
+  collectionColor: string | null
   date: string
   href: string
 }
@@ -32,28 +32,28 @@ export function useExplorerData(filters: ExplorerFilters) {
   const fragmentsQuery = useFragments({ limit: 500 })
   const peopleQuery = usePeople({ limit: 500 })
   const entriesQuery = useEntries({ limit: 500 })
-  const groupsQuery = useGroups()
+  const collectionsQuery = useCollections()
 
   const isLoading =
-    wikisQuery.isLoading || fragmentsQuery.isLoading || peopleQuery.isLoading || entriesQuery.isLoading || groupsQuery.isLoading
+    wikisQuery.isLoading || fragmentsQuery.isLoading || peopleQuery.isLoading || entriesQuery.isLoading || collectionsQuery.isLoading
   const isError =
-    wikisQuery.isError || fragmentsQuery.isError || peopleQuery.isError || entriesQuery.isError || groupsQuery.isError
+    wikisQuery.isError || fragmentsQuery.isError || peopleQuery.isError || entriesQuery.isError || collectionsQuery.isError
 
   const items = useMemo(() => {
     const result: ExplorerItem[] = []
 
     // Wikis (threads)
     for (const wiki of wikisQuery.data?.wikis ?? []) {
-      // TODO: resolve group membership when API supports it
+      // TODO: resolve collection membership when API supports it
       result.push({
         id: wiki.id,
         lookupKey: wiki.lookupKey,
         type: 'wiki',
         subtype: capitalize(wiki.type),
         title: wiki.name,
-        groupId: null,
-        groupName: null,
-        groupColor: null,
+        collectionId: null,
+        collectionName: null,
+        collectionColor: null,
         date: wiki.updatedAt,
         href: `/wiki/${wiki.lookupKey}`,
       })
@@ -67,9 +67,9 @@ export function useExplorerData(filters: ExplorerFilters) {
         type: 'fragment',
         subtype: capitalize(frag.type),
         title: frag.title,
-        groupId: null,
-        groupName: null,
-        groupColor: null,
+        collectionId: null,
+        collectionName: null,
+        collectionColor: null,
         date: frag.updatedAt,
         href: ROUTES.fragment(frag.lookupKey),
       })
@@ -83,9 +83,9 @@ export function useExplorerData(filters: ExplorerFilters) {
         type: 'person',
         subtype: null,
         title: person.name,
-        groupId: null,
-        groupName: null,
-        groupColor: null,
+        collectionId: null,
+        collectionName: null,
+        collectionColor: null,
         date: person.updatedAt,
         href: ROUTES.person(person.lookupKey),
       })
@@ -99,9 +99,9 @@ export function useExplorerData(filters: ExplorerFilters) {
         type: 'entry',
         subtype: null,
         title: entry.title,
-        groupId: null,
-        groupName: null,
-        groupColor: null,
+        collectionId: null,
+        collectionName: null,
+        collectionColor: null,
         date: entry.createdAt,
         href: ROUTES.entry(entry.lookupKey),
       })
@@ -113,9 +113,9 @@ export function useExplorerData(filters: ExplorerFilters) {
       filtered = filtered.filter((item) => filters.types.includes(item.type))
     }
 
-    // Apply group filter
-    if (filters.group) {
-      filtered = filtered.filter((item) => item.groupId === filters.group)
+    // Apply collection filter
+    if (filters.collection) {
+      filtered = filtered.filter((item) => item.collectionId === filters.collection)
     }
 
     // Apply sort
@@ -134,11 +134,11 @@ export function useExplorerData(filters: ExplorerFilters) {
     peopleQuery.data,
     entriesQuery.data,
     filters.types,
-    filters.group,
+    filters.collection,
     filters.sort,
   ])
 
-  const groups: Group[] = groupsQuery.data ?? []
+  const collections: Collection[] = collectionsQuery.data ?? []
 
-  return { items, isLoading, isError, groups }
+  return { items, isLoading, isError, collections }
 }
